@@ -185,10 +185,10 @@
                                         <th>Kata Kunci</th>
                                         <th>Dataset</th>
                                         <th>Jumlah Data</th>
-                                        <th>Tanggal Scraping</th>
                                         <th>Status</th>
                                         <th>Dibuat Oleh</th>
-                                        <th>Waktu Dibuat</th>
+                                        <th>Tanggal Scraping</th>
+                                        <th>Waktu</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -1087,6 +1087,24 @@ function loadScrapingHistory(searchQuery = '') {
                     platformName = 'TikTok';
                 }
                 
+                // Format date and time separately
+                let scrapingDate = '-';
+                let scrapingTime = '-';
+                if (job.scraped_at && job.scraped_at !== '-') {
+                    const dateTime = new Date(job.scraped_at);
+                    if (!isNaN(dateTime.getTime())) {
+                        scrapingDate = dateTime.toLocaleDateString('id-ID');
+                        scrapingTime = dateTime.toLocaleTimeString('id-ID');
+                    } else {
+                        // If scraped_at is in format like "02-11-2025 23:54 WIB"
+                        const parts = job.scraped_at.split(' ');
+                        if (parts.length >= 2) {
+                            scrapingDate = parts[0];
+                            scrapingTime = parts[1] + (parts[2] ? ' ' + parts[2] : '');
+                        }
+                    }
+                }
+                
                 const row = `
                     <tr>
                         <td>
@@ -1097,12 +1115,12 @@ function loadScrapingHistory(searchQuery = '') {
                         <td><strong>${job.keywords}</strong></td>
                         <td>${job.dataset_name || 'Dataset ' + platformName + ' - ' + job.keywords}</td>
                         <td><span class="badge bg-primary">${job.results_count}</span></td>
-                        <td>${job.scraped_at || '-'}</td>
                         <td>
                             <span class="badge ${job.status === 'Mentah' ? 'bg-gradient-secondary' : job.status === 'Dibersihkan' ? 'bg-gradient-success' : 'bg-gradient-primary'}">${job.status}</span>
                         </td>
                         <td>${job.scraped_by || 'Unknown'}</td>
-                        <td>${job.created_at || job.scraped_at || '-'}</td>
+                        <td>${scrapingDate}</td>
+                        <td>${scrapingTime}</td>
                     </tr>
                 `;
                 tbody.append(row);
@@ -1155,6 +1173,24 @@ function loadScrapingHistoryWithoutReinit(searchQuery = '') {
                     platformName = 'TikTok';
                 }
                 
+                // Format date and time separately
+                let scrapingDate = '-';
+                let scrapingTime = '-';
+                if (job.scraped_at && job.scraped_at !== '-') {
+                    const dateTime = new Date(job.scraped_at);
+                    if (!isNaN(dateTime.getTime())) {
+                        scrapingDate = dateTime.toLocaleDateString('id-ID');
+                        scrapingTime = dateTime.toLocaleTimeString('id-ID');
+                    } else {
+                        // If scraped_at is in format like "02-11-2025 23:54 WIB"
+                        const parts = job.scraped_at.split(' ');
+                        if (parts.length >= 2) {
+                            scrapingDate = parts[0];
+                            scrapingTime = parts[1] + (parts[2] ? ' ' + parts[2] : '');
+                        }
+                    }
+                }
+                
                 const row = `
                     <tr>
                         <td>
@@ -1165,12 +1201,12 @@ function loadScrapingHistoryWithoutReinit(searchQuery = '') {
                         <td><strong>${job.keywords}</strong></td>
                         <td>${job.dataset_name || 'Dataset ' + platformName + ' - ' + job.keywords}</td>
                         <td><span class="badge bg-primary">${job.results_count}</span></td>
-                        <td>${job.scraped_at || '-'}</td>
                         <td>
                             <span class="badge ${job.status === 'Mentah' ? 'bg-gradient-secondary' : job.status === 'Dibersihkan' ? 'bg-gradient-success' : 'bg-gradient-primary'}">${job.status}</span>
                         </td>
                         <td>${job.scraped_by || 'Unknown'}</td>
-                        <td>${job.created_at || job.scraped_at || '-'}</td>
+                        <td>${scrapingDate}</td>
+                        <td>${scrapingTime}</td>
                     </tr>
                 `;
                 tbody.append(row);

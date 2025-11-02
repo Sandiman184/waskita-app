@@ -875,14 +875,65 @@ $(document).ready(function() {
                     },
                     success: function(data) {
                         if (data.success) {
-                            Swal.fire('Berhasil', 'Dataset berhasil dibersihkan', 'success')
-                                .then(() => location.reload());
+                            // Notifikasi ringkas dan to the point
+                            Swal.fire({
+                                title: 'Berhasil!',
+                                text: `${data.cleaned_count} data dibersihkan`,
+                                icon: 'success',
+                                confirmButtonText: 'OK'
+                            }).then(() => location.reload());
                         } else {
-                            Swal.fire('Error', data.message, 'error');
+                            // Periksa apakah ini kasus data yang sudah dibersihkan
+                            if (data.already_cleaned) {
+                                Swal.fire({
+                                    title: 'Info',
+                                    text: data.message,
+                                    icon: 'info',
+                                    confirmButtonText: 'OK'
+                                });
+                            } else {
+                                Swal.fire({
+                                    title: 'Error',
+                                    text: data.message,
+                                    icon: 'error',
+                                    confirmButtonText: 'OK'
+                                });
+                            }
                         }
                     },
                     error: function(xhr, status, error) {
-                        Swal.fire('Error', 'Gagal membersihkan dataset', 'error');
+                        let errorMessage = 'Gagal membersihkan dataset';
+                        let isAlreadyCleaned = false;
+                        
+                        // Coba parse response untuk mendapatkan pesan error yang lebih spesifik
+                        try {
+                            const response = JSON.parse(xhr.responseText);
+                            if (response.message) {
+                                errorMessage = response.message;
+                            }
+                            if (response.already_cleaned) {
+                                isAlreadyCleaned = true;
+                            }
+                        } catch (e) {
+                            // Gunakan pesan default jika parsing gagal
+                        }
+                        
+                        // Notifikasi khusus untuk data yang sudah dibersihkan
+                        if (isAlreadyCleaned) {
+                            Swal.fire({
+                                title: 'Info',
+                                text: errorMessage,
+                                icon: 'info',
+                                confirmButtonText: 'OK'
+                            });
+                        } else {
+                            Swal.fire({
+                                title: 'Error',
+                                text: errorMessage,
+                                icon: 'error',
+                                confirmButtonText: 'OK'
+                            });
+                        }
                     }
                 });
             }

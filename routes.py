@@ -683,21 +683,46 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                 sample_url = None
                 sample_content = None
                 
-                # Try to get from upload data first
-                sample_upload = RawData.query.filter_by(dataset_id=dataset.id).first()
-                if sample_upload:
-                    # Handle 'nan' string values
-                    sample_username = sample_upload.username if sample_upload.username and str(sample_upload.username).lower() != 'nan' else None
-                    sample_url = sample_upload.url if sample_upload.url and str(sample_upload.url).lower() != 'nan' else None
-                    sample_content = sample_upload.content if sample_upload.content and str(sample_upload.content).lower() != 'nan' else None
+                # Get sample data for display (prioritize clean data if available)
+                sample_username = None
+                sample_url = None
+                sample_content = None
+                
+                # First try to get from clean data (upload)
+                clean_upload_sample = db.session.execute(
+                    text("SELECT cdu.username, cdu.url, cdu.cleaned_content FROM clean_data_upload cdu JOIN raw_data rd ON cdu.raw_data_id = rd.id WHERE rd.dataset_id = :dataset_id LIMIT 1"),
+                    {'dataset_id': dataset.id}
+                ).first()
+                
+                if clean_upload_sample:
+                    sample_username = clean_upload_sample.username if clean_upload_sample.username and str(clean_upload_sample.username).lower() != 'nan' else None
+                    sample_url = clean_upload_sample.url if clean_upload_sample.url and str(clean_upload_sample.url).lower() != 'nan' else None
+                    sample_content = clean_upload_sample.cleaned_content if clean_upload_sample.cleaned_content and str(clean_upload_sample.cleaned_content).lower() != 'nan' else None
                 else:
-                    # If no upload data, try scraper data
-                    sample_scraper = RawDataScraper.query.filter_by(dataset_id=dataset.id).first()
-                    if sample_scraper:
-                        # Handle 'nan' string values
-                        sample_username = sample_scraper.username if sample_scraper.username and str(sample_scraper.username).lower() != 'nan' else None
-                        sample_url = sample_scraper.url if sample_scraper.url and str(sample_scraper.url).lower() != 'nan' else None
-                        sample_content = sample_scraper.content if sample_scraper.content and str(sample_scraper.content).lower() != 'nan' else None
+                    # Try clean data (scraper)
+                    clean_scraper_sample = db.session.execute(
+                        text("SELECT cds.username, cds.url, cds.cleaned_content FROM clean_data_scraper cds JOIN raw_data_scraper rds ON cds.raw_data_scraper_id = rds.id WHERE rds.dataset_id = :dataset_id LIMIT 1"),
+                        {'dataset_id': dataset.id}
+                    ).first()
+                    
+                    if clean_scraper_sample:
+                        sample_username = clean_scraper_sample.username if clean_scraper_sample.username and str(clean_scraper_sample.username).lower() != 'nan' else None
+                        sample_url = clean_scraper_sample.url if clean_scraper_sample.url and str(clean_scraper_sample.url).lower() != 'nan' else None
+                        sample_content = clean_scraper_sample.cleaned_content if clean_scraper_sample.cleaned_content and str(clean_scraper_sample.cleaned_content).lower() != 'nan' else None
+                    else:
+                        # Fallback to raw data (upload)
+                        sample_upload = RawData.query.filter_by(dataset_id=dataset.id).first()
+                        if sample_upload:
+                            sample_username = sample_upload.username if sample_upload.username and str(sample_upload.username).lower() != 'nan' else None
+                            sample_url = sample_upload.url if sample_upload.url and str(sample_upload.url).lower() != 'nan' else None
+                            sample_content = sample_upload.content if sample_upload.content and str(sample_upload.content).lower() != 'nan' else None
+                        else:
+                            # Fallback to raw data (scraper)
+                            sample_scraper = RawDataScraper.query.filter_by(dataset_id=dataset.id).first()
+                            if sample_scraper:
+                                sample_username = sample_scraper.username if sample_scraper.username and str(sample_scraper.username).lower() != 'nan' else None
+                                sample_url = sample_scraper.url if sample_scraper.url and str(sample_scraper.url).lower() != 'nan' else None
+                                sample_content = sample_scraper.content if sample_scraper.content and str(sample_scraper.content).lower() != 'nan' else None
                 
                 # Count clean data (upload + scraper)
                 clean_upload_count = db.session.execute(
@@ -3653,8 +3678,21 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
             raw_upload_data = RawData.query.filter_by(dataset_id=dataset_id, status='raw').all()
             raw_scraper_data = RawDataScraper.query.filter_by(dataset_id=dataset_id, status='raw').all()
             
+            # Check if all data is already cleaned
+            all_upload_data = RawData.query.filter_by(dataset_id=dataset_id).all()
+            all_scraper_data = RawDataScraper.query.filter_by(dataset_id=dataset_id).all()
+            
             if not raw_upload_data and not raw_scraper_data:
-                return jsonify({'success': False, 'message': 'Tidak ada data yang perlu dibersihkan'})
+                if all_upload_data or all_scraper_data:
+                    # Data exists but all already cleaned
+                    return jsonify({
+                        'success': False, 
+                        'message': 'Semua data sudah dibersihkan sebelumnya',
+                        'already_cleaned': True
+                    })
+                else:
+                    # No data at all
+                    return jsonify({'success': False, 'message': 'Tidak ada data yang perlu dibersihkan'})
             
             cleaned_count = 0
             skipped_count = 0

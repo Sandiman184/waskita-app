@@ -195,26 +195,35 @@ def check_cleaned_content_duplicate_by_dataset(cleaned_content, dataset_id):
     try:
         from models import CleanDataUpload, CleanDataScraper, RawDataScraper
         
-        if not cleaned_content:
+        if not cleaned_content or not cleaned_content.strip():
             return False
+        
+        # Normalisasi konten untuk perbandingan yang lebih akurat
+        normalized_content = cleaned_content.strip()
         
         # Cek duplikasi di CleanDataUpload untuk dataset tertentu
         existing_clean_upload = CleanDataUpload.query.filter_by(
             dataset_id=dataset_id,
-            cleaned_content=cleaned_content
+            cleaned_content=normalized_content
         ).first()
+        
+        if existing_clean_upload:
+            return True
         
         # Cek duplikasi di CleanDataScraper untuk dataset tertentu
         existing_clean_scraper = CleanDataScraper.query.join(
             RawDataScraper, CleanDataScraper.raw_data_scraper_id == RawDataScraper.id
         ).filter(
             RawDataScraper.dataset_id == dataset_id,
-            CleanDataScraper.cleaned_content == cleaned_content
+            CleanDataScraper.cleaned_content == normalized_content
         ).first()
         
-        return existing_clean_upload is not None or existing_clean_scraper is not None
+        return existing_clean_scraper is not None
         
     except Exception as e:
+        # Log error untuk debugging
+        import logging
+        logging.error(f"Error in check_cleaned_content_duplicate_by_dataset: {str(e)}")
         return False
 
 def preprocess_for_word2vec(text):
