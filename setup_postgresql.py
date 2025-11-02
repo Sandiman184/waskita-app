@@ -171,8 +171,29 @@ def update_env_file(db_config):
     try:
         print("\n📝 Mengupdate file .env...")
         
-        env_content = f"""# Database Configuration - PostgreSQL Only
-# IMPORTANT: Change these credentials in production!
+        # Generate secure key untuk SECRET_KEY
+        import secrets
+        secure_key = secrets.token_hex(32)
+        api_key = secrets.token_hex(16)
+        csrf_key = secrets.token_hex(16)
+        jwt_key = secrets.token_hex(16)
+        
+        env_content = f"""# =============================================================================
+# WASKITA APPLICATION CONFIGURATION
+# =============================================================================
+# File ini dibuat otomatis oleh setup_postgresql.py
+# SECURITY WARNING: Jangan pernah commit file .env ke version control!
+#
+# DEFAULT ADMIN CREDENTIALS (setelah setup):
+# Username: admin
+# Password: [password yang dimasukkan saat setup]
+# Email: admin@waskita.com
+
+# =============================================================================
+# DATABASE CONFIGURATION
+# =============================================================================
+# Development Database (PostgreSQL)
+# Format: postgresql://username:password@host:port/database_name
 DATABASE_URL=postgresql://{db_config['db_user']}:{db_config['db_password']}@{db_config['host']}:{db_config['port']}/{db_config['db_name']}
 TEST_DATABASE_URL=postgresql://{db_config['db_user']}:{db_config['db_password']}@{db_config['host']}:{db_config['port']}/{db_config['db_test_name']}
 DATABASE_HOST={db_config['host']}
@@ -181,74 +202,152 @@ DATABASE_NAME={db_config['db_name']}
 DATABASE_USER={db_config['db_user']}
 DATABASE_PASSWORD={db_config['db_password']}
 
-# Flask Configuration
-SECRET_KEY=generate_your_own_secret_key_here_change_in_production
+# PostgreSQL Database Settings (for Docker)
+POSTGRES_USER={db_config['db_user']}
+POSTGRES_PASSWORD={db_config['db_password']}
+POSTGRES_DB={db_config['db_name']}
+
+# =============================================================================
+# FLASK CONFIGURATION
+# =============================================================================
+# Secure key yang digenerate otomatis
+SECRET_KEY={secure_key}
 FLASK_ENV=development
 FLASK_DEBUG=True
 
-# Upload Configuration
+# =============================================================================
+# SECURITY CONFIGURATION
+# =============================================================================
+WTF_CSRF_ENABLED=True
+WTF_CSRF_TIME_LIMIT=3600
+WTF_CSRF_SECRET_KEY={csrf_key}
+JWT_SECRET_KEY={jwt_key}
+WASKITA_API_KEY={api_key}
+
+# =============================================================================
+# FILE UPLOAD CONFIGURATION
+# =============================================================================
 UPLOAD_FOLDER=uploads
 MAX_CONTENT_LENGTH=16777216
 
-# Model Paths - relative paths for containerization compatibility
+# =============================================================================
+# WORD2VEC MODEL CONFIGURATION
+# =============================================================================
 WORD2VEC_MODEL_PATH=models/embeddings/wiki_word2vec_csv_updated.model
 NAIVE_BAYES_MODEL1_PATH=models/navesbayes/naive_bayes_model1.pkl
 NAIVE_BAYES_MODEL2_PATH=models/navesbayes/naive_bayes_model2.pkl
 NAIVE_BAYES_MODEL3_PATH=models/navesbayes/naive_bayes_model3.pkl
 
-# Apify API Configuration
-# IMPORTANT: Replace with your actual Apify API token
-APIFY_API_TOKEN=your_apify_api_token_here
-APIFY_BASE_URL=https://api.apify.com/v2
+# =============================================================================
+# EMAIL CONFIGURATION (Gmail SMTP)
+# =============================================================================
+# For Gmail: Enable 2FA and generate App Password
+# Guide: https://support.google.com/accounts/answer/185833
+# Leave empty to disable email features
+MAIL_SERVER=smtp.gmail.com
+MAIL_PORT=587
+MAIL_USE_TLS=True
+MAIL_USE_SSL=False
+MAIL_USERNAME=your-email@gmail.com
+MAIL_PASSWORD=your-16-digit-app-password
+MAIL_DEFAULT_SENDER=your-email@gmail.com
 
-# Apify Actor IDs for different platforms
-APIFY_TWITTER_ACTOR=CJdippxWmn9uRfooo
+# =============================================================================
+# ADMIN CONFIGURATION
+# =============================================================================
+ADMIN_EMAIL=admin@waskita.com
+ADMIN_EMAILS=admin@waskita.com,admin2@waskita.com
+
+# =============================================================================
+# OTP SYSTEM CONFIGURATION
+# =============================================================================
+OTP_LENGTH=6
+OTP_EXPIRY_MINUTES=30
+MAX_OTP_ATTEMPTS=3
+LOCKOUT_DURATION_MINUTES=15
+
+# =============================================================================
+# REGISTRATION SETTINGS
+# =============================================================================
+REGISTRATION_ENABLED=True
+AUTO_APPROVE_REGISTRATION=False
+
+# =============================================================================
+# APPLICATION URLS
+# =============================================================================
+BASE_URL=http://localhost:5000
+
+# =============================================================================
+# EMAIL NOTIFICATION SETTINGS
+# =============================================================================
+SEND_EMAIL_NOTIFICATIONS=True
+EMAIL_RETRY_ATTEMPTS=3
+EMAIL_RETRY_DELAY_SECONDS=5
+
+# =============================================================================
+# APIFY API CONFIGURATION
+# =============================================================================
+APIFY_API_TOKEN=your-apify-api-token
+APIFY_BASE_URL=https://api.apify.com/v2
+APIFY_TWITTER_ACTOR=kaitoeasyapi/twitter-x-data-tweet-scraper-pay-per-result-cheapest
 APIFY_FACEBOOK_ACTOR=apify/facebook-scraper
 APIFY_INSTAGRAM_ACTOR=apify/instagram-scraper
 APIFY_TIKTOK_ACTOR=clockworks/free-tiktok-scraper
+APIFY_TIMEOUT=30
+APIFY_MAX_RETRIES=3
+APIFY_RETRY_DELAY=5
 
-# Social Media API Keys (Optional - untuk scraping)
+# =============================================================================
+# SOCIAL MEDIA API KEYS (Optional)
+# =============================================================================
 TWITTER_API_KEY=your-twitter-api-key
 TWITTER_API_SECRET=your-twitter-api-secret
 TWITTER_ACCESS_TOKEN=your-twitter-access-token
 TWITTER_ACCESS_TOKEN_SECRET=your-twitter-access-token-secret
-
 FACEBOOK_APP_ID=your-facebook-app-id
 FACEBOOK_APP_SECRET=your-facebook-app-secret
 FACEBOOK_ACCESS_TOKEN=your-facebook-access-token
-
 TIKTOK_API_KEY=your-tiktok-api-key
 TIKTOK_API_SECRET=your-tiktok-api-secret
 
-# Email Configuration (Optional)
-MAIL_SERVER=smtp.gmail.com
-MAIL_PORT=587
-MAIL_USE_TLS=True
-MAIL_USERNAME=your_email@gmail.com
-MAIL_PASSWORD=your_email_app_password
-
-# Redis Configuration (Optional - untuk caching)
+# =============================================================================
+# REDIS CONFIGURATION (Optional)
+# =============================================================================
 REDIS_URL=redis://localhost:6379/0
 
-# Pagination
+# =============================================================================
+# PAGINATION
+# =============================================================================
 POSTS_PER_PAGE=25
 
-# Security
-WTF_CSRF_ENABLED=True
-WTF_CSRF_TIME_LIMIT=3600
-
-# Logging
+# =============================================================================
+# LOGGING
+# =============================================================================
 LOG_LEVEL=INFO
 LOG_FILE=logs/waskita.log
 
-# API Configuration
-WASKITA_API_KEY=generate_your_own_api_key_here
+# =============================================================================
+# DOCKER CONFIGURATION
+# =============================================================================
+# Docker Port Configuration
+DB_PORT=5432
+WEB_PORT=5000
+REDIS_PORT=6379
+NGINX_HTTP_PORT=80
+NGINX_HTTPS_PORT=443
+CREATE_SAMPLE_DATA=false
+
+# =============================================================================
+# CLEANUP CONFIGURATION
+# =============================================================================
+CLEANUP_EXPIRED_REQUESTS_HOURS=24
+KEEP_COMPLETED_REQUESTS_DAYS=30
 """
         
         with open('.env', 'w', encoding='utf-8') as f:
             f.write(env_content)
         
-        print("✅ File .env berhasil diupdate")
+        print("✅ File .env berhasil diupdate dengan konfigurasi lengkap")
         return True
         
     except Exception as e:
