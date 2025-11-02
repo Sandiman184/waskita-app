@@ -25,7 +25,12 @@ class EmailService:
         # Validate configuration on initialization
         config_errors = self.validate_config()
         if config_errors:
-            current_app.logger.warning(f"Email Configuration issues: {'; '.join(config_errors)}")
+            # Only log if we're within application context
+            try:
+                current_app.logger.warning(f"Email Configuration issues: {'; '.join(config_errors)}")
+            except RuntimeError:
+                # If no application context, just print to console
+                print(f"Email Configuration issues: {'; '.join(config_errors)}")
     
     def send_email(self, to_email, subject, html_content, text_content=None):
         """

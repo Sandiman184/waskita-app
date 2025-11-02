@@ -1,89 +1,130 @@
-# Waskita - Sistem Klasifikasi Konten Media Sosial
+# 🚀 Waskita - Aplikasi Klasifikasi Konten Radikal
 
-*Dikembangkan sebagai kontribusi penelitian akademik dalam bidang Natural Language Processing dan Machine Learning untuk analisis konten media sosial Indonesia*
+Aplikasi web untuk klasifikasi konten media sosial menggunakan machine learning dengan algoritma Naive Bayes.
 
-## 📋 Deskripsi
+## ✨ Fitur Utama
 
-Waskita adalah sistem berbasis web untuk mengklasifikasikan konten media sosial menggunakan Machine Learning (Naive Bayes dengan Word2Vec embedding) untuk mengidentifikasi konten radikal atau non-radikal. Sistem ini dikembangkan sebagai kontribusi akademik dalam bidang NLP dan analisis sentimen untuk deteksi konten ekstremis dalam media sosial Indonesia.
+- 🔐 **Sistem Autentikasi** - Login/Register dengan role management (Admin/User)
+- 📊 **Dashboard Interaktif** - Monitoring data dan hasil klasifikasi
+- 📁 **Manajemen Dataset** - Upload dan kelola dataset CSV/XLSX
+- 🕷️ **Web Scraping** - Scraping data dari Twitter, Facebook, Instagram, TikTok
+- 🧹 **Data Cleaning** - Pembersihan data otomatis (emoji, link, tanda baca)
+- 🤖 **Klasifikasi ML** - Klasifikasi Radikal/Non-Radikal dengan Naive Bayes
+- 🎨 **UI Modern** - Soft UI Dashboard dengan Dark/Light mode
+- 📧 **Notifikasi Email** - Sistem notifikasi dan OTP
 
-## 🚀 Instalasi
+## 🛠️ Teknologi
 
-### Prasyarat
+- **Backend**: Python Flask
+- **Database**: PostgreSQL
+- **Frontend**: HTML, CSS, JavaScript (Soft UI Dashboard)
+- **ML**: Scikit-learn, Word2Vec
+- **Scraping**: Apify API
+
+## 📋 Persyaratan Sistem
+
 - Python 3.8+
 - PostgreSQL 12+
 - Git
 
-### 1. Instalasi dengan Docker (Direkomendasikan)
+## 🚀 Quick Start
+
+### 1. Clone Repository
 
 ```bash
-# Clone repository
-git clone https://github.com/kaptenusop/waskita.git
-cd waskita
-
-# Jalankan dengan Docker Compose
-docker-compose up -d
-
-# Akses aplikasi di http://localhost:5000
+git clone <repository-url>
+cd waskita-app
 ```
 
-### 2. Instalasi Manual Lokal
+### 2. Install Dependencies
 
 ```bash
-# Clone repository
-git clone https://github.com/kaptenusop/waskita.git
-cd waskita
-
-# Buat virtual environment
-python -m venv venv
-venv\Scripts\activate  # Windows
-# source venv/bin/activate  # Linux/Mac
-
-# Install dependencies
 pip install -r requirements.txt
+```
 
-# Setup database PostgreSQL
+### 3. Setup Environment
+
+```bash
+# Copy file environment
+cp .env.example .env
+
+# Edit .env dengan konfigurasi Anda
+# Minimal yang perlu diubah:
+# - DATABASE_PASSWORD
+# - SECRET_KEY
+# - MAIL_USERNAME & MAIL_PASSWORD (opsional)
+```
+
+### 4. Setup Database
+
+```bash
+# Jalankan setup otomatis
 python setup_postgresql.py
+```
 
-# Setup environment variables
-copy .env.example .env
-# Edit .env sesuai konfigurasi Anda
+Script ini akan:
+- ✅ Membuat database PostgreSQL
+- ✅ Membuat user database
+- ✅ Membuat semua tabel
+- ✅ Membuat admin user default
+- ✅ Update file .env
 
-# Setup model ML (diperlukan)
-mkdir -p models/embeddings
-mkdir -p models/navesbayes
-# Letakkan file model:
-# - models/embeddings/wiki_word2vec_csv_updated.model
-# - models/navesbayes/naive_bayes_model1.pkl
-# - models/navesbayes/naive_bayes_model2.pkl
-# - models/navesbayes/naive_bayes_model3.pkl
+### 5. Jalankan Aplikasi
 
-# Jalankan aplikasi
+```bash
 python app.py
 ```
 
-### 3. Konfigurasi Environment
+Aplikasi akan berjalan di: `http://localhost:5000`
 
-Edit file `.env` dengan konfigurasi berikut:
+## 🔑 Default Login
 
-```bash
-# Database
-DATABASE_URL=postgresql://username:password@localhost:5432/waskita_db
+Setelah setup berhasil:
 
-# Flask
-SECRET_KEY=your-secret-key-here
-FLASK_ENV=development
+```
+Username: admin
+Password: admin123
+Email: admin@waskita.com
+```
 
-# Email (untuk OTP)
-MAIL_SERVER=smtp.gmail.com
-MAIL_PORT=587
+⚠️ **Penting**: Ganti password default setelah login pertama!
+
+## 📁 Struktur Project
+
+```
+waskita-app/
+├── app.py                 # Main application
+├── config.py             # Configuration
+├── models.py             # Database models
+├── routes.py             # Main routes
+├── setup_postgresql.py   # Database setup
+├── templates/            # HTML templates
+├── static/              # CSS, JS, images
+├── migrations/          # Database migrations
+└── docs/               # Documentation
+```
+
+## 🔧 Konfigurasi Lanjutan
+
+### Email Configuration (Opsional)
+
+Untuk fitur notifikasi email, setup Gmail SMTP:
+
+1. Enable 2FA di Gmail
+2. Generate App Password
+3. Update `.env`:
+
+```env
 MAIL_USERNAME=your-email@gmail.com
-MAIL_PASSWORD=your-app-password
+MAIL_PASSWORD=your-16-digit-app-password
+```
 
-# Model Paths
-WORD2VEC_MODEL_PATH=models/embeddings/wiki_word2vec_csv_updated.model
-NAIVE_BAYES_MODEL1_PATH=models/navesbayes/naive_bayes_model1.pkl
-NAIVE_BAYES_MODEL2_PATH=models/navesbayes/naive_bayes_model2.pkl
-NAIVE_BAYES_MODEL3_PATH=models/navesbayes/naive_bayes_model3.pkl
+### API Keys (Opsional)
+
+Untuk web scraping, daftar di [Apify](https://apify.com):
+
+```env
+APIFY_API_TOKEN=your-apify-token
 ```
 
 ## 🔬 Fitur Penelitian

@@ -18,20 +18,20 @@ def create_database_and_user():
     
     # Input konfigurasi database
     print("\n📋 Konfigurasi Database:")
-    db_host = input("Host PostgreSQL (default: [host]): ").strip() or "[host]"
-    db_port = input("Port PostgreSQL (default: [port]): ").strip() or "[port]"
+    db_host = input("Host PostgreSQL (default: localhost): ").strip() or "localhost"
+    db_port = input("Port PostgreSQL (default: 5432): ").strip() or "5432"
     
     # Kredensial admin PostgreSQL
     print("\n🔐 Kredensial Admin PostgreSQL:")
-    admin_user = input("Username admin PostgreSQL (default: [admin_user]): ").strip() or "[admin_user]"
+    admin_user = input("Username admin PostgreSQL (default: postgres): ").strip() or "postgres"
     admin_password = getpass.getpass("Password admin PostgreSQL: ")
     
     # Kredensial database Waskita
     print("\n🏗️ Konfigurasi Database Waskita:")
-    db_name = input("Nama database (default: [database_name]): ").strip() or "[database_name]"
-    db_test_name = input("Nama database test (default: [test_database_name]): ").strip() or "[test_database_name]"
-    db_user = input("Username database (default: [db_username]): ").strip() or "[db_username]"
-    db_password = getpass.getpass("Password database (default: [db_password]): ") or "[db_password]"
+    db_name = input("Nama database (default: waskita_db): ").strip() or "waskita_db"
+    db_test_name = input("Nama database test (default: waskita_test_db): ").strip() or "waskita_test_db"
+    db_user = input("Username database (default: waskita_user): ").strip() or "waskita_user"
+    db_password = getpass.getpass("Password database (default: waskita123): ") or "waskita123"
     
     try:
         # Koneksi ke PostgreSQL sebagai admin
@@ -128,10 +128,10 @@ def create_tables_and_admin(db_config):
         # Buat user admin default
         print("\n👑 Membuat user admin default...")
         # Default admin credentials - CHANGE IN PRODUCTION!
-        admin_username = "[admin_username]"
-        admin_email = "[admin@example.com]"
-        admin_password = input("Masukkan password untuk admin (default: [admin_password]): ") or "[admin_password]"
-        admin_fullname = "[Administrator Name]"
+        admin_username = "admin"
+        admin_email = "admin@waskita.com"
+        admin_password = input("Masukkan password untuk admin (default: admin123): ") or "admin123"
+        admin_fullname = "Administrator Waskita"
         
         # Hash password dengan benar
         password_hash = generate_password_hash(admin_password)
