@@ -1341,6 +1341,7 @@ def format_datetime(dt, format_type='default'):
             'time': '%H:%M WIB',
             'date_only': '%d-%m-%Y', 
             'datetime': '%d-%m-%Y %H:%M WIB',
+            'short': '%d/%m/%Y %H:%M WIB',
             'iso': '%Y-%m-%d %H:%M WIB',
             'display': '%d %b %Y %H:%M WIB',
             'display_date': '%d %b %Y'

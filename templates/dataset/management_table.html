@@ -708,11 +708,11 @@
                                         <div class="d-flex flex-column justify-content-center align-items-center">
                                             <p class="text-xs text-muted mb-1" style="font-size: 0.75rem;">
                                                 <i class="far fa-calendar-alt me-1"></i>
-                                                {{ stat.dataset.created_at.strftime('%d/%m/%Y %H:%M') }}
+                                                {{ stat.dataset.created_at|format_datetime('datetime') if stat.dataset.created_at else '-' }}
                                             </p>
                                             <p class="text-xs text-muted mb-0" style="font-size: 0.75rem;">
                                                 <i class="fas fa-sync-alt me-1"></i>
-                                                {{ stat.dataset.updated_at.strftime('%d/%m/%Y %H:%M') }}
+                                                {{ stat.dataset.updated_at|format_datetime('datetime') if stat.dataset.updated_at else '-' }}
                                             </p>
                                         </div>
                                     </td>

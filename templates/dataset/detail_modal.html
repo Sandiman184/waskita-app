@@ -19,11 +19,11 @@
                 </tr>
                 <tr>
                     <td><strong>Tanggal dibuat:</strong></td>
-                    <td>{{ dataset.created_at|format_datetime('date') if dataset.created_at else '-' }}</td>
+                    <td>{{ dataset.created_at|format_datetime('datetime') if dataset.created_at else '-' }}</td>
                 </tr>
                 <tr>
-                    <td><strong>Terakhir diperbarui:</strong></td>
-                    <td>{{ dataset.updated_at|format_datetime('date') if dataset.updated_at else '-' }}</td>
+                    <th>Terakhir Diperbarui</th>
+                    <td>{{ dataset.updated_at|format_datetime('datetime') if dataset.updated_at else '-' }}</td>
                 </tr>
                 <tr>
                     <td><strong>Total Records:</strong></td>

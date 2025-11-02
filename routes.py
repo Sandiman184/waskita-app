@@ -1902,6 +1902,7 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
     @active_user_required
     def upload_data():
         """Handle file upload with enhanced security validation"""
+        filepath = None
         try:
             if 'file' not in request.files:
                 return jsonify({'success': False, 'message': 'Tidak ada file yang dipilih'}), 400
@@ -1922,14 +1923,25 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                 return jsonify({'success': False, 'message': f'Validasi file gagal: {message}'}), 400
             
             # Generate secure filename and path
-            filepath, unique_filename = generate_secure_filename(
-                file.filename, 
-                app.config['UPLOAD_FOLDER']
-            )
+            try:
+                filepath, unique_filename = generate_secure_filename(
+                    file.filename, 
+                    app.config['UPLOAD_FOLDER']
+                )
+            except Exception as e:
+                return jsonify({'success': False, 'message': f'Error saat memproses nama file: {str(e)}'}), 500
             
             # Create upload directory if not exists
-            os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-            file.save(filepath)
+            try:
+                os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+            except Exception as e:
+                return jsonify({'success': False, 'message': f'Error saat membuat direktori upload: {str(e)}'}), 500
+            
+            # Save the file
+            try:
+                file.save(filepath)
+            except Exception as e:
+                return jsonify({'success': False, 'message': f'Error saat menyimpan file: {str(e)}'}), 500
             
             # Log successful upload
             log_security_event(
@@ -1940,115 +1952,201 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
             )
             
             # Get file size in bytes
-            file_size = os.path.getsize(filepath)
+            try:
+                file_size = os.path.getsize(filepath)
+            except Exception as e:
+                file_size = 0
             
             # Read and process file with proper encoding handling
-            if file_info['mime_type'] in ['text/csv', 'text/plain', 'application/csv']:
-                # Try different encodings for CSV files
+            if file_info['mime_type'] in ['text/csv', 'text/plain', 'application/csv'] or file_info.get('detected_format') == 'csv':
+                # Gunakan chardet untuk deteksi encoding otomatis
+                try:
+                    import chardet
+                    
+                    # Baca sampel dari file untuk deteksi encoding
+                    file.seek(0)
+                    raw_data = file.read(min(file_size, 100000))  # Baca maksimal 100KB untuk deteksi
+                    file.seek(0)  # Reset ke awal file
+                    
+                    # Deteksi encoding
+                    result = chardet.detect(raw_data)
+                    encoding = result['encoding']
+                    confidence = result['confidence']
+                    
+                    # Gunakan encoding yang terdeteksi jika confidence cukup tinggi
+                    if encoding and confidence > 0.7:
+                        try:
+                            df = pd.read_csv(filepath, encoding=encoding)
+                            # Berhasil membaca file, tidak perlu fallback
+                        except Exception:
+                            # Lanjutkan ke fallback encodings
+                            pass
+                except ImportError:
+                    # Fallback ke metode encoding yang ada
+                    pass
+                except Exception:
+                    # Fallback ke metode encoding yang ada
+                    pass
+                
+                # Fallback ke metode encoding yang ada jika auto-detection gagal
                 encodings_to_try = ['utf-8', 'utf-8-sig', 'latin1', 'cp1252', 'iso-8859-1']
                 df = None
                 last_error = None
                 
+                # Jika delimiter terdeteksi, gunakan
+                delimiter = file_info.get('delimiter')
+                
                 for encoding in encodings_to_try:
                     try:
-                        df = pd.read_csv(filepath, encoding=encoding)
-                        app.logger.info(f"Successfully read CSV with encoding: {encoding}")
+                        if delimiter:
+                            df = pd.read_csv(filepath, encoding=encoding, sep=delimiter)
+                        else:
+                            df = pd.read_csv(filepath, encoding=encoding)
                         break
                     except (UnicodeDecodeError, UnicodeError) as e:
                         last_error = e
-                        app.logger.warning(f"Failed to read CSV with encoding {encoding}: {str(e)}")
                         continue
                     except Exception as e:
                         # For other errors (like parsing errors), try with error handling
                         try:
-                            df = pd.read_csv(filepath, encoding=encoding, on_bad_lines='skip')
-                            app.logger.info(f"Successfully read CSV with encoding {encoding} (skipping bad lines)")
+                            if delimiter:
+                                df = pd.read_csv(filepath, encoding=encoding, sep=delimiter, on_bad_lines='skip')
+                            else:
+                                df = pd.read_csv(filepath, encoding=encoding, on_bad_lines='skip')
                             break
                         except Exception as e2:
                             last_error = e2
-                            app.logger.warning(f"Failed to read CSV with encoding {encoding} even with error handling: {str(e2)}")
                             continue
                 
                 if df is None:
-                    raise Exception(f"Could not read CSV file with any encoding. Last error: {str(last_error)}")
+                    # Clean up the file if we can't process it
+                    if os.path.exists(filepath):
+                        os.remove(filepath)
+                    return jsonify({'success': False, 'message': 'File tidak dapat dibaca. Pastikan format CSV valid.'}), 400
             else:
-                df = pd.read_excel(filepath)
+                try:
+                    # Coba baca sebagai Excel
+                    try:
+                        df = pd.read_excel(filepath)
+                    except Exception as excel_error:
+                        # Coba baca sebagai CSV jika Excel gagal
+                        encodings_to_try = ['utf-8', 'utf-8-sig', 'latin1', 'cp1252', 'iso-8859-1']
+                        df = None
+                        last_error = excel_error
+                        
+                        for encoding in encodings_to_try:
+                            try:
+                                df = pd.read_csv(filepath, encoding=encoding)
+                                break
+                            except Exception as e:
+                                last_error = e
+                                continue
+                        
+                        if df is None:
+                            raise last_error
+                except Exception as e:
+                    # Clean up the file if we can't process it
+                    if os.path.exists(filepath):
+                        os.remove(filepath)
+                    return jsonify({'success': False, 'message': f'Error saat membaca file: {str(e)}'}), 400
             
             # Store file temporarily and show column mapping page
 
             
             # Get sample data for preview (first 5 rows) with input sanitization
-            sample_df = df.head(5).fillna('')
-            
-            # Clean sample data to ensure JSON serialization works properly
-            sample_data = []
-            for _, row in sample_df.iterrows():
-                clean_row = {}
-                for col, value in row.items():
-                    # Convert to string and handle special characters
-                    if pd.isna(value) or value is None:
-                        clean_row[str(col)] = ''
-                    else:
-                        # Convert to string and handle Unicode properly
-                        try:
-                            str_value = str(value)
-                            # Sanitize the value using security function
-                            str_value = SecurityValidator.sanitize_input(str_value, max_length=200)
-                            clean_row[str(col)] = str_value
-                        except (UnicodeEncodeError, UnicodeDecodeError) as e:
-                            # Handle Unicode errors gracefully
-                            app.logger.warning(f"Unicode error in column {col}: {str(e)}")
-                            clean_row[str(col)] = SecurityValidator.sanitize_input(repr(value), max_length=200)
-                        except Exception as e:
-                            app.logger.warning(f"Error processing value in column {col}: {str(e)}")
-                            clean_row[str(col)] = '[Error processing value]'
-                sample_data.append(clean_row)
+            try:
+                sample_df = df.head(5).fillna('')
+                
+                # Clean sample data to ensure JSON serialization works properly
+                sample_data = []
+                for _, row in sample_df.iterrows():
+                    clean_row = {}
+                    for col, value in row.items():
+                        # Convert to string and handle special characters
+                        if pd.isna(value) or value is None:
+                            clean_row[str(col)] = ''
+                        else:
+                            # Convert to string and handle Unicode properly
+                            try:
+                                str_value = str(value)
+                                # Sanitize the value using security function
+                                str_value = SecurityValidator.sanitize_input(str_value, max_length=200)
+                                clean_row[str(col)] = str_value
+                            except (UnicodeEncodeError, UnicodeDecodeError) as e:
+                                # Handle Unicode errors gracefully
+                                clean_row[str(col)] = SecurityValidator.sanitize_input(repr(value), max_length=200)
+                            except Exception as e:
+                                clean_row[str(col)] = '[Error processing value]'
+                    sample_data.append(clean_row)
+            except Exception as e:
+                # Clean up the file if we can't process it
+                if os.path.exists(filepath):
+                    os.remove(filepath)
+                return jsonify({'success': False, 'message': f'Error saat memproses data: {str(e)}'}), 500
             
             # Store file info in session for later processing
-            session['upload_file_path'] = filepath
-            session['upload_filename'] = unique_filename
-            session['upload_file_size'] = file_size
-            session['upload_columns'] = list(df.columns)
-            session['upload_sample_data'] = sample_data
-            # Sanitize form inputs
-            session['upload_description'] = SecurityValidator.sanitize_input(
-                request.form.get('description', ''), max_length=500
-            )
-            session['upload_source'] = SecurityValidator.sanitize_input(
-                request.form.get('source', 'manual'), max_length=50
-            )
-            # Get dataset name from form or use filename as fallback
-            dataset_name_input = SecurityValidator.sanitize_input(
-                request.form.get('dataset_name', '').strip(), max_length=100
-            )
-            if not dataset_name_input:  # If empty or None
-                # Use original filename without extension as dataset name
-                dataset_name_input = os.path.splitext(file.filename)[0]
-                dataset_name_input = SecurityValidator.sanitize_input(dataset_name_input, max_length=100)
-            session['upload_dataset_name'] = dataset_name_input
+            try:
+                session['upload_file_path'] = filepath
+                session['upload_filename'] = unique_filename
+                session['upload_file_size'] = file_size
+                session['upload_columns'] = list(df.columns)
+                session['upload_sample_data'] = sample_data
+                
+                # Sanitize form inputs
+                session['upload_description'] = SecurityValidator.sanitize_input(
+                    request.form.get('description', ''), max_length=500
+                )
+                session['upload_source'] = SecurityValidator.sanitize_input(
+                    request.form.get('source', 'manual'), max_length=50
+                )
+                
+                # Get dataset name from form or use filename as fallback
+                dataset_name_input = SecurityValidator.sanitize_input(
+                    request.form.get('dataset_name', '').strip(), max_length=100
+                )
+                if not dataset_name_input:  # If empty or None
+                    # Use original filename without extension as dataset name
+                    dataset_name_input = os.path.splitext(file.filename)[0]
+                    dataset_name_input = SecurityValidator.sanitize_input(dataset_name_input, max_length=100)
+                session['upload_dataset_name'] = dataset_name_input
+            except Exception as e:
+                # Clean up the file if we can't store session data
+                if os.path.exists(filepath):
+                    os.remove(filepath)
+                return jsonify({'success': False, 'message': f'Error saat menyimpan data sesi: {str(e)}'}), 500
             
             # Clean column names to ensure JSON serialization works properly
-            clean_columns = []
-            for col in df.columns:
-                # Convert to string and sanitize column names
-                clean_col = SecurityValidator.sanitize_input(str(col), max_length=100)
-                clean_columns.append(clean_col)
-            
-            return jsonify({
-                'success': True,
-                'show_mapping': True,
-                'columns': clean_columns,
-                'sample_data': sample_data,
-                'filename': unique_filename
-            })
+            try:
+                clean_columns = []
+                for col in df.columns:
+                    # Convert to string and sanitize column names
+                    clean_col = SecurityValidator.sanitize_input(str(col), max_length=100)
+                    clean_columns.append(clean_col)
+                
+                return jsonify({
+                    'success': True,
+                    'show_mapping': True,
+                    'columns': clean_columns,
+                    'sample_data': sample_data,
+                    'filename': unique_filename
+                })
+            except Exception as e:
+                # Clean up the file if we can't prepare response
+                if os.path.exists(filepath):
+                    os.remove(filepath)
+                return jsonify({'success': False, 'message': f'Error saat mempersiapkan data respons: {str(e)}'}), 500
             
         except Exception as e:
             import traceback
-            error_details = traceback.format_exc()
             
             db.session.rollback()
-            if 'filepath' in locals() and os.path.exists(filepath):
-                os.remove(filepath)
+            # Clean up the file if it exists
+            if filepath and os.path.exists(filepath):
+                try:
+                    os.remove(filepath)
+                except Exception:
+                    pass
+            
             return jsonify({'success': False, 'message': f'Error: {str(e)}'}), 500
     
     @app.route('/process_column_mapping', methods=['POST'])
@@ -2568,7 +2666,8 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                     'dataset_name': dataset_name,
                     'records_count': session.records_count,
                     'status': status,
-                    'created_at': format_datetime(session.first_upload, 'date'),
+                    'created_date': format_datetime(session.first_upload, 'date_only'),
+                    'created_time': format_datetime(session.first_upload, 'time'),
                     'username': current_user.username
                 })
             

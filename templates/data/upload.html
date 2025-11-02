@@ -92,10 +92,10 @@
                                     <tr>
                                         <th>Dataset</th>
                                         <th>Jumlah Data</th>
-                                        <th>Tanggal Upload</th>
                                         <th>Status</th>
                                         <th>Diupload Oleh</th>
-                                        <th>Waktu Dibuat</th>
+                                        <th>Tanggal</th>
+                                        <th>Waktu</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -312,7 +312,32 @@ $(document).ready(function() {
             },
             error: function(xhr, status, error) {
                 hideLoading();
-                showAlert('error', 'Error', 'Terjadi kesalahan saat mengupload file');
+                console.error('Upload error:', xhr, status, error);
+                
+                // Try to parse error response if available
+                let errorMessage = 'Terjadi kesalahan saat mengupload file';
+                try {
+                    if (xhr.responseJSON && xhr.responseJSON.message) {
+                        errorMessage = xhr.responseJSON.message;
+                    } else if (xhr.responseText) {
+                        const errorResponse = JSON.parse(xhr.responseText);
+                        if (errorResponse.message) {
+                            errorMessage = errorResponse.message;
+                        }
+                    }
+                } catch (e) {
+                    console.error('Error parsing error response:', e);
+                }
+                
+                // Show error with status code
+                showAlert('error', `Error ${xhr.status || ''}`, errorMessage);
+                
+                // Log error to console for debugging
+                console.error('Upload failed:', {
+                    status: xhr.status,
+                    statusText: xhr.statusText,
+                    responseText: xhr.responseText
+                });
             }
         });
     });
@@ -448,10 +473,10 @@ function loadRecentUploads(page = 1, limit = 10) {
                     <tr>
                         <td>${upload.dataset_name || upload.filename}</td>
                         <td>${upload.records_count}</td>
-                        <td>${upload.created_at}</td>
                         <td><span class="badge ${upload.status === 'Mentah' ? 'bg-gradient-secondary' : upload.status === 'Dibersihkan' ? 'bg-gradient-success' : 'bg-gradient-primary'}">${upload.status}</span></td>
                         <td>${upload.username}</td>
-                        <td>${upload.created_at}</td>
+                        <td>${upload.created_date}</td>
+                        <td>${upload.created_time}</td>
                     </tr>
                 `;
                 $('#recentUploadsTable tbody').append(row);

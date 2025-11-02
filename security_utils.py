@@ -30,7 +30,7 @@ class SecurityValidator:
     @staticmethod
     def validate_file_upload(file):
         """
-        Validasi file upload yang aman dengan MIME type checking
+        Validasi file upload yang aman dengan MIME type checking dan validasi konten
         Returns: (is_valid: bool, message: str, file_info: dict)
         """
         if not file or not file.filename:
@@ -41,7 +41,8 @@ class SecurityValidator:
             'original_filename': filename,
             'secure_filename': secure_filename(filename),
             'file_size': 0,
-            'mime_type': None
+            'mime_type': None,
+            'detected_format': None
         }
         
         # 1. Validasi ekstensi file
@@ -93,7 +94,65 @@ class SecurityValidator:
             security_logger.warning(f"Path traversal attempt: {filename}")
             return False, "Nama file tidak valid", file_info
         
-        security_logger.info(f"File upload validated successfully: {filename} ({mime_type}, {file_size} bytes)")
+        # 5. Validasi header file untuk memastikan format yang benar
+        try:
+            # Simpan posisi awal file
+            file.seek(0)
+            
+            # Baca beberapa byte pertama untuk deteksi format
+            header_bytes = file.read(8)
+            file.seek(0)  # Reset ke awal file
+            
+            # Deteksi format berdasarkan signature bytes
+            if header_bytes.startswith(b'PK\x03\x04'):  # ZIP signature (XLSX)
+                file_info['detected_format'] = 'xlsx'
+            elif header_bytes.startswith(b'\xD0\xCF\x11\xE0'):  # OLE2 Compound Document (XLS)
+                file_info['detected_format'] = 'xls'
+            else:
+                # Coba baca sebagai CSV
+                try:
+                    # Baca beberapa baris pertama
+                    sample_content = file.read(1024).decode('utf-8', errors='ignore')
+                    file.seek(0)  # Reset ke awal file
+                    
+                    # Periksa apakah ada karakter pemisah (koma, tab, titik koma)
+                    if ',' in sample_content or ';' in sample_content or '\t' in sample_content:
+                        file_info['detected_format'] = 'csv'
+                        
+                        # Deteksi delimiter
+                        if ',' in sample_content:
+                            file_info['delimiter'] = ','
+                        elif ';' in sample_content:
+                            file_info['delimiter'] = ';'
+                        elif '\t' in sample_content:
+                            file_info['delimiter'] = '\t'
+                        
+                        # Periksa jumlah kolom konsisten
+                        lines = sample_content.split('\n')[:5]  # Ambil 5 baris pertama
+                        if lines:
+                            first_line_cols = len(lines[0].split(file_info['delimiter']))
+                            for i, line in enumerate(lines[1:], 1):
+                                if line.strip():  # Skip baris kosong
+                                    cols = len(line.split(file_info['delimiter']))
+                                    if cols != first_line_cols:
+                                        security_logger.warning(f"Inconsistent CSV columns: {filename}, line {i+1}: expected {first_line_cols}, got {cols}")
+                                        # Tidak menolak file, hanya mencatat warning
+                    else:
+                        security_logger.warning(f"No CSV delimiter found in file: {filename}")
+                        # Masih menerima file, mungkin format lain
+                except Exception as e:
+                    security_logger.warning(f"Error checking CSV format: {filename} - {str(e)}")
+            
+            # Jika format tidak terdeteksi, tetap izinkan file (akan ditangani oleh pandas)
+            if not file_info['detected_format']:
+                file_info['detected_format'] = 'unknown'
+                security_logger.info(f"Unknown file format for {filename}, will try to process with pandas")
+            
+        except Exception as e:
+            security_logger.error(f"Error validating file content: {filename} - {str(e)}")
+            # Tidak menolak file karena error ini, hanya mencatat
+        
+        security_logger.info(f"File upload validated successfully: {filename} ({mime_type}, {file_size} bytes, format: {file_info.get('detected_format', 'unknown')})")
         return True, "File valid", file_info
     
     @staticmethod
