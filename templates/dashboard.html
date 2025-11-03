@@ -284,6 +284,80 @@
     </div>
 {% endblock content %}
 
+{% block scripts %}
+<script>
+// Function to update dashboard statistics
+function updateDashboardStats() {
+    fetch('/dashboard/stats')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('Dashboard stats received:', data);
+            
+            // Update info boxes
+            document.querySelector('#upload-stats').nextElementSibling.textContent = data.total_raw_upload || 0;
+            document.querySelector('#scraping-stats').nextElementSibling.textContent = data.total_raw_scraper || 0;
+            document.querySelector('#cleaned-stats').nextElementSibling.textContent = (data.total_clean_upload || 0) + (data.total_clean_scraper || 0);
+            document.querySelector('#classified-stats').nextElementSibling.textContent = data.total_classified || 0;
+
+            // Update charts
+            if (window.dataSourceChart) {
+                window.dataSourceChart.data.datasets[0].data = [
+                    data.total_raw_upload || 0,
+                    data.total_raw_scraper || 0
+                ];
+                window.dataSourceChart.update();
+            }
+
+            if (window.classificationChart) {
+                window.classificationChart.data.datasets[0].data = [
+                    data.total_radikal || 0,
+                    data.total_non_radikal || 0
+                ];
+                window.classificationChart.update();
+            }
+
+            if (window.platformChart && data.twitter_upload !== undefined) {
+                window.platformChart.data.datasets[0].data = [
+                    data.twitter_upload || 0,
+                    data.facebook_upload || 0,
+                    data.instagram_upload || 0,
+                    data.tiktok_upload || 0
+                ];
+                window.platformChart.data.datasets[1].data = [
+                    data.twitter_scraper || 0,
+                    data.facebook_scraper || 0,
+                    data.instagram_scraper || 0,
+                    data.tiktok_scraper || 0
+                ];
+                window.platformChart.update();
+            }
+        })
+        .catch(error => {
+            console.error('Error updating dashboard stats:', error);
+            // Tampilkan pesan error ke pengguna
+            Swal.fire({
+                icon: 'error',
+                title: 'Gagal memperbarui statistik',
+                text: 'Terjadi kesalahan saat memperbarui data statistik dashboard',
+                timer: 3000,
+                timerProgressBar: true
+            });
+        });
+}
+
+// Update stats every 30 seconds
+setInterval(updateDashboardStats, 30000);
+
+// Update stats when page loads
+document.addEventListener('DOMContentLoaded', updateDashboardStats);
+</script>
+{% endblock scripts %}
+
 {% block extra_css %}
 <style>
 /* Compact Activity List Styling */
@@ -429,7 +503,7 @@ $(document).ready(function() {
     
     // Data Source Chart
     const dataSourceCtx = document.getElementById('dataSourceChart').getContext('2d');
-    new Chart(dataSourceCtx, {
+    window.dataSourceChart = new Chart(dataSourceCtx, {
         type: 'doughnut',
         data: {
             labels: ['Upload', 'Scraping'],
@@ -453,14 +527,14 @@ $(document).ready(function() {
     
     // Classification Results Chart
     const classificationCtx = document.getElementById('classificationChart').getContext('2d');
-    new Chart(classificationCtx, {
+    window.classificationChart = new Chart(classificationCtx, {
         type: 'bar',
         data: {
-            labels: ['Positif', 'Negatif', 'Netral'],
+            labels: ['Radikal', 'Non-Radikal'],
             datasets: [{
                 label: 'Hasil Klasifikasi',
-                data: [{{ stats.positive_count or 0 }}, {{ stats.negative_count or 0 }}, {{ stats.neutral_count or 0 }}],
-                backgroundColor: ['#28a745', '#dc3545', '#6c757d'],
+                data: [{{ stats.total_radikal or 0 }}, {{ stats.total_non_radikal or 0 }}],
+                backgroundColor: ['#dc3545', '#28a745'],
                 borderWidth: 1
             }]
         },
@@ -482,7 +556,7 @@ $(document).ready(function() {
     
     // Platform Distribution Chart
     const platformCtx = document.getElementById('platformChart').getContext('2d');
-    new Chart(platformCtx, {
+    window.platformChart = new Chart(platformCtx, {
         type: 'line',
         data: {
             labels: ['Twitter', 'TikTok', 'Facebook', 'Instagram'],

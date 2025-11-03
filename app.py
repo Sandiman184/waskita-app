@@ -95,17 +95,32 @@ naive_bayes_models = {}
 
 # Function to load models within app context
 def load_models():
+    """Load Word2Vec dan Naive Bayes models"""
     global word2vec_model, naive_bayes_models
     with app.app_context():
-        pass
         try:
             from utils import load_word2vec_model, load_naive_bayes_models
+            
+            # Load Word2Vec model
             word2vec_model = load_word2vec_model()
+            if word2vec_model is None:
+                app.logger.error("Failed to load Word2Vec model")
+            else:
+                app.logger.info("Word2Vec model loaded successfully")
+            
+            # Load Naive Bayes models
             naive_bayes_models = load_naive_bayes_models()
-            pass
+            if not naive_bayes_models:
+                app.logger.error("Failed to load Naive Bayes models")
+            else:
+                app.logger.info(f"Loaded {len(naive_bayes_models)} Naive Bayes models")
+                
+            # Set models in app config for global access
+            app.config['WORD2VEC_MODEL'] = word2vec_model
+            app.config['NAIVE_BAYES_MODELS'] = naive_bayes_models
+            
         except Exception as e:
-            pass
-            # Set empty models if loading fails
+            app.logger.error(f"Error loading models: {str(e)}")
             word2vec_model = None
             naive_bayes_models = {}
 

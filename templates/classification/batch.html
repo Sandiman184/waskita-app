@@ -1,262 +1,501 @@
 {% extends "base.html" %}
 
-{% block title %} Klasifikasi Batch {% endblock title %}
+{% block title %}Klasifikasi Batch - Waskita{% endblock title %}
+
+{% block page_title %}Klasifikasi Batch{% endblock page_title %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item">
+    <a href="{{ url_for('dashboard') }}">Home</a>
+</li>
+<li class="breadcrumb-item">
+    <a href="{{ url_for('classification') }}">Klasifikasi</a>
+</li>
+<li class="breadcrumb-item active">Batch</li>
+{% endblock breadcrumb %}
 
 {% block stylesheets %}
-<style>
-    .data-card {
-        border: 1px solid #dee2e6;
-        border-radius: 8px;
-        margin-bottom: 15px;
-        transition: all 0.3s ease;
-    }
-    .data-card:hover {
-        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-        border-color: #007bff;
-    }
-    .data-card.selected {
-        border-color: #007bff;
-        background-color: #f8f9fa;
-    }
-    .content-preview {
-        max-height: 100px;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-    .batch-actions {
-        position: sticky;
-        top: 20px;
-        background: white;
-        padding: 20px;
-        border-radius: 8px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
-</style>
+    <style>
+        .progress-section {
+            margin-top: 20px;
+        }
+        
+        .card.border-left-success {
+            border-left: 4px solid #28a745;
+        }
+        
+        .btn-success.btn-lg {
+            padding: 12px 30px;
+            font-size: 16px;
+            font-weight: 600;
+            border-radius: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            min-width: 180px;
+        }
+        
+        .empty-state {
+            padding: 40px 20px;
+        }
+        
+        .empty-state i {
+            opacity: 0.5;
+        }
+        
+        .empty-state h5 {
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+        
+        .empty-state p {
+            font-size: 14px;
+            line-height: 1.5;
+        }
+    </style>
 {% endblock stylesheets %}
 
 {% block content %}
-<div class="container-fluid py-4">
-    <div class="row">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header pb-0">
-                    <div class="d-flex justify-content-between align-items-start">
-                        <div>
-                            <h5 class="mb-0">Klasifikasi Batch</h5>
-                            <p class="text-sm mb-0">
-                                Pilih data yang ingin diklasifikasi secara batch menggunakan model machine learning.
-                            </p>
+<section class="content">
+    <div class="container-fluid">
+        <!-- Header with Dataset Info and Back Button -->
+        <div class="row mb-3 align-items-center">
+            <div class="col-md-8">
+                <div class="d-flex align-items-center">
+                    <i class="fas fa-layer-group fa-lg text-dark mr-3"></i>
+                    <h5 class="mb-0 text-dark">Dataset Terpilih untuk Klasifikasi Batch</h5>
+                </div>
+            </div>
+            <div class="col-md-4 text-right">
+                <a href="{{ url_for('classification') }}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left mr-2"></i>Kembali ke Klasifikasi
+                </a>
+            </div>
+        </div>
+
+        <!-- Data Preview -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body">
+                        <div id="dataLoading" class="text-center">
+                            <i class="fas fa-spinner fa-spin fa-2x text-primary"></i>
+                            <p class="mt-2">Memuat data...</p>
                         </div>
-                        <div class="flex-shrink-0">
-                            <a href="{{ url_for('classification') }}" class="btn btn-outline-primary btn-sm mb-0">
-                                <i class="fas fa-arrow-left mr-1"></i> Kembali
-                            </a>
+                        
+                        <div id="dataPreview" style="display: none;">
+                            <div class="table-responsive">
+                                <table class="table table-bordered table-hover" id="previewTable">
+                                    <thead class="thead-light">
+                                        <tr>
+                                            <th width="20%">Sumber Data</th>
+                                            <th width="20%">Username</th>
+                                            <th width="45%">Konten</th>
+                                            <th width="15%">URL</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="previewTableBody">
+                                        <!-- Data akan diisi melalui JavaScript -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        
+                        <div id="noDataMessage" style="display: none;" class="text-center text-muted">
+                            <i class="fas fa-exclamation-triangle fa-2x"></i>
+                            <p class="mt-2">Tidak ada data bersih yang tersedia untuk klasifikasi</p>
                         </div>
                     </div>
                 </div>
-                <div class="card-body px-0 pb-0">
-                    {% if unclassified_data %}
-                    <div class="row">
-                        <div class="col-md-8">
-                            <div class="px-4">
-                                <div class="mb-3">
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" id="selectAll">
-                                        <label class="form-check-label" for="selectAll">
-                                            <strong>Pilih Semua ({{ unclassified_data|length }} data)</strong>
-                                        </label>
-                                    </div>
-                                </div>
-                                
-                                <div id="dataList">
-                                    {% for data in unclassified_data %}
-                                    <div class="data-card p-3" data-id="{{ data.id }}" data-type="{{ data.data_type }}">
-                                        <div class="form-check">
-                                            <input class="form-check-input data-checkbox" type="checkbox" 
-                                                   id="data_{{ data.data_type }}_{{ data.id }}" 
-                                                   value="{{ data.data_type }}_{{ data.id }}">
-                                            <label class="form-check-label w-100" for="data_{{ data.data_type }}_{{ data.id }}">
-                                                <div class="row">
-                                                    <div class="col-md-8">
-                                                        <div class="content-preview">
-                                                            <strong>{{ data.username or 'Unknown' }}</strong><br>
-                                                            <small class="text-muted">{{ data.data_type|title }} Data</small><br>
-                                                            {{ data.cleaned_content[:200] }}{% if data.cleaned_content|length > 200 %}...{% endif %}
-                                                        </div>
-                                                    </div>
-                                                    <div class="col-md-4 text-end">
-                                                        <small class="text-muted">
-                                                            {{ data.created_at.strftime('%d/%m/%Y %H:%M') if data.created_at else 'N/A' }}
-                                                        </small>
-                                                        {% if data.url %}
-                                                        <br><small><a href="{{ data.url }}" target="_blank" class="text-primary">Lihat Sumber</a></small>
-                                                        {% endif %}
-                                                    </div>
-                                                </div>
-                                            </label>
-                                        </div>
-                                    </div>
-                                    {% endfor %}
-                                </div>
+            </div>
+        </div>
+
+        <!-- Classification Controls -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card border-left-success shadow">
+                    <div class="card-body">
+                        <div class="row align-items-center">
+                            <div class="col-md-6">
+                                <!-- Informasi klasifikasi dihapus -->
                             </div>
-                        </div>
-                    {% else %}
-                    <div class="row">
-                        <div class="col-12">
-                            <div class="text-center py-5">
-                                <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
-                                <h5>Semua Data Sudah Diklasifikasi</h5>
-                                <p class="text-muted">Tidak ada data yang perlu diklasifikasi. Semua data telah diproses.</p>
-                                <a href="{{ url_for('classification_results') }}" class="btn btn-primary">
-                                    <i class="fas fa-eye mr-1"></i> Lihat Hasil Klasifikasi
-                                </a>
-                            </div>
-                        </div>
-                    </div>
-                    {% endif %}
-                        
-                        {% if unclassified_data %}
-                        <div class="col-md-4">
-                            <div class="batch-actions">
-                                <h6><i class="fas fa-cogs mr-2"></i>Aksi Batch</h6>
-                                <div class="mb-3">
-                                    <small class="text-muted">Data terpilih: <span id="selectedCount">0</span></small>
-                                </div>
-                                
-                                <button type="button" class="btn btn-primary w-100 mb-2" id="classifySelected" disabled>
-                                    <i class="fas fa-play mr-2"></i>Klasifikasi Data Terpilih
+                            <div class="col-md-6 text-right">
+                                <button id="startClassification" class="btn btn-success btn-lg" disabled>
+                                    <i class="fas fa-play mr-2"></i>Mulai Klasifikasi
                                 </button>
-                                
-                                <div class="alert alert-info">
-                                    <small>
-                                        <i class="fas fa-info-circle mr-1"></i>
-                                        Klasifikasi akan menggunakan 3 model Naive Bayes untuk menganalisis konten radikal/non-radikal.
-                                    </small>
-                                </div>
                             </div>
                         </div>
-                        {% endif %}
+                        
+                        <div class="d-none" id="progressSection">
+                            <hr>
+                            <h6><i class="fas fa-tasks mr-2"></i>Progress Klasifikasi</h6>
+                            <div class="progress mb-2">
+                                <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                     role="progressbar" style="width: 0%" id="progressBar">
+                                    0%
+                                </div>
+                            </div>
+                            <div id="progressText" class="text-muted">
+                                Memulai klasifikasi...
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
-</div>
+</section>
 {% endblock content %}
 
 {% block scripts %}
 <script>
+let currentDatasetId = null;
+let previewData = [];
+
 $(document).ready(function() {
-    // Handle select all checkbox
-    $('#selectAll').change(function() {
-        $('.data-checkbox').prop('checked', this.checked);
-        $('.data-card').toggleClass('selected', this.checked);
-        updateSelectedCount();
-    });
+    // Get dataset_id from URL parameter
+    const urlParams = new URLSearchParams(window.location.search);
+    currentDatasetId = urlParams.get('dataset_id');
     
-    // Handle individual checkbox changes
-    $('.data-checkbox').change(function() {
-        $(this).closest('.data-card').toggleClass('selected', this.checked);
-        updateSelectedCount();
-        
-        // Update select all checkbox
-        const totalCheckboxes = $('.data-checkbox').length;
-        const checkedCheckboxes = $('.data-checkbox:checked').length;
-        $('#selectAll').prop('checked', totalCheckboxes === checkedCheckboxes);
-    });
+    // Initialize progress section as hidden
+    $('#progressSection').addClass('d-none');
+    $('#progressBar').css('width', '0%').text('0%');
+    $('#progressText').text('Memulai klasifikasi...');
     
-    // Update selected count and button state
-    function updateSelectedCount() {
-        const selectedCount = $('.data-checkbox:checked').length;
-        $('#selectedCount').text(selectedCount);
-        $('#classifySelected').prop('disabled', selectedCount === 0);
+    if (currentDatasetId) {
+        loadPreviewData();
+    } else {
+        window.location.href = '/classification';
     }
     
-    // Handle batch classification
-    $('#classifySelected').click(function() {
-        const selectedData = [];
-        $('.data-checkbox:checked').each(function() {
-            const value = $(this).val().split('_');
-            selectedData.push({
-                data_type: value[0],
-                data_id: value[1]
-            });
-        });
-        
-        if (selectedData.length === 0) {
-            Swal.fire({
-                icon: 'warning',
-                title: 'Tidak Ada Data Terpilih',
-                text: 'Silakan pilih minimal satu data untuk diklasifikasi.'
-            });
-            return;
-        }
-        
-        Swal.fire({
-            title: 'Konfirmasi Klasifikasi Batch',
-            text: `Anda akan mengklasifikasi ${selectedData.length} data. Proses ini mungkin memakan waktu beberapa menit.`,
-            icon: 'question',
-            showCancelButton: true,
-            confirmButtonText: 'Ya, Klasifikasi',
-            cancelButtonText: 'Batal'
-        }).then((result) => {
-            if (result.isConfirmed) {
-                processBatchClassification(selectedData);
-            }
-        });
+    $('#startClassification').click(function() {
+        startBatchClassification();
     });
-    
-    // Process batch classification
-    function processBatchClassification(selectedData) {
-        let processed = 0;
-        const total = selectedData.length;
-        
-        Swal.fire({
-            title: 'Memproses Klasifikasi...',
-            html: `Progress: <b>0</b>/${total}`,
-            allowOutsideClick: false,
-            didOpen: () => {
-                Swal.showLoading();
-            }
-        });
-        
-        // Process each data item
-        selectedData.forEach((item, index) => {
-            setTimeout(() => {
-                $.get(`/classification/classify/${item.data_type}/${item.data_id}`)
-                    .done(function() {
-                        processed++;
-                        Swal.update({
-                            html: `Progress: <b>${processed}</b>/${total}`
-                        });
-                        
-                        if (processed === total) {
-                            Swal.fire({
-                                icon: 'success',
-                                title: 'Klasifikasi Selesai!',
-                                text: `${total} data berhasil diklasifikasi.`,
-                                confirmButtonText: 'Lihat Hasil'
-                            }).then(() => {
-                                window.location.href = '/classification/results';
-                            });
-                        }
-                    })
-                    .fail(function() {
-                        processed++;
-                        if (processed === total) {
-                            Swal.fire({
-                                icon: 'warning',
-                                title: 'Klasifikasi Selesai dengan Error',
-                                text: 'Beberapa data mungkin gagal diklasifikasi. Silakan cek hasil klasifikasi.',
-                                confirmButtonText: 'Lihat Hasil'
-                            }).then(() => {
-                                window.location.href = '/classification/results';
-                            });
-                        }
-                    });
-            }, index * 500); // Delay 500ms between requests
-        });
-    }
 });
+
+function loadPreviewData() {
+    // Show loading state
+    $('#dataLoading').show();
+    $('#noDataMessage').hide();
+    $('#dataPreview').hide();
+    $('#startClassification').prop('disabled', true);
+    
+    $.ajax({
+        url: `/api/dataset/${currentDatasetId}/clean-data`,
+        method: 'GET',
+        success: function(response) {
+            $('#dataLoading').hide();
+            
+            if (response.success && response.data && response.data.length > 0) {
+                previewData = response.data.slice(0, 10);
+                displayPreviewData();
+                $('#dataPreview').show();
+                $('#startClassification').prop('disabled', false);
+            } else {
+                $('#noDataMessage').show().html(`
+                    <div class="text-center py-4">
+                        <i class="fas fa-info-circle fa-3x text-info mb-3"></i>
+                        <h5>Tidak Ada Data untuk Diklasifikasi</h5>
+                        <p class="text-muted">Dataset ini belum memiliki data yang sudah dibersihkan atau semua data sudah diklasifikasi.</p>
+                        <div class="mt-3">
+                            <a href="/dataset/${currentDatasetId}/details" class="btn btn-primary">
+                                <i class="fas fa-eye mr-2"></i>Lihat Detail Dataset
+                            </a>
+                            <a href="/classification" class="btn btn-secondary ml-2">
+                                <i class="fas fa-arrow-left mr-2"></i>Kembali
+                            </a>
+                        </div>
+                    </div>
+                `);
+                $('#startClassification').prop('disabled', true);
+            }
+        },
+        error: function(xhr, status, error) {
+            $('#dataLoading').hide();
+            
+            let errorMessage = 'Terjadi kesalahan saat memuat data';
+            let errorIcon = 'error';
+            let actionButtons = '';
+            
+            // Handle different error types
+            if (xhr.status === 404) {
+                errorMessage = 'Dataset tidak ditemukan';
+                errorIcon = 'warning';
+                actionButtons = `
+                    <div class="mt-3">
+                        <a href="/classification" class="btn btn-primary">
+                            <i class="fas fa-arrow-left mr-2"></i>Pilih Dataset Lain
+                        </a>
+                    </div>
+                `;
+            } else if (xhr.status === 403) {
+                errorMessage = 'Anda tidak memiliki akses ke dataset ini';
+                errorIcon = 'warning';
+                actionButtons = `
+                    <div class="mt-3">
+                        <a href="/classification" class="btn btn-primary">
+                            <i class="fas fa-arrow-left mr-2"></i>Kembali ke Daftar Dataset
+                        </a>
+                    </div>
+                `;
+            } else if (xhr.status === 500) {
+                errorMessage = 'Terjadi kesalahan server. Silakan coba lagi nanti.';
+                actionButtons = `
+                    <div class="mt-3">
+                        <button onclick="loadPreviewData()" class="btn btn-primary">
+                            <i class="fas fa-redo mr-2"></i>Coba Lagi
+                        </button>
+                        <a href="/classification" class="btn btn-secondary ml-2">
+                            <i class="fas fa-arrow-left mr-2"></i>Kembali
+                        </a>
+                    </div>
+                `;
+            } else {
+                // Try to get error message from response
+                try {
+                    const response = JSON.parse(xhr.responseText);
+                    if (response.message) {
+                        errorMessage = response.message;
+                    }
+                } catch (e) {
+                    errorMessage = `Error ${xhr.status}: ${error}`;
+                }
+                
+                actionButtons = `
+                    <div class="mt-3">
+                        <button onclick="loadPreviewData()" class="btn btn-primary">
+                            <i class="fas fa-redo mr-2"></i>Coba Lagi
+                        </button>
+                        <a href="/classification" class="btn btn-secondary ml-2">
+                            <i class="fas fa-arrow-left mr-2"></i>Kembali
+                        </a>
+                    </div>
+                `;
+            }
+            
+            $('#noDataMessage').show().html(`
+                <div class="text-center py-4">
+                    <i class="fas fa-exclamation-triangle fa-3x text-${errorIcon === 'error' ? 'danger' : 'warning'} mb-3"></i>
+                    <h5>Error Memuat Data</h5>
+                    <p class="text-muted">${errorMessage}</p>
+                    ${actionButtons}
+                </div>
+            `);
+            $('#startClassification').prop('disabled', true);
+            
+            // Show error notification
+            Swal.fire({
+                title: 'Error',
+                text: errorMessage,
+                icon: errorIcon,
+                confirmButtonText: 'OK'
+            });
+        }
+    });
+}
+
+function displayPreviewData() {
+    const tbody = $('#previewTableBody');
+    tbody.empty();
+    
+    if (!previewData || previewData.length === 0) {
+        // Show empty state message
+        const emptyRow = `
+            <tr>
+                <td colspan="4" class="text-center py-5">
+                    <div class="empty-state">
+                        <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                        <h5 class="text-muted">Tidak Ada Data</h5>
+                        <p class="text-muted mb-0">
+                            Belum ada data yang tersedia untuk ditampilkan.<br>
+                            Pastikan data sudah di-upload atau di-scrape dan telah dibersihkan.
+                        </p>
+                    </div>
+                </td>
+            </tr>
+        `;
+        tbody.append(emptyRow);
+        $('#startClassification').prop('disabled', true);
+        return;
+    }
+    
+    previewData.forEach(function(item, index) {
+        const row = `
+            <tr>
+                <td>
+                    <span class="badge badge-${item.data_type === 'upload' ? 'primary' : 'info'}">
+                        ${item.data_type === 'upload' ? 'Upload' : 'Scraper'}
+                    </span>
+                </td>
+                <td>${item.username || '-'}</td>
+                <td>
+                    <div style="max-height: 100px; overflow-y: auto;">
+                        ${item.content || item.full_content || '-'}
+                    </div>
+                </td>
+                <td>
+                    ${item.url ? `<a href="${item.url}" target="_blank" class="btn btn-sm btn-outline-primary">
+                        <i class="fas fa-external-link-alt"></i>
+                    </a>` : '-'}
+                </td>
+            </tr>
+        `;
+        tbody.append(row);
+    });
+    
+    // Enable classification button if data is available
+    $('#startClassification').prop('disabled', false);
+}
+
+function startBatchClassification() {
+    // Show loading state
+    Swal.fire({
+        title: 'Memuat Data...',
+        text: 'Sedang memuat data untuk klasifikasi',
+        icon: 'info',
+        allowOutsideClick: false,
+        showConfirmButton: false,
+        didOpen: () => {
+            Swal.showLoading();
+        }
+    });
+
+    $.ajax({
+        url: `/api/dataset/${currentDatasetId}/clean-data`,
+        method: 'GET',
+        success: function(response) {
+            Swal.close(); // Close loading dialog
+            
+            if (response.success === false) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error Server',
+                    text: 'Terjadi kesalahan pada server saat memuat data',
+                    confirmButtonText: 'OK'
+                });
+                return;
+            }
+            
+            if (response.data && response.data.length > 0) {
+                const allData = response.data.map(function(item) {
+                    return {
+                        data_id: item.id,
+                        data_type: item.data_type
+                    };
+                });
+                
+                Swal.fire({
+                    title: 'Konfirmasi Klasifikasi Batch',
+                    text: `Anda akan mengklasifikasi semua ${allData.length} data dalam dataset ini. Lanjutkan?`,
+                    icon: 'question',
+                    showCancelButton: true,
+                    confirmButtonColor: '#28a745',
+                    cancelButtonColor: '#6c757d',
+                    confirmButtonText: 'Ya, Klasifikasi Semua',
+                    cancelButtonText: 'Batal'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        processAllData(allData);
+                    }
+                });
+            } else {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Data Tidak Tersedia',
+                    html: `
+                        <p>Tidak ada data yang tersedia untuk diklasifikasi.</p>
+                        <p><strong>Kemungkinan penyebab:</strong></p>
+                        <ul style="text-align: left; margin: 10px 0;">
+                            <li>Data belum di-upload atau di-scrape</li>
+                            <li>Data belum dibersihkan (cleaning)</li>
+                            <li>Dataset kosong</li>
+                        </ul>
+                        <p>Silakan periksa data Anda terlebih dahulu.</p>
+                    `,
+                    confirmButtonText: 'OK',
+                    confirmButtonColor: '#007bff'
+                });
+            }
+        },
+        error: function(xhr, status, error) {
+            Swal.close(); // Close loading dialog
+            
+            let errorMessage = 'Gagal memuat data untuk klasifikasi';
+            let errorTitle = 'Error';
+            
+            if (xhr.status === 404) {
+                errorTitle = 'Dataset Tidak Ditemukan';
+                errorMessage = 'Dataset yang diminta tidak ditemukan. Pastikan dataset masih tersedia.';
+            } else if (xhr.status === 403) {
+                errorTitle = 'Akses Ditolak';
+                errorMessage = 'Anda tidak memiliki akses untuk melihat dataset ini.';
+            } else if (xhr.status === 500) {
+                errorTitle = 'Error Server';
+                errorMessage = 'Terjadi kesalahan pada server. Silakan coba lagi nanti.';
+            } else if (xhr.status === 0) {
+                errorTitle = 'Koneksi Terputus';
+                errorMessage = 'Tidak dapat terhubung ke server. Periksa koneksi internet Anda.';
+            }
+            
+            Swal.fire({
+                icon: 'error',
+                title: errorTitle,
+                text: errorMessage,
+                confirmButtonText: 'OK',
+                confirmButtonColor: '#dc3545'
+            });
+        }
+    });
+}
+
+function processAllData(allData) {
+    $('#progressSection').removeClass('d-none');
+    $('#startClassification').prop('disabled', true).html(`
+        <i class="fas fa-spinner fa-spin mr-2"></i>Memproses...
+    `);
+    
+    const csrfToken = $('meta[name=csrf-token]').attr('content');
+    
+    $.ajax({
+        url: '/classification/batch/process',
+        method: 'POST',
+        contentType: 'application/json',
+        headers: {
+            'X-CSRFToken': csrfToken
+        },
+        data: JSON.stringify({
+            dataset_id: currentDatasetId,
+            selected_data: allData
+        }),
+        success: function(response) {
+            if (response.success) {
+                $('#progressBar').css('width', '100%').text('100%');
+                $('#progressText').text(`Selesai! ${response.processed} data berhasil diklasifikasi`);
+                
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Klasifikasi Selesai',
+                    text: `${response.processed} data berhasil diklasifikasi, ${response.errors} error`,
+                    confirmButtonText: 'Lihat Hasil'
+                }).then(() => {
+                    window.location.href = '/classification/results';
+                });
+            } else {
+                throw new Error(response.message);
+            }
+        },
+        error: function(xhr, status, error) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: `Terjadi kesalahan: ${error}`
+            });
+        },
+        complete: function() {
+            $('#startClassification').prop('disabled', false).html(`
+                <i class="fas fa-play mr-2"></i>Mulai Klasifikasi
+            `);
+        }
+    });
+}
 </script>
 {% endblock scripts %}

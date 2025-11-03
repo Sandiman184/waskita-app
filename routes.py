@@ -160,6 +160,48 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
         flash('Logout berhasil!', 'info')
         return redirect(url_for('login'))
     
+    @app.route('/dashboard/stats')
+    @login_required
+    def dashboard_stats():
+        # Get statistics
+        stats = DatasetStatistics.query.first()
+        if not stats:
+            stats = DatasetStatistics()
+            db.session.add(stats)
+            db.session.commit()
+        
+        # Get platform statistics
+        platform_stats = {
+            'twitter_upload': RawData.query.filter_by(platform='twitter').count(),
+            'tiktok_upload': RawData.query.filter_by(platform='tiktok').count(),
+            'facebook_upload': RawData.query.filter_by(platform='facebook').count(),
+            'instagram_upload': RawData.query.filter_by(platform='instagram').count(),
+            'twitter_scraper': RawDataScraper.query.filter_by(platform='twitter').count(),
+            'tiktok_scraper': RawDataScraper.query.filter_by(platform='tiktok').count(),
+            'facebook_scraper': RawDataScraper.query.filter_by(platform='facebook').count(),
+            'instagram_scraper': RawDataScraper.query.filter_by(platform='instagram').count(),
+        }
+        
+        # Calculate percentages
+        radikal_percentage = 0
+        non_radikal_percentage = 0
+        if stats.total_classified and stats.total_classified > 0:
+            radikal_percentage = (stats.total_radikal / stats.total_classified) * 100
+            non_radikal_percentage = (stats.total_non_radikal / stats.total_classified) * 100
+        
+        return jsonify({
+            'total_raw_upload': stats.total_raw_upload,
+            'total_raw_scraper': stats.total_raw_scraper,
+            'total_clean_upload': stats.total_clean_upload,
+            'total_clean_scraper': stats.total_clean_scraper,
+            'total_classified': stats.total_classified,
+            'total_radikal': stats.total_radikal,
+            'total_non_radikal': stats.total_non_radikal,
+            'radikal_percentage': radikal_percentage,
+            'non_radikal_percentage': non_radikal_percentage,
+            **platform_stats
+        })
+
     @app.route('/dashboard')
     @login_required
     def dashboard():
@@ -1353,41 +1395,16 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
     @app.route('/classification/batch')
     @login_required
     def batch_classification():
-        try:
-            # Get all clean data that hasn't been classified yet
-            unclassified_upload = db.session.execute(
-                text("""
-                    SELECT cdu.id, cdu.cleaned_content, cdu.username, cdu.url, cdu.created_at, 'upload' as data_type
-                    FROM clean_data_upload cdu
-                    LEFT JOIN classification_results cr ON cr.data_type = 'upload' AND cr.data_id = cdu.id
-                    WHERE cr.id IS NULL
-                    ORDER BY cdu.created_at DESC
-                """)
-            ).fetchall()
-            
-            unclassified_scraper = db.session.execute(
-                text("""
-                    SELECT cds.id, cds.cleaned_content, cds.username, cds.url, cds.created_at, 'scraper' as data_type
-                    FROM clean_data_scraper cds
-                    LEFT JOIN classification_results cr ON cr.data_type = 'scraper' AND cr.data_id = cds.id
-                    WHERE cr.id IS NULL
-                    ORDER BY cds.created_at DESC
-                """)
-            ).fetchall()
-            
-            # Combine all unclassified data
-            all_unclassified = list(unclassified_upload) + list(unclassified_scraper)
-            
-            return render_template('classification/batch.html', unclassified_data=all_unclassified)
-        except Exception as e:
-            flash(f'Error mengambil data untuk klasifikasi batch: {str(e)}', 'error')
-            return render_template('classification/batch.html', unclassified_data=[])
+        """Batch classification page - now uses dataset selection"""
+        return render_template('classification/batch.html')
     
     @app.route('/classification/batch/process', methods=['POST'])
     @login_required
     def process_batch_classification():
         try:
-            selected_data = request.json.get('selected_data', [])
+            data = request.get_json()
+            dataset_id = data.get('dataset_id')
+            selected_data = data.get('selected_data', [])
             
             if not selected_data:
                 return jsonify({'success': False, 'message': 'Tidak ada data yang dipilih'})
@@ -1454,6 +1471,7 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                                     prediction=prediction,
                                     probability_radikal=prob_radikal,
                                     probability_non_radikal=prob_non_radikal,
+                                    classified_by=current_user.id,
                                     created_at=datetime.now()
                                 )
                                 db.session.add(result)
@@ -1467,6 +1485,13 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                     continue
             
             db.session.commit()
+            
+            # Update statistics after batch classification
+            try:
+                from scheduler import cleanup_scheduler
+                cleanup_scheduler.update_statistics()
+            except Exception as e:
+                current_app.logger.error(f"Error updating statistics: {str(e)}")
             
             return jsonify({
                 'success': True,
@@ -5346,11 +5371,11 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
             ).scalar() or 0
             
             stats.total_radikal = db.session.execute(
-                text("SELECT COUNT(*) FROM classification_results WHERE prediction = 'radikal'")
+                text("SELECT COUNT(DISTINCT CONCAT(data_type, '_', data_id)) FROM classification_results WHERE prediction = 'radikal'")
             ).scalar() or 0
             
             stats.total_non_radikal = db.session.execute(
-                text("SELECT COUNT(*) FROM classification_results WHERE prediction = 'non-radikal'")
+                text("SELECT COUNT(DISTINCT CONCAT(data_type, '_', data_id)) FROM classification_results WHERE prediction = 'non-radikal'")
             ).scalar() or 0
             
             db.session.commit()
@@ -5913,3 +5938,294 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                 }
             }
             return jsonify(error_data), 500
+
+    @app.route('/api/datasets/for-classification', methods=['GET'])
+    @login_required
+    def get_datasets_for_classification():
+        """Get datasets that have unclassified clean data"""
+        try:
+            # Get all datasets with their statistics
+            datasets_query = text("""
+                WITH dataset_stats AS (
+                    SELECT 
+                        d.id,
+                        d.name,
+                        d.created_at,
+                        u.username as created_by,
+                        -- Count total data (raw + scraper)
+                        COALESCE(rd_count.total, 0) + COALESCE(rs_count.total, 0) as total_data,
+                        -- Count clean data
+                        COALESCE(cd_count.total, 0) + COALESCE(cs_count.total, 0) as clean_data,
+                        -- Count classified data
+                        COALESCE(classified_upload.total, 0) + COALESCE(classified_scraper.total, 0) as classified_data
+                    FROM datasets d
+                    LEFT JOIN users u ON d.uploaded_by = u.id
+                    -- Raw data upload count
+                    LEFT JOIN (
+                        SELECT dataset_id, COUNT(*) as total 
+                        FROM raw_data 
+                        GROUP BY dataset_id
+                    ) rd_count ON d.id = rd_count.dataset_id
+                    -- Raw scraper count
+                    LEFT JOIN (
+                        SELECT dataset_id, COUNT(*) as total 
+                        FROM raw_data_scraper 
+                        GROUP BY dataset_id
+                    ) rs_count ON d.id = rs_count.dataset_id
+                    -- Clean data upload count
+                    LEFT JOIN (
+                        SELECT rd.dataset_id, COUNT(*) as total 
+                        FROM clean_data_upload cdu
+                        JOIN raw_data rd ON cdu.raw_data_id = rd.id
+                        GROUP BY rd.dataset_id
+                    ) cd_count ON d.id = cd_count.dataset_id
+                    -- Clean scraper count
+                    LEFT JOIN (
+                        SELECT rs.dataset_id, COUNT(*) as total 
+                        FROM clean_data_scraper cds
+                        JOIN raw_data_scraper rs ON cds.raw_data_scraper_id = rs.id
+                        GROUP BY rs.dataset_id
+                    ) cs_count ON d.id = cs_count.dataset_id
+                    -- Classified upload count
+                    LEFT JOIN (
+                        SELECT rd.dataset_id, COUNT(DISTINCT cr.data_id) as total
+                        FROM classification_results cr
+                        JOIN clean_data_upload cdu ON cr.data_id = cdu.id AND cr.data_type = 'upload'
+                        JOIN raw_data rd ON cdu.raw_data_id = rd.id
+                        GROUP BY rd.dataset_id
+                    ) classified_upload ON d.id = classified_upload.dataset_id
+                    -- Classified scraper count
+                    LEFT JOIN (
+                        SELECT rs.dataset_id, COUNT(DISTINCT cr.data_id) as total
+                        FROM classification_results cr
+                        JOIN clean_data_scraper cds ON cr.data_id = cds.id AND cr.data_type = 'scraper'
+                        JOIN raw_data_scraper rs ON cds.raw_data_scraper_id = rs.id
+                        GROUP BY rs.dataset_id
+                    ) classified_scraper ON d.id = classified_scraper.dataset_id
+                )
+                SELECT 
+                    id,
+                    name,
+                    created_at,
+                    created_by,
+                    total_data,
+                    clean_data,
+                    classified_data,
+                    (clean_data - classified_data) as unclassified_data
+                FROM dataset_stats
+                WHERE clean_data > 0 AND (clean_data - classified_data) > 0
+                ORDER BY created_at DESC
+            """)
+            
+            if current_user.role != 'admin':
+                datasets_query = text("""
+                    WITH dataset_stats AS (
+                        SELECT 
+                            d.id,
+                            d.name,
+                            d.created_at,
+                            u.username as created_by,
+                            -- Count total data (raw + scraper)
+                            COALESCE(rd_count.total, 0) + COALESCE(rs_count.total, 0) as total_data,
+                            -- Count clean data
+                            COALESCE(cd_count.total, 0) + COALESCE(cs_count.total, 0) as clean_data,
+                            -- Count classified data
+                            COALESCE(classified_upload.total, 0) + COALESCE(classified_scraper.total, 0) as classified_data
+                        FROM datasets d
+                        LEFT JOIN users u ON d.uploaded_by = u.id
+                        -- Raw data upload count
+                        LEFT JOIN (
+                            SELECT dataset_id, COUNT(*) as total 
+                            FROM raw_data 
+                            WHERE user_id = :user_id
+                            GROUP BY dataset_id
+                        ) rd_count ON d.id = rd_count.dataset_id
+                        -- Raw scraper count
+                        LEFT JOIN (
+                            SELECT dataset_id, COUNT(*) as total 
+                            FROM raw_data_scraper 
+                            WHERE user_id = :user_id
+                            GROUP BY dataset_id
+                        ) rs_count ON d.id = rs_count.dataset_id
+                        -- Clean data upload count
+                        LEFT JOIN (
+                            SELECT rd.dataset_id, COUNT(*) as total 
+                            FROM clean_data_upload cdu
+                            JOIN raw_data rd ON cdu.raw_data_id = rd.id
+                            WHERE rd.user_id = :user_id
+                            GROUP BY rd.dataset_id
+                        ) cd_count ON d.id = cd_count.dataset_id
+                        -- Clean scraper count
+                        LEFT JOIN (
+                            SELECT rs.dataset_id, COUNT(*) as total 
+                            FROM clean_data_scraper cds
+                            JOIN raw_data_scraper rs ON cds.raw_data_scraper_id = rs.id
+                            WHERE rs.user_id = :user_id
+                            GROUP BY rs.dataset_id
+                        ) cs_count ON d.id = cs_count.dataset_id
+                        -- Classified upload count
+                        LEFT JOIN (
+                            SELECT rd.dataset_id, COUNT(DISTINCT cr.data_id) as total
+                            FROM classification_results cr
+                            JOIN clean_data_upload cdu ON cr.data_id = cdu.id AND cr.data_type = 'upload'
+                            JOIN raw_data rd ON cdu.raw_data_id = rd.id
+                            WHERE rd.user_id = :user_id
+                            GROUP BY rd.dataset_id
+                        ) classified_upload ON d.id = classified_upload.dataset_id
+                        -- Classified scraper count
+                        LEFT JOIN (
+                            SELECT rs.dataset_id, COUNT(DISTINCT cr.data_id) as total
+                            FROM classification_results cr
+                            JOIN clean_data_scraper cds ON cr.data_id = cds.id AND cr.data_type = 'scraper'
+                            JOIN raw_data_scraper rs ON cds.raw_data_scraper_id = rs.id
+                            WHERE rs.user_id = :user_id
+                            GROUP BY rs.dataset_id
+                        ) classified_scraper ON d.id = classified_scraper.dataset_id
+                        WHERE d.uploaded_by = :user_id
+                    )
+                    SELECT 
+                        id,
+                        name,
+                        created_at,
+                        created_by,
+                        total_data,
+                        clean_data,
+                        classified_data,
+                        (clean_data - classified_data) as unclassified_data
+                    FROM dataset_stats
+                    WHERE clean_data > 0 AND (clean_data - classified_data) > 0
+                    ORDER BY created_at DESC
+                """)
+                
+                result = db.session.execute(datasets_query, {'user_id': current_user.id})
+            else:
+                result = db.session.execute(datasets_query)
+            
+            datasets = []
+            for row in result:
+                datasets.append({
+                    'id': row.id,
+                    'name': row.name,
+                    'created_at': row.created_at.strftime('%d/%m/%Y %H:%M') if row.created_at else None,
+                    'created_by': row.created_by,
+                    'total_data': row.total_data or 0,
+                    'clean_data': row.clean_data or 0,
+                    'classified_data': row.classified_data or 0,
+                    'unclassified_data': row.unclassified_data or 0
+                })
+            
+            return jsonify({
+                'success': True,
+                'datasets': datasets
+            })
+            
+        except Exception as e:
+            return jsonify({
+                'success': False,
+                'message': f'Error loading datasets: {str(e)}'
+            }), 500
+    @app.route('/api/dataset/<int:dataset_id>/clean-data', methods=['GET'])
+    @login_required
+    def get_dataset_clean_data(dataset_id):
+        """Get clean data from a specific dataset for classification"""
+        try:
+            app.logger.info(f"Getting clean data for dataset_id: {dataset_id}")
+            
+            # Check if dataset exists and user has access
+            dataset = Dataset.query.get(dataset_id)
+            if not dataset:
+                app.logger.warning(f"Dataset {dataset_id} not found")
+                return jsonify({'success': False, 'message': 'Dataset tidak ditemukan'}), 404
+                
+            app.logger.info(f"Dataset found: {dataset.name}, uploaded_by: {dataset.uploaded_by}, current_user: {current_user.id}")
+                
+            if current_user.role != 'admin' and dataset.uploaded_by != current_user.id:
+                app.logger.warning(f"User {current_user.id} doesn't have access to dataset {dataset_id}")
+                return jsonify({'success': False, 'message': 'Anda tidak memiliki akses ke dataset ini'}), 403
+            
+            # Get clean data from upload
+            clean_upload_query = text("""
+                SELECT 
+                    cdu.id, 
+                    'upload' as data_type,
+                    cdu.username, 
+                    cdu.cleaned_content, 
+                    cdu.url,
+                    cdu.created_at
+                FROM clean_data_upload cdu
+                JOIN raw_data rd ON cdu.raw_data_id = rd.id
+                LEFT JOIN classification_results cr ON cr.data_type = 'upload' AND cr.data_id = cdu.id
+                WHERE rd.dataset_id = :dataset_id AND cr.id IS NULL
+                ORDER BY cdu.created_at DESC
+            """)
+            
+            # Get clean data from scraper
+            clean_scraper_query = text("""
+                SELECT 
+                    cds.id, 
+                    'scraper' as data_type,
+                    cds.username, 
+                    cds.cleaned_content, 
+                    cds.url,
+                    cds.created_at
+                FROM clean_data_scraper cds
+                JOIN raw_data_scraper rds ON cds.raw_data_scraper_id = rds.id
+                LEFT JOIN classification_results cr ON cr.data_type = 'scraper' AND cr.data_id = cds.id
+                WHERE rds.dataset_id = :dataset_id AND cr.id IS NULL
+                ORDER BY cds.created_at DESC
+            """)
+            
+            clean_upload_data = db.session.execute(clean_upload_query, {'dataset_id': dataset_id}).fetchall()
+            clean_scraper_data = db.session.execute(clean_scraper_query, {'dataset_id': dataset_id}).fetchall()
+            
+            # Combine and format data
+            clean_data = []
+            
+            for data in clean_upload_data:
+                clean_data.append({
+                    'id': data.id,
+                    'data_type': data.data_type,
+                    'username': data.username or '-',
+                    'content': data.cleaned_content[:200] + ('...' if data.cleaned_content and len(data.cleaned_content) > 200 else ''),
+                    'full_content': data.cleaned_content,
+                    'url': data.url or '-',
+                    'created_at': data.created_at.strftime('%d/%m/%Y %H:%M') if data.created_at else '-'
+                })
+                
+            for data in clean_scraper_data:
+                clean_data.append({
+                    'id': data.id,
+                    'data_type': data.data_type,
+                    'username': data.username or '-',
+                    'content': data.cleaned_content[:200] + ('...' if data.cleaned_content and len(data.cleaned_content) > 200 else ''),
+                    'full_content': data.cleaned_content,
+                    'url': data.url or '-',
+                    'created_at': data.created_at.strftime('%d/%m/%Y %H:%M') if data.created_at else '-'
+                })
+            
+            # Get platforms from the data
+            platforms = set()
+            for item in clean_data:
+                if 'platform' in item:
+                    platforms.add(item['platform'])
+            
+            return jsonify({
+                'success': True,
+                'dataset': {
+                    'id': dataset.id,
+                    'name': dataset.name,
+                    'platforms': list(platforms) if platforms else ['unknown']
+                },
+                'data': clean_data,
+                'total_items': len(clean_data)
+            })
+            
+        except Exception as e:
+            app.logger.error(f"Error in get_dataset_clean_data for dataset {dataset_id}: {str(e)}")
+            app.logger.error(f"Exception type: {type(e).__name__}")
+            import traceback
+            app.logger.error(f"Traceback: {traceback.format_exc()}")
+            return jsonify({
+                'success': False,
+                'message': f'Error loading clean data: {str(e)}'
+            }), 500
