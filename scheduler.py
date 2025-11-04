@@ -94,8 +94,8 @@ class DataCleanupScheduler:
                 stats.total_clean_upload = db.session.execute(text("SELECT COUNT(*) FROM clean_data_upload")).scalar() or 0
                 stats.total_clean_scraper = db.session.execute(text("SELECT COUNT(*) FROM clean_data_scraper")).scalar() or 0
                 stats.total_classified = db.session.execute(text("SELECT COUNT(*) FROM classification_results")).scalar() or 0
-                stats.total_radikal = db.session.execute(text("SELECT COUNT(DISTINCT CONCAT(data_type, '_', data_id)) FROM classification_results WHERE prediction = 'radikal'")).scalar() or 0
-                stats.total_non_radikal = db.session.execute(text("SELECT COUNT(DISTINCT CONCAT(data_type, '_', data_id)) FROM classification_results WHERE prediction = 'non-radikal'")).scalar() or 0
+                stats.total_radikal = db.session.execute(text("SELECT COUNT(*) FROM classification_results WHERE prediction = 'radikal'")).scalar() or 0
+                stats.total_non_radikal = db.session.execute(text("SELECT COUNT(*) FROM classification_results WHERE prediction = 'non-radikal'")).scalar() or 0
                 
                 # Calculate percentages
                 if stats.total_classified > 0:

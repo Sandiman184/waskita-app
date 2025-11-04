@@ -191,6 +191,49 @@ select.form-control {
     margin-bottom: 1rem;
 }
 
+/* Enhanced dropdown button hover effects */
+.btn-outline-secondary.dropdown-toggle:hover {
+    background-color: #6c757d !important;
+    border-color: #6c757d !important;
+    color: white !important;
+}
+
+.btn-outline-secondary.dropdown-toggle:focus {
+    box-shadow: 0 0 0 0.2rem rgba(108, 117, 125, 0.5) !important;
+}
+
+/* Specific styling for pagination dropdown buttons */
+.dropdown-pagination.btn-outline-secondary:hover,
+.dropdown-sort.btn-outline-secondary:hover {
+    background-color: #495057 !important;
+    border-color: #495057 !important;
+    color: white !important;
+}
+
+/* Ensure dropdown buttons have proper contrast in both light and dark modes */
+.btn-outline-secondary {
+    color: #6c757d !important;
+    border-color: #6c757d !important;
+}
+
+.btn-outline-secondary:hover {
+    color: white !important;
+}
+
+/* Dark mode support for dropdown buttons */
+@media (prefers-color-scheme: dark) {
+    .btn-outline-secondary {
+        color: #adb5bd !important;
+        border-color: #6c757d !important;
+    }
+    
+    .btn-outline-secondary:hover {
+        background-color: #6c757d !important;
+        border-color: #6c757d !important;
+        color: #f8f9fa !important;
+    }
+}
+
 /* Modal dropdown fix - Bootstrap 4 + AdminLTE 3.2 Compatibility */
 .modal .dropdown-menu {
     z-index: 1060 !important;
@@ -436,9 +479,14 @@ select.form-control {
     z-index: 1050 !important;
     background-color: #ffffff !important;
     border: 1px solid #ced4da !important;
-    appearance: menulist !important;
-    -webkit-appearance: menulist !important;
-    -moz-appearance: menulist !important;
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    -moz-appearance: none !important;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e") !important;
+    background-position: right 0.75rem center !important;
+    background-repeat: no-repeat !important;
+    background-size: 16px 12px !important;
+    padding: 0.375rem 2.5rem 0.375rem 0.75rem !important;
 }
 
 .card-body select.form-control:focus {

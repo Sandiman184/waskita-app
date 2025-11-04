@@ -1009,11 +1009,18 @@ $(document).ready(function() {
                 data: JSON.stringify({ dataset_ids: selectedIds }),
                 success: function(data) {
                     if (data.success) {
-                        let message = `${data.processed} dataset berhasil dibersihkan`;
+                        let message = data.message;
                         if (data.errors && data.errors.length > 0) {
                             message += `\n\nError pada beberapa dataset:\n${data.errors.join('\n')}`;
                         }
-                        Swal.fire('Berhasil', message, 'success')
+                        
+                        // Tentukan jenis notifikasi berdasarkan status
+                        let icon = 'success';
+                        if (data.already_cleaned > 0 && data.processed === 0) {
+                            icon = 'info';
+                        }
+                        
+                        Swal.fire('Berhasil', message, icon)
                             .then(() => location.reload());
                     } else {
                         Swal.fire('Error', data.message, 'error');
@@ -1056,11 +1063,18 @@ $(document).ready(function() {
                 data: JSON.stringify({ dataset_ids: selectedIds }),
                 success: function(data) {
                     if (data.success) {
-                        let message = `${data.processed} dataset berhasil diklasifikasi`;
+                        let message = data.message;
                         if (data.errors && data.errors.length > 0) {
                             message += `\n\nError pada beberapa dataset:\n${data.errors.join('\n')}`;
                         }
-                        Swal.fire('Berhasil', message, 'success')
+                        
+                        // Tentukan jenis notifikasi berdasarkan status
+                        let icon = 'success';
+                        if (data.already_classified > 0 && data.processed === 0) {
+                            icon = 'info';
+                        }
+                        
+                        Swal.fire('Berhasil', message, icon)
                             .then(() => location.reload());
                     } else {
                         Swal.fire('Error', data.message, 'error');

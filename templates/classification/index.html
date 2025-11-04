@@ -416,6 +416,34 @@ function loadDatasets() {
     });
 }
 
+// Fungsi untuk melihat detail data upload
+function showUploadData() {
+    if (!selectedDatasetId) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'Pilih Data Terlebih Dahulu',
+            text: 'Silakan pilih dataset dari dropdown sebelum melihat detail.',
+            confirmButtonText: 'Mengerti'
+        });
+        return;
+    }
+    window.location.href = `/dataset/${selectedDatasetId}/details`;
+}
+
+// Fungsi untuk melihat detail data scraper
+function showScraperData() {
+    if (!selectedDatasetId) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'Pilih Data Terlebih Dahulu',
+            text: 'Silakan pilih dataset dari dropdown sebelum melihat detail.',
+            confirmButtonText: 'Mengerti'
+        });
+        return;
+    }
+    window.location.href = `/dataset/${selectedDatasetId}/details`;
+}
+
 
 </script>
 {% endblock scripts %}

@@ -224,6 +224,12 @@ WTF_CSRF_SECRET_KEY={csrf_key}
 JWT_SECRET_KEY={jwt_key}
 WASKITA_API_KEY={api_key}
 
+# Session Configuration for Local Network Development
+SESSION_COOKIE_SECURE=False
+SESSION_COOKIE_HTTPONLY=True
+SESSION_COOKIE_SAMESITE=Lax
+SESSION_COOKIE_DOMAIN=None
+
 # =============================================================================
 # FILE UPLOAD CONFIGURATION
 # =============================================================================

@@ -57,7 +57,12 @@ class DevelopmentConfig(Config):
     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL')
     if not SQLALCHEMY_DATABASE_URI:
         raise ValueError("DATABASE_URL environment variable is required")
+    
+    # Session configuration for local development
     SESSION_COOKIE_SECURE = False
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = 'Lax'
+    SESSION_COOKIE_DOMAIN = None
 
 class TestingConfig(Config):
     TESTING = True

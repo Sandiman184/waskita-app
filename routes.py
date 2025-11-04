@@ -3104,6 +3104,7 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                 return jsonify({'success': False, 'message': 'Tidak ada dataset yang dipilih'}), 400
             
             processed_count = 0
+            already_cleaned_count = 0
             errors = []
             
             for dataset_id in dataset_ids:
@@ -3116,6 +3117,19 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                     # Check permission
                     if not current_user.is_admin and dataset.created_by != current_user.id:
                         errors.append(f'Tidak memiliki akses ke dataset {dataset.name}')
+                        continue
+                    
+                    # Check if dataset already has clean data
+                    has_clean_upload = db.session.query(CleanDataUpload).join(
+                        RawData, CleanDataUpload.raw_data_id == RawData.id
+                    ).filter(RawData.dataset_id == dataset_id).first()
+                    
+                    has_clean_scraper = db.session.query(CleanDataScraper).join(
+                        RawDataScraper, CleanDataScraper.raw_data_scraper_id == RawDataScraper.id
+                    ).filter(RawDataScraper.dataset_id == dataset_id).first()
+                    
+                    if has_clean_upload or has_clean_scraper:
+                        already_cleaned_count += 1
                         continue
                     
                     # Clean raw upload data
@@ -3180,18 +3194,29 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
             if processed_count > 0:
                 update_statistics()
             
+            # Build informative message
+            message_parts = []
+            if processed_count > 0:
+                message_parts.append(f'{processed_count} dataset berhasil dibersihkan')
+            if already_cleaned_count > 0:
+                message_parts.append(f'{already_cleaned_count} dataset sudah dalam status bersih')
+            
+            message = ' dan '.join(message_parts) if message_parts else 'Tidak ada dataset yang perlu dibersihkan'
+            
             if errors:
                 return jsonify({
                     'success': True, 
                     'processed': processed_count,
-                    'message': f'{processed_count} dataset berhasil dibersihkan',
+                    'already_cleaned': already_cleaned_count,
+                    'message': message,
                     'errors': errors
                 })
             
             return jsonify({
                 'success': True, 
                 'processed': processed_count,
-                'message': f'{processed_count} dataset berhasil dibersihkan'
+                'already_cleaned': already_cleaned_count,
+                'message': message
             })
             
         except Exception as e:
@@ -3214,6 +3239,8 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                 return jsonify({'success': False, 'message': 'Library ML tidak tersedia'}), 500
             
             processed_count = 0
+            already_classified_count = 0
+            no_clean_data_count = 0
             errors = []
             
             for dataset_id in dataset_ids:
@@ -3226,6 +3253,39 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                     # Check permission
                     if not current_user.is_admin and dataset.created_by != current_user.id:
                         errors.append(f'Tidak memiliki akses ke dataset {dataset.name}')
+                        continue
+                    
+                    # Check if dataset has clean data
+                    clean_uploads_count = db.session.query(CleanDataUpload).join(
+                        RawData, CleanDataUpload.raw_data_id == RawData.id
+                    ).filter(RawData.dataset_id == dataset_id).count()
+                    
+                    clean_scrapers_count = db.session.query(CleanDataScraper).join(
+                        RawDataScraper, CleanDataScraper.raw_data_scraper_id == RawDataScraper.id
+                    ).filter(RawDataScraper.dataset_id == dataset_id).count()
+                    
+                    total_clean_data = clean_uploads_count + clean_scrapers_count
+                    
+                    if total_clean_data == 0:
+                        no_clean_data_count += 1
+                        errors.append(f'Dataset {dataset.name} tidak memiliki data bersih. Silakan bersihkan data terlebih dahulu.')
+                        continue
+                    
+                    # Check if dataset already has classification results
+                    classified_uploads_count = db.session.query(ClassificationResult).join(
+                        CleanDataUpload, ClassificationResult.data_id == CleanDataUpload.id
+                    ).join(RawData, CleanDataUpload.raw_data_id == RawData.id
+                    ).filter(RawData.dataset_id == dataset_id).count()
+                    
+                    classified_scrapers_count = db.session.query(ClassificationResult).join(
+                        CleanDataScraper, ClassificationResult.data_id == CleanDataScraper.id
+                    ).join(RawDataScraper, CleanDataScraper.raw_data_scraper_id == RawDataScraper.id
+                    ).filter(RawDataScraper.dataset_id == dataset_id).count()
+                    
+                    total_classified = classified_uploads_count + classified_scrapers_count
+                    
+                    if total_classified >= total_clean_data:
+                        already_classified_count += 1
                         continue
                     
                     # Classify clean upload data
@@ -3295,18 +3355,33 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
             # Update statistics after classification
             update_statistics()
             
+            # Build informative message
+            message_parts = []
+            if processed_count > 0:
+                message_parts.append(f'{processed_count} dataset berhasil diklasifikasi')
+            if already_classified_count > 0:
+                message_parts.append(f'{already_classified_count} dataset sudah dalam status terklasifikasi')
+            if no_clean_data_count > 0:
+                message_parts.append(f'{no_clean_data_count} dataset tidak memiliki data bersih')
+            
+            message = ' dan '.join(message_parts) if message_parts else 'Tidak ada dataset yang perlu diklasifikasi'
+            
             if errors:
                 return jsonify({
                     'success': True, 
                     'processed': processed_count,
-                    'message': f'{processed_count} dataset berhasil diklasifikasi',
+                    'already_classified': already_classified_count,
+                    'no_clean_data': no_clean_data_count,
+                    'message': message,
                     'errors': errors
                 })
             
             return jsonify({
                 'success': True, 
                 'processed': processed_count,
-                'message': f'{processed_count} dataset berhasil diklasifikasi'
+                'already_classified': already_classified_count,
+                'no_clean_data': no_clean_data_count,
+                'message': message
             })
             
         except Exception as e:
@@ -5371,11 +5446,11 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
             ).scalar() or 0
             
             stats.total_radikal = db.session.execute(
-                text("SELECT COUNT(DISTINCT CONCAT(data_type, '_', data_id)) FROM classification_results WHERE prediction = 'radikal'")
+                text("SELECT COUNT(*) FROM classification_results WHERE prediction = 'radikal'")
             ).scalar() or 0
             
             stats.total_non_radikal = db.session.execute(
-                text("SELECT COUNT(DISTINCT CONCAT(data_type, '_', data_id)) FROM classification_results WHERE prediction = 'non-radikal'")
+                text("SELECT COUNT(*) FROM classification_results WHERE prediction = 'non-radikal'")
             ).scalar() or 0
             
             db.session.commit()
