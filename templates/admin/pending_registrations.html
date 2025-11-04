@@ -351,9 +351,9 @@
                                 <td>
                                     <small class="text-muted">
                                         <i class="fas fa-calendar-alt mr-1"></i>
-                                        {{ request.created_at.strftime('%d/%m/%Y') }}<br>
+                                        {{ request.created_at|format_datetime('date') }}<br>
                                         <i class="fas fa-clock mr-1"></i>
-                                        {{ request.created_at.strftime('%H:%M') }}
+                                        {{ request.created_at|format_datetime('time') }}
                                     </small>
                                 </td>
                                 <td>
@@ -371,22 +371,22 @@
                                 </td>
                                 <td class="text-center">
                                     <div class="action-buttons">
-                                        <a href="{{ url_for('otp.approve_registration', request_id=request.id) }}" 
-                                           class="btn btn-success" title="Approve Registration">
-                                            <i class="fas fa-check"></i>
-                                        </a>
-                                        <button onclick="resendOTP({{ request.id }})" 
-                                                class="btn btn-warning" title="Resend OTP">
-                                            <i class="fas fa-paper-plane"></i>
+                                        <form method="POST" action="{{ url_for('otp.pending_registrations') }}" style="display: inline;">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                            <input type="hidden" name="request_id" value="{{ request.id }}">
+                                            <input type="hidden" name="action" value="approve">
+                                            <button type="submit" class="btn btn-success" title="Approve Registration" onclick="return confirm('Apakah Anda yakin ingin menyetujui registrasi {{ request.username }}?')">
+                                                <i class="fas fa-check"></i>
+                                            </button>
+                                        </form>
+                                        <form method="POST" action="{{ url_for('otp.pending_registrations') }}" style="display: inline;">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                            <input type="hidden" name="request_id" value="{{ request.id }}">
+                                            <input type="hidden" name="action" value="reject">
+                                            <button type="submit" class="btn btn-danger" title="Reject Registration" onclick="return confirm('Apakah Anda yakin ingin menolak registrasi {{ request.username }}?')">
+                                            <i class="fas fa-times"></i>
                                         </button>
-                                        <button onclick="deleteRequest({{ request.id }})" 
-                                                class="btn btn-danger" title="Delete Request">
-                                            <i class="fas fa-trash"></i>
-                                        </button>
-                                    </div>
-                                                class="btn btn-danger" title="Delete Request">
-                                            <i class="fas fa-trash"></i>
-                                        </button>
+                                    </form>
                                     </div>
                                 </td>
                             </tr>
@@ -470,41 +470,7 @@ function refreshStats() {
         });
 }
 
-function deleteRequest(requestId) {
-    Swal.fire({
-        title: 'Konfirmasi Hapus',
-        text: 'Apakah Anda yakin ingin menghapus permintaan registrasi ini? Tindakan ini tidak dapat dibatalkan.',
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#d33',
-        cancelButtonColor: '#3085d6',
-        confirmButtonText: 'Ya, Hapus!',
-        cancelButtonText: 'Batal'
-    }).then((result) => {
-        if (result.isConfirmed) {
-            const csrfToken = $('meta[name=csrf-token]').attr('content');
-            $.ajax({
-                url: '{{ url_for("otp.delete_registration_request", request_id=0) }}'.replace('0', requestId),
-                type: 'POST',
-                headers: {
-                    'X-CSRFToken': csrfToken
-                },
-                success: function(response) {
-                    if (response.success) {
-                        Swal.fire('Berhasil!', response.message, 'success').then(() => {
-                            location.reload();
-                        });
-                    } else {
-                        Swal.fire('Error!', 'Gagal menghapus permintaan: ' + response.message, 'error');
-                    }
-                },
-                error: function() {
-                    Swal.fire('Error!', 'Terjadi kesalahan sistem', 'error');
-                }
-            });
-        }
-    });
-}
+
 
 function refreshStatsButton() {
     const refreshIcon = document.getElementById('refreshIcon');
@@ -524,40 +490,6 @@ function refreshStatsButton() {
     }, 1500);
 }
 
-function resendOTP(requestId) {
-    Swal.fire({
-        title: 'Konfirmasi Resend OTP',
-        text: 'Apakah Anda yakin ingin mengirim ulang OTP untuk permintaan ini?',
-        icon: 'question',
-        showCancelButton: true,
-        confirmButtonColor: '#28a745',
-        cancelButtonColor: '#6c757d',
-        confirmButtonText: 'Ya, Kirim Ulang!',
-        cancelButtonText: 'Batal'
-    }).then((result) => {
-        if (result.isConfirmed) {
-            const csrfToken = $('meta[name=csrf-token]').attr('content');
-            $.ajax({
-                url: '{{ url_for("otp.resend_otp", request_id=0) }}'.replace('0', requestId),
-                type: 'POST',
-                headers: {
-                    'X-CSRFToken': csrfToken
-                },
-                success: function(response) {
-                    if (response.success) {
-                        Swal.fire('Berhasil!', response.message, 'success').then(() => {
-                            location.reload();
-                        });
-                    } else {
-                        Swal.fire('Error!', 'Gagal mengirim OTP: ' + response.message, 'error');
-                    }
-                },
-                error: function() {
-                    Swal.fire('Error!', 'Terjadi kesalahan sistem', 'error');
-                }
-            });
-        }
-    });
-}
+
 </script>
 {% endblock %}

@@ -167,91 +167,27 @@
                             </div>
                         </div>
                     </div>
-                    <!-- Classification Progress -->
+                    <!-- Classification Results -->
                     <div class="col-md-4">
                         <div class="card card-success">
                             <div class="card-header">
                                 <h3 class="card-title">
-                                    <i class="fas fa-chart-line mr-2"></i>Progress Klasifikasi
+                                    <i class="fas fa-chart-bar mr-2"></i>Hasil Klasifikasi
                                 </h3>
                             </div>
-                            <div class="card-body">
-                                <div class="progress-group">
-                                    <span class="progress-text">Model 1 (Naive Bayes)</span>
-                                    <span class="float-right"><b id="model1Progress">0</b>/{{ clean_data_count }}</span>
-                                    <div class="progress progress-sm">
-                                        <div class="progress-bar bg-info progress-bar-initial"
-                                             id="model1ProgressBar"></div>
-                                    </div>
-                                </div>
-                                <div class="progress-group">
-                                    <span class="progress-text">Model 2 (Naive Bayes)</span>
-                                    <span class="float-right"><b id="model2Progress">0</b>/{{ clean_data_count }}</span>
-                                    <div class="progress progress-sm">
-                                        <div class="progress-bar bg-info progress-bar-initial"
-                                             id="model2ProgressBar"></div>
-                                    </div>
-                                </div>
-                                <div class="progress-group">
-                                    <span class="progress-text">Model 3 (Naive Bayes)</span>
-                                    <span class="float-right"><b id="model3Progress">0</b>/{{ clean_data_count }}</span>
-                                    <div class="progress progress-sm">
-                                        <div class="progress-bar bg-info progress-bar-initial"
-                                             id="model3ProgressBar"></div>
-                                    </div>
-                                </div>
-                                <div class="mt-3">
-                                    <h6>Statistik Real-time:</h6>
-                                    <ul class="list-unstyled">
-                                        <li>
-                                            <i class="fas fa-circle text-danger mr-2"></i>Radikal: <span id="realtimeRadical">0</span>
-                                        </li>
-                                        <li>
-                                            <i class="fas fa-circle text-success mr-2"></i>Non-Radikal: <span id="realtimeNonRadical">0</span>
-                                        </li>
-                                        <li>
-                                            <i class="fas fa-circle text-info mr-2"></i>Diproses: <span id="realtimeProcessed">0</span>
-                                        </li>
-                                    </ul>
+                            <div class="card-body p-3">
+                                <canvas id="classificationResultsChart" 
+                                        class="chart-canvas-300" 
+                                        role="img" 
+                                        aria-label="Grafik bar menunjukkan hasil klasifikasi konten radikal dan non-radikal"
+                                        aria-describedby="classification-results-description">
+                                </canvas>
+                                <div id="classification-results-description" class="sr-only">
+                                    Grafik bar chart yang menampilkan hasil klasifikasi: Radikal dan Non-Radikal
                                 </div>
                             </div>
                         </div>
-                        <!-- Recent Classifications -->
-                        <div class="card card-info">
-                            <div class="card-header">
-                                <h3 class="card-title">
-                                    <i class="fas fa-history mr-2"></i>Klasifikasi Terbaru
-                                </h3>
-                            </div>
-                            <div class="card-body p-0">
-                                <ul class="list-group list-group-flush" id="recentClassifications">
-                                    {% for result in recent_classifications %}
-                                        <li class="list-group-item">
-                                            <div class="d-flex justify-content-between align-items-center">
-                                                <div>
-                                                    <small class="text-muted">{{ result.platform.title() }}</small>
-                                                    <br>
-                                                    <span class="text-truncate text-truncate-content">{{ result.content[:30] }}...</span>
-                                                </div>
-                                                <div class="text-right">
-                                                    <span class="badge badge-{{ 'danger' if result.final_prediction == 'radikal' else 'success' }}">
-                                                        {{ result.final_prediction.title() }}
-                                                    </span>
-                                                    <br>
-                                                    <small class="text-muted">{{ result.created_at | format_datetime('time') }}</small>
-                                                </div>
-                                            </div>
-                                        </li>
-                                    {% endfor %}
-                                    {% if not recent_classifications %}
-                                        <li class="list-group-item text-center text-muted">
-                                            <i class="fas fa-info-circle mr-2"></i>
-                                            Belum ada klasifikasi
-                                        </li>
-                                    {% endif %}
-                                </ul>
-                            </div>
-                        </div>
+
                     </div>
                 </div>
             </div>
@@ -261,8 +197,11 @@
     <script>
 let currentDataSource = '';
 let classificationInProgress = false;
+let classificationResultsChart = null;
 
 $(document).ready(function() {
+    // Initialize classification results chart
+    initializeClassificationChart();
     // Initialize tooltips
     $('[data-toggle="tooltip"]').tooltip();
     
@@ -271,6 +210,65 @@ $(document).ready(function() {
         $('#classificationTable .row-checkbox').prop('checked', this.checked);
     });
 });
+
+function initializeClassificationChart() {
+    const ctx = document.getElementById('classificationResultsChart').getContext('2d');
+    
+    // Use actual data from backend
+    const radicalCount = {{ radical_count|default(0) }};
+    const nonRadicalCount = {{ non_radical_count|default(0) }};
+    
+    classificationResultsChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: ['Radikal', 'Non-Radikal'],
+            datasets: [{
+                data: [radicalCount, nonRadicalCount],
+                backgroundColor: [
+                    'rgba(220, 53, 69, 0.8)',
+                    'rgba(40, 167, 69, 0.8)'
+                ],
+                borderColor: [
+                    'rgba(220, 53, 69, 1)',
+                    'rgba(40, 167, 69, 1)'
+                ],
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                },
+                title: {
+                    display: false
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: false
+                    }
+                },
+                x: {
+                    title: {
+                        display: false
+                    }
+                }
+            }
+        }
+    });
+}
+
+function updateClassificationChart(radicalCount, nonRadicalCount) {
+    if (classificationResultsChart) {
+        classificationResultsChart.data.datasets[0].data = [radicalCount, nonRadicalCount];
+        classificationResultsChart.update();
+    }
+}
 
 function loadDataBySource() {
     const dataSource = $('#dataSource').val();
@@ -439,29 +437,32 @@ function processClassification(dataIds) {
     
     // Show progress modal
     Swal.fire({
-        title: 'Mengklasifikasi Data...',
+        title: 'Memulai Klasifikasi...',
         html: `
-            <div class="progress mb-3">
-                <div class="progress-bar progress-bar-striped progress-bar-animated" id="overallProgress" style="width: 0%"></div>
-            </div>
-            <p id="progressText">Memulai klasifikasi...</p>
-            <div class="row text-center">
-                <div class="col-4">
-                    <h6>Model 1</h6>
-                    <div class="progress">
-                        <div class="progress-bar bg-primary" id="model1ProgressModal" style="width: 0%"></div>
-                    </div>
+            <div class="text-center">
+                <div class="progress mb-4">
+                    <div id="overallProgress" class="progress-bar progress-bar-striped progress-bar-animated" 
+                         role="progressbar" style="width: 0%"></div>
                 </div>
-                <div class="col-4">
-                    <h6>Model 2</h6>
-                    <div class="progress">
-                        <div class="progress-bar bg-success" id="model2ProgressModal" style="width: 0%"></div>
+                <p id="progressText" class="mb-3">Mempersiapkan proses klasifikasi...</p>
+                <div class="row">
+                    <div class="col-6">
+                        <div class="info-box bg-gradient-danger mb-2">
+                            <span class="info-box-icon"><i class="fas fa-exclamation-triangle"></i></span>
+                            <div class="info-box-content">
+                                <span class="info-box-text">Radikal</span>
+                                <span class="info-box-number" id="modalRadical">0</span>
+                            </div>
+                        </div>
                     </div>
-                </div>
-                <div class="col-4">
-                    <h6>Model 3</h6>
-                    <div class="progress">
-                        <div class="progress-bar bg-warning" id="model3ProgressModal" style="width: 0%"></div>
+                    <div class="col-6">
+                        <div class="info-box bg-gradient-success mb-2">
+                            <span class="info-box-icon"><i class="fas fa-check-circle"></i></span>
+                            <div class="info-box-content">
+                                <span class="info-box-text">Non-Radikal</span>
+                                <span class="info-box-number" id="modalNonRadical">0</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -471,58 +472,122 @@ function processClassification(dataIds) {
         width: 600
     });
     
-    // Simulate classification process
-    let processed = 0;
-    const total = dataIds.length;
-    
-    dataIds.forEach((id, index) => {
-        setTimeout(() => {
-            processed++;
-            const percentage = (processed / total) * 100;
-            
-            // Update progress
-            $('#overallProgress').css('width', percentage + '%');
-            $('#progressText').text(`Memproses data ${processed} dari ${total}...`);
-            
-            // Update model progress (simulate)
-            $('#model1ProgressModal').css('width', percentage + '%');
-            $('#model2ProgressModal').css('width', percentage + '%');
-            $('#model3ProgressModal').css('width', percentage + '%');
-            
-            // Update sidebar progress
-            $('#model1Progress').text(processed);
-            $('#model2Progress').text(processed);
-            $('#model3Progress').text(processed);
-            $('#model1ProgressBar').css('width', percentage + '%');
-            $('#model2ProgressBar').css('width', percentage + '%');
-            $('#model3ProgressBar').css('width', percentage + '%');
-            
-            // Update real-time stats (random)
-            const isRadical = Math.random() > 0.7;
-            if (isRadical) {
-                $('#realtimeRadical').text(parseInt($('#realtimeRadical').text()) + 1);
+    // Start actual classification process with progress tracking
+    const csrfToken = $('meta[name=csrf-token]').attr('content');
+    $.ajax({
+        url: '/api/classification/start',
+        method: 'POST',
+        contentType: 'application/json',
+        headers: {
+            'X-CSRFToken': csrfToken
+        },
+        data: JSON.stringify({ 
+            dataset_id: datasetId
+        }),
+        success: function(response) {
+            if (response.success) {
+                // Start polling for progress
+                pollClassificationProgress(response.dataset_id, dataIds.length);
             } else {
-                $('#realtimeNonRadical').text(parseInt($('#realtimeNonRadical').text()) + 1);
+                classificationInProgress = false;
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: response.message || 'Gagal memulai proses klasifikasi'
+                });
             }
-            $('#realtimeProcessed').text(processed);
-            
-            if (processed === total) {
-                setTimeout(() => {
-                    classificationInProgress = false;
-                    
-                    Swal.fire({
-                        icon: 'success',
-                        title: 'Klasifikasi Selesai!',
-                        text: `${total} data berhasil diklasifikasi`,
-                        confirmButtonText: 'Lihat Hasil'
-                    }).then(() => {
-                        // Redirect to results page
-                        window.location.href = '/classification/results';
-                    });
-                }, 500);
-            }
-        }, index * 1500); // 1.5 second delay between each data
+        },
+        error: function(xhr, status, error) {
+            classificationInProgress = false;
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'Terjadi kesalahan saat memulai klasifikasi'
+            });
+        }
     });
+}
+
+function pollClassificationProgress(datasetId, totalData) {
+    const progressInterval = setInterval(() => {
+        $.ajax({
+            url: `/api/classification/progress/${taskId}`,
+            method: 'GET',
+            success: function(response) {
+                if (response.success && response.progress) {
+                    const progress = response.progress;
+                    
+                    if (progress.status === 'completed') {
+                        clearInterval(progressInterval);
+                        classificationInProgress = false;
+                        
+                        // Update final progress
+                        $('#overallProgress').css('width', '100%');
+                        $('#progressText').text('Klasifikasi selesai!');
+                        $('#modalRadical').text(progress.radikal_count || 0);
+                        $('#modalNonRadical').text(progress.non_radikal_count || 0);
+                        
+                        // Update sidebar progress
+                        $('#totalProcessed').text(totalData);
+                        $('#totalProgressBar').css('width', '100%');
+                        
+                        // Update classification chart
+                        updateClassificationChart(progress.radikal_count || 0, progress.non_radikal_count || 0);
+                        
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Klasifikasi Selesai!',
+                            html: `
+                                <div class="text-center">
+                                    <p>${totalData} data berhasil diklasifikasi</p>
+                                    <div class="row mt-3">
+                                        <div class="col-6">
+                                            <span class="badge badge-danger fs-6">${progress.radikal_count || 0} Radikal</span>
+                                        </div>
+                                        <div class="col-6">
+                                            <span class="badge badge-success fs-6">${progress.non_radikal_count || 0} Non-Radikal</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            `,
+                            confirmButtonText: 'Lihat Hasil'
+                        }).then(() => {
+                            // Redirect to results page
+                            window.location.href = '/classification/results';
+                        });
+                    } else if (progress.status === 'error') {
+                        clearInterval(progressInterval);
+                        classificationInProgress = false;
+                        
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Error',
+                            text: progress.error_message || 'Terjadi kesalahan selama klasifikasi'
+                        });
+                    } else if (progress.status === 'processing' || progress.status === 'starting') {
+                        // Update progress
+                        const processed = progress.processed || 0;
+                        const percentage = progress.percentage || 0;
+                        
+                        $('#overallProgress').css('width', percentage + '%');
+                        $('#progressText').text(`Memproses data ${processed} dari ${progress.total || totalData}...`);
+                        $('#modalRadical').text(progress.radikal_count || 0);
+                        $('#modalNonRadical').text(progress.non_radikal_count || 0);
+                        
+                        // Update sidebar progress
+                        $('#totalProcessed').text(processed);
+                        $('#totalProgressBar').css('width', percentage + '%');
+                        
+                        // Update classification chart
+                        updateClassificationChart(progress.radikal_count || 0, progress.non_radikal_count || 0);
+                    }
+                }
+            },
+            error: function() {
+                // Continue polling even if there's an error
+            }
+        });
+    }, 2000); // Poll every 2 seconds
 }
 
 function classifyManualText() {
@@ -560,68 +625,93 @@ function classifyManualText() {
             if (response.success && response.results.length >= 3) {
                 const results = response.results;
                 
-                // Determine final prediction (majority vote)
+                // Count all predictions from all three models
                 const predictions = results.map(r => r.prediction);
                 const radicalCount = predictions.filter(p => p === 'radikal').length;
-                const finalPrediction = radicalCount >= 2 ? 'radikal' : 'non-radikal';
+                const nonRadicalCount = predictions.filter(p => p === 'non-radikal').length;
                 
                 Swal.fire({
                     title: 'Hasil Klasifikasi',
                     html: `
                         <div class="text-left">
-                            <p><strong>Teks:</strong> "${response.text}"</p>
-                            <hr>
-                            <h6>Hasil Model:</h6>
-                            <div class="row">
+                            <p class="mb-3"><strong>Teks:</strong> "${response.text}"</p>
+                            <hr class="my-3">
+                            <h6 class="mb-3">Hasil Model:</h6>
+                            <div class="row g-3">
                                 <div class="col-4">
-                                    <div class="card">
-                                        <div class="card-body text-center">
-                                            <h6>Model 1</h6>
-                                            <span class="badge badge-${results[0].prediction === 'radikal' ? 'danger' : 'success'} badge-lg">
+                                    <div class="card h-100 shadow-sm border-0">
+                                        <div class="card-header bg-light text-center py-2">
+                                            <h6 class="mb-0 fw-bold">Model 1</h6>
+                                        </div>
+                                        <div class="card-body text-center p-3">
+                                            <span class="badge badge-${results[0].prediction === 'radikal' ? 'danger' : 'success'} badge-lg fs-6 mb-2">
                                                 ${results[0].prediction.toUpperCase()}
                                             </span>
-                                            <small>Radikal: ${(results[0].probability_radikal * 100).toFixed(1)}%</small><br>
-                                            <small>Non-Radikal: ${(results[0].probability_non_radikal * 100).toFixed(1)}%</small>
+                                            <div class="mt-2">
+                                                <small class="d-block text-muted">Radikal: <strong>${(results[0].probability_radikal * 100).toFixed(1)}%</strong></small>
+                                                <small class="d-block text-muted">Non-Radikal: <strong>${(results[0].probability_non_radikal * 100).toFixed(1)}%</strong></small>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
                                 <div class="col-4">
-                                    <div class="card">
-                                        <div class="card-body text-center">
-                                            <h6>Model 2</h6>
-                                            <span class="badge badge-${results[1].prediction === 'radikal' ? 'danger' : 'success'} badge-lg">
+                                    <div class="card h-100 shadow-sm border-0">
+                                        <div class="card-header bg-light text-center py-2">
+                                            <h6 class="mb-0 fw-bold">Model 2</h6>
+                                        </div>
+                                        <div class="card-body text-center p-3">
+                                            <span class="badge badge-${results[1].prediction === 'radikal' ? 'danger' : 'success'} badge-lg fs-6 mb-2">
                                                 ${results[1].prediction.toUpperCase()}
                                             </span>
-                                            <small>Radikal: ${(results[1].probability_radikal * 100).toFixed(1)}%</small><br>
-                                            <small>Non-Radikal: ${(results[1].probability_non_radikal * 100).toFixed(1)}%</small>
+                                            <div class="mt-2">
+                                                <small class="d-block text-muted">Radikal: <strong>${(results[1].probability_radikal * 100).toFixed(1)}%</strong></small>
+                                                <small class="d-block text-muted">Non-Radikal: <strong>${(results[1].probability_non_radikal * 100).toFixed(1)}%</strong></small>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
                                 <div class="col-4">
-                                    <div class="card">
-                                        <div class="card-body text-center">
-                                            <h6>Model 3</h6>
-                                            <span class="badge badge-${results[2].prediction === 'radikal' ? 'danger' : 'success'} badge-lg">
+                                    <div class="card h-100 shadow-sm border-0">
+                                        <div class="card-header bg-light text-center py-2">
+                                            <h6 class="mb-0 fw-bold">Model 3</h6>
+                                        </div>
+                                        <div class="card-body text-center p-3">
+                                            <span class="badge badge-${results[2].prediction === 'radikal' ? 'danger' : 'success'} badge-lg fs-6 mb-2">
                                                 ${results[2].prediction.toUpperCase()}
                                             </span>
-                                            <small>Radikal: ${(results[2].probability_radikal * 100).toFixed(1)}%</small><br>
-                                            <small>Non-Radikal: ${(results[2].probability_non_radikal * 100).toFixed(1)}%</small>
+                                            <div class="mt-2">
+                                                <small class="d-block text-muted">Radikal: <strong>${(results[2].probability_radikal * 100).toFixed(1)}%</strong></small>
+                                                <small class="d-block text-muted">Non-Radikal: <strong>${(results[2].probability_non_radikal * 100).toFixed(1)}%</strong></small>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
-                            <hr>
+                            <hr class="my-4">
                             <div class="text-center">
-                                <h5>Prediksi Final (Majority Vote):</h5>
-                                <span class="badge badge-${finalPrediction === 'radikal' ? 'danger' : 'success'}" style="font-size: 1.2em; padding: 10px 20px;">
-                                    ${finalPrediction.toUpperCase()}
-                                </span>
+                                <h5 class="mb-3">Hasil Klasifikasi:</h5>
+                                <div class="row">
+                                    <div class="col-6">
+                                        <span class="badge bg-danger fs-6 px-3 py-2">
+                                            Radikal: ${radicalCount}
+                                        </span>
+                                    </div>
+                                    <div class="col-6">
+                                        <span class="badge bg-success fs-6 px-3 py-2">
+                                            Non-Radikal: ${nonRadicalCount}
+                                        </span>
+                                    </div>
+                                </div>
+                                <p class="text-muted mt-2 mb-0">Total prediksi dari 3 model</p>
                             </div>
                         </div>
                     `,
-                    width: 800,
+                    width: 900,
                     showCloseButton: true,
-                    showConfirmButton: false
+                    showConfirmButton: false,
+                    customClass: {
+                        popup: 'rounded-3'
+                    }
                 });
             } else {
                 Swal.fire({

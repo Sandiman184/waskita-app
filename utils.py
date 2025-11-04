@@ -273,18 +273,23 @@ def classify_content(text_vector, naive_bayes_model):
     """
     Klasifikasi konten menggunakan model Naive Bayes
     """
-    if text_vector is None or naive_bayes_model is None:
-        return 'non-radikal', [0.0, 1.0]  # [prob_radikal, prob_non_radikal]
-    
-    # Handle array comparison issue
-    if hasattr(text_vector, 'size') and text_vector.size == 0:
-        return 'non-radikal', [0.0, 1.0]  # [prob_radikal, prob_non_radikal]
-    
-    # Handle zero vector (when no words found in vocabulary)
-    if hasattr(text_vector, 'any') and not np.any(text_vector):
-        return 'non-radikal', [0.0, 1.0]  # [prob_radikal, prob_non_radikal]
-    
     try:
+        # Check for None values
+        if text_vector is None or naive_bayes_model is None:
+            return 'non-radikal', [0.0, 1.0]  # [prob_radikal, prob_non_radikal]
+        
+        # Handle array comparison issue
+        if hasattr(text_vector, 'size') and text_vector.size == 0:
+            return 'non-radikal', [0.0, 1.0]  # [prob_radikal, prob_non_radikal]
+        
+        # Handle zero vector (when no words found in vocabulary)
+        if hasattr(text_vector, 'any') and not np.any(text_vector):
+            return 'non-radikal', [0.0, 1.0]  # [prob_radikal, prob_non_radikal]
+        
+        # Check if model has predict_proba method
+        if not hasattr(naive_bayes_model, 'predict_proba'):
+            return 'non-radikal', [0.0, 1.0]  # [prob_radikal, prob_non_radikal]
+        
         # Reshape vector for prediction
         vector_reshaped = text_vector.reshape(1, -1)
         
@@ -303,6 +308,11 @@ def classify_content(text_vector, naive_bayes_model):
         return prediction_label, probabilities
         
     except Exception as e:
+        # Log the error for debugging
+        import traceback
+        from flask import current_app
+        current_app.logger.error(f"Error in classify_content: {str(e)}")
+        current_app.logger.error(f"Traceback: {traceback.format_exc()}")
         return 'non-radikal', [0.0, 1.0]  # [prob_radikal, prob_non_radikal]
 
 def load_word2vec_model():

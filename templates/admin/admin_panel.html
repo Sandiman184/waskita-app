@@ -445,33 +445,40 @@ select.form-control option {
                                 <caption id="user-table-description" class="sr-only">Tabel daftar pengguna dengan informasi ID, username, email, role, status, dan aksi yang dapat dilakukan</caption>
                                 <thead>
                                     <tr role="row">
-                                        <th scope="col" style="width: 60px;">
+                                        <th scope="col" style="width: 60px;" data-sort="id" data-sort-type="number">
                                             <i class="fas fa-hashtag mr-1" aria-hidden="true"></i>
                                             ID
+                                            <span class="sort-indicator"><i class="fas fa-sort"></i></span>
                                         </th>
-                                        <th scope="col" style="width: 150px;">
+                                        <th scope="col" style="width: 150px;" data-sort="username" data-sort-type="text">
                                             <i class="fas fa-user mr-1" aria-hidden="true"></i>
                                             Username
+                                            <span class="sort-indicator"><i class="fas fa-sort"></i></span>
                                         </th>
-                                        <th scope="col" style="width: 200px;">
+                                        <th scope="col" style="width: 200px;" data-sort="email" data-sort-type="text">
                                             <i class="fas fa-envelope mr-1" aria-hidden="true"></i>
                                             Email
+                                            <span class="sort-indicator"><i class="fas fa-sort"></i></span>
                                         </th>
-                                        <th scope="col" style="width: 120px;">
+                                        <th scope="col" style="width: 120px;" data-sort="role" data-sort-type="text">
                                             <i class="fas fa-user-tag mr-1" aria-hidden="true"></i>
                                             Role
+                                            <span class="sort-indicator"><i class="fas fa-sort"></i></span>
                                         </th>
-                                        <th scope="col" style="width: 100px;">
+                                        <th scope="col" style="width: 100px;" data-sort="status" data-sort-type="text">
                                             <i class="fas fa-toggle-on mr-1" aria-hidden="true"></i>
                                             Status
+                                            <span class="sort-indicator"><i class="fas fa-sort"></i></span>
                                         </th>
-                                        <th scope="col" style="width: 150px;">
+                                        <th scope="col" style="width: 150px;" data-sort="last_login" data-sort-type="datetime">
                                             <i class="fas fa-clock mr-1" aria-hidden="true"></i>
                                             Terakhir Login
+                                            <span class="sort-indicator"><i class="fas fa-sort"></i></span>
                                         </th>
-                                        <th scope="col" style="width: 150px;">
+                                        <th scope="col" style="width: 150px;" data-sort="created_at" data-sort-type="datetime">
                                             <i class="fas fa-calendar-plus mr-1" aria-hidden="true"></i>
                                             Tanggal Daftar
+                                            <span class="sort-indicator"><i class="fas fa-sort"></i></span>
                                         </th>
                                         <th scope="col" style="width: 180px;">
                                             <i class="fas fa-cogs mr-1" aria-hidden="true"></i>
@@ -1102,6 +1109,159 @@ function deleteUser(userId) {
     });
 }
 
+
+// CSS untuk sort indicator
+const sortStyle = document.createElement('style');
+sortStyle.textContent = `
+    .sort-indicator {
+        margin-left: 5px;
+        opacity: 0.5;
+        transition: opacity 0.3s ease;
+    }
+    
+    th:hover .sort-indicator {
+        opacity: 1;
+    }
+    
+    th[data-sort].sort-asc .sort-indicator i {
+        transform: rotate(180deg);
+    }
+    
+    th[data-sort].sort-desc .sort-indicator i {
+        transform: rotate(0deg);
+    }
+    
+    th[data-sort] {
+        cursor: pointer;
+        user-select: none;
+        position: relative;
+    }
+    
+    th[data-sort]:hover {
+        background-color: #f8f9fa;
+    }
+    
+    .sort-active {
+        background-color: #e3f2fd !important;
+    }
+`;
+document.head.appendChild(sortStyle);
+
+// Fungsi sorting untuk tabel
+$(document).ready(function() {
+    let currentSort = { column: null, direction: 'asc' };
+    
+    // Inisialisasi sort indicator (sudah ada di HTML)
+    
+    // Event handler untuk sorting
+    $('th[data-sort]').on('click', function() {
+        const column = $(this).data('sort');
+        const sortType = $(this).data('sort-type');
+        
+        // Toggle direction jika kolom yang sama diklik
+        if (currentSort.column === column) {
+            currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+        } else {
+            currentSort.column = column;
+            currentSort.direction = 'asc';
+        }
+        
+        // Update UI
+        $('th[data-sort]').removeClass('sort-asc sort-desc sort-active');
+        $(this).addClass(`sort-${currentSort.direction} sort-active`);
+        
+        // Update sort indicator
+        $(this).find('.sort-indicator i')
+            .removeClass('fa-sort fa-sort-up fa-sort-down')
+            .addClass(currentSort.direction === 'asc' ? 'fa-sort-up' : 'fa-sort-down');
+        
+        // Lakukan sorting
+        sortTable(column, currentSort.direction, sortType);
+    });
+    
+    function sortTable(column, direction, sortType) {
+        const $table = $('.user-management-table table');
+        const $tbody = $table.find('tbody');
+        const $rows = $tbody.find('tr').get();
+        
+        $rows.sort(function(a, b) {
+            const aValue = getCellValue(a, column, sortType);
+            const bValue = getCellValue(b, column, sortType);
+            
+            let comparison = 0;
+            
+            switch (sortType) {
+                case 'number':
+                    comparison = Number(aValue) - Number(bValue);
+                    break;
+                case 'datetime':
+                    comparison = new Date(aValue) - new Date(bValue);
+                    break;
+                default: // text
+                    comparison = aValue.localeCompare(bValue, 'id', { sensitivity: 'base' });
+                    break;
+            }
+            
+            return direction === 'asc' ? comparison : -comparison;
+        });
+        
+        $.each($rows, function(index, row) {
+            $tbody.append(row);
+        });
+    }
+    
+    function getCellValue(row, column, sortType) {
+        const cellIndex = getColumnIndex(column);
+        const $cell = $(row).find(`td:eq(${cellIndex})`);
+        
+        let value = $cell.text().trim();
+        
+        switch (column) {
+            case 'id':
+                value = value.replace('#', '');
+                break;
+            case 'status':
+                value = $cell.find('.badge').text().trim().toLowerCase();
+                break;
+            case 'role':
+                value = $cell.find('.badge').text().trim().toLowerCase();
+                break;
+            case 'last_login':
+            case 'created_at':
+                // Untuk datetime, kita ambil dari attribute data jika ada
+                const datetimeAttr = $cell.find('small').data('datetime');
+                value = datetimeAttr || value;
+                break;
+            case 'username':
+                value = $cell.find('strong').text().trim();
+                break;
+            case 'email':
+                value = $cell.find('span').text().trim();
+                break;
+        }
+        
+        // Handle empty values untuk sorting
+        if (!value || value === '-' || value === 'belum pernah') {
+            return sortType === 'number' ? 0 : '';
+        }
+        
+        return value;
+    }
+    
+    function getColumnIndex(column) {
+        const columnMap = {
+            'id': 0,
+            'username': 1,
+            'email': 2,
+            'role': 3,
+            'status': 4,
+            'last_login': 5,
+            'created_at': 6
+        };
+        
+        return columnMap[column] || 0;
+    }
+});
 
 </script>
 {% endblock extra_js %}

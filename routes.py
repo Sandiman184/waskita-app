@@ -1,11 +1,12 @@
 from flask import render_template, request, redirect, url_for, flash, session, jsonify, send_file, abort, current_app
 from flask_login import login_user, login_required, logout_user, current_user
+from flask_wtf import FlaskForm
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash
 import os
 import pandas as pd
 import numpy as np
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 import pytz
 import re
 import json
@@ -93,6 +94,26 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
             user = User.query.filter_by(username=username).first()
             
             if user and user.check_password(password) and user.is_active:
+                # Check if this is first login (first_login is None for new users)
+                if user.first_login is None:
+                    # This is first login - redirect to OTP verification
+                    session['first_login_user_id'] = user.id
+                    session['first_login_remember'] = remember
+                    session['first_login_next'] = request.args.get('next')
+                    
+                    # Generate OTP for first login
+                    from otp_routes import generate_otp
+                    otp_code = generate_otp()
+                    session['first_login_otp'] = otp_code
+                    session['first_login_otp_expires'] = (datetime.utcnow() + timedelta(minutes=2)).isoformat()
+                    
+                    # Send OTP email
+                    from email_service import email_service
+                    email_service.send_first_login_otp(user, otp_code)
+                    
+                    flash('Ini adalah login pertama Anda. Silakan cek email untuk instruksi lebih lanjut.', 'info')
+                    return redirect(url_for('otp.verify_first_login_otp'))
+                
                 # Update last_login with UTC timezone (will be converted to WIB in display)
                 user.last_login = datetime.utcnow()
                 db.session.commit()
@@ -129,7 +150,6 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                 flash('Username atau password salah!', 'error')
         
         # Create a simple form class for CSRF token
-        from flask_wtf import FlaskForm
         form = FlaskForm()
         return render_template('auth/login.html', form=form)
     
@@ -1130,12 +1150,25 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
         
         if classification_type == 'manual':
             # For manual classification, get actual data count instead of N/A
-            from models import CleanDataUpload, CleanDataScraper
+            from models import CleanDataUpload, CleanDataScraper, ClassificationResult
+            from sqlalchemy import func
             
             # Count clean data ready for classification
             clean_upload_count = CleanDataUpload.query.count()
             clean_scraper_count = CleanDataScraper.query.count()
             clean_data_count = clean_upload_count + clean_scraper_count
+            
+            # Count classified data for manual classification results
+            classified_count = ClassificationResult.query.count() or 0
+            
+            # Count radical and non-radical content
+            radical_count = db.session.query(func.count(ClassificationResult.id)).filter(
+                ClassificationResult.prediction == 'radikal'
+            ).scalar() or 0
+            
+            non_radical_count = db.session.query(func.count(ClassificationResult.id)).filter(
+                ClassificationResult.prediction == 'non-radikal'
+            ).scalar() or 0
             
             return render_template('classification/classify.html', 
                                  type='manual',
@@ -1148,9 +1181,9 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                                  nb3_status=nb3_status,
                                  nb3_info=nb3_info,
                                  clean_data_count=clean_data_count,
-                                 classified_count='N/A',
-                                 radical_count='N/A',
-                                 non_radical_count='N/A',
+                                 classified_count=classified_count,
+                                 radical_count=radical_count,
+                                 non_radical_count=non_radical_count,
                                  recent_classifications=[])
         elif classification_type == 'batch':
             # Get statistics for batch classification
@@ -1175,15 +1208,29 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
             
             # Count radical and non-radical content
             radical_count = db.session.query(func.count(ClassificationResult.id)).filter(
-                ClassificationResult.final_prediction == 'radikal'
+                ClassificationResult.prediction == 'radikal'
             ).scalar() or 0
             
             non_radical_count = db.session.query(func.count(ClassificationResult.id)).filter(
-                ClassificationResult.final_prediction == 'non-radikal'
+                ClassificationResult.prediction == 'non-radikal'
             ).scalar() or 0
             
-            # Get recent classifications for batch mode
-            recent_classifications = ClassificationResult.query.order_by(
+            # Get recent classifications for batch mode with platform information
+            recent_classifications = db.session.query(
+                ClassificationResult,
+                db.func.coalesce(CleanDataUpload.platform, CleanDataScraper.platform).label('platform'),
+                db.func.coalesce(CleanDataUpload.cleaned_content, CleanDataScraper.cleaned_content).label('content'),
+                db.case(
+                    (ClassificationResult.is_corrected == True, ClassificationResult.corrected_prediction),
+                    else_=ClassificationResult.prediction
+                ).label('final_prediction')
+            ).outerjoin(CleanDataUpload, db.and_(
+                ClassificationResult.data_type == 'upload',
+                ClassificationResult.data_id == CleanDataUpload.id
+            )).outerjoin(CleanDataScraper, db.and_(
+                ClassificationResult.data_type == 'scraper',
+                ClassificationResult.data_id == CleanDataScraper.id
+            )).order_by(
                 ClassificationResult.created_at.desc()
             ).limit(5).all()
             
@@ -1375,22 +1422,74 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                 data_items = list(dataset_data['data_items'].values())
                 data_items.sort(key=lambda x: x['created_at'], reverse=True)
                 
+                # Calculate statistics for this dataset
+                total_items = len(data_items)
+                # Remove majority vote - count all model predictions individually
+                radikal_count = 0
+                non_radikal_count = 0
+                
+                for item in data_items:
+                    # Count all predictions from all models
+                    for model_name, model_data in item['models'].items():
+                        if model_data['prediction'] == 'radikal':
+                            radikal_count += 1
+                        else:
+                            non_radikal_count += 1
+                
                 final_datasets.append({
                     'dataset_name': dataset_name,
                     'dataset_id': dataset_data['dataset_id'],
                     'data_items': data_items,
-                    'total_items': len(data_items)
+                    'total_items': total_items,
+                    'radikal_count': radikal_count,
+                    'non_radikal_count': non_radikal_count,
+                    'radikal_percentage': (radikal_count / total_items * 100) if total_items > 0 else 0,
+                    'non_radikal_percentage': (non_radikal_count / total_items * 100) if total_items > 0 else 0
                 })
             
             # Sort datasets by name
             final_datasets.sort(key=lambda x: x['dataset_name'])
             
+            # Calculate overall statistics
+            total_classifications = len(all_results)
+            total_data_items = sum(dataset['total_items'] for dataset in final_datasets)
+            # Total radikal and non-radikal now represent all model predictions, not majority vote
+            total_radikal = sum(dataset['radikal_count'] for dataset in final_datasets)
+            total_non_radikal = sum(dataset['non_radikal_count'] for dataset in final_datasets)
+            
+            # Calculate model-wise statistics
+            model_stats = {
+                'model1': {'radikal': 0, 'non_radikal': 0},
+                'model2': {'radikal': 0, 'non_radikal': 0},
+                'model3': {'radikal': 0, 'non_radikal': 0}
+            }
+            
+            for result in all_results:
+                if result.prediction == 'radikal':
+                    model_stats[result.model_name]['radikal'] += 1
+                else:
+                    model_stats[result.model_name]['non_radikal'] += 1
+            
             return render_template('classification/results.html', 
                                  datasets=final_datasets, 
+                                 total_classifications=total_classifications,
+                                 total_data_items=total_data_items,
+                                 total_radikal=total_radikal,
+                                 total_non_radikal=total_non_radikal,
+                                 model_stats=model_stats,
                                  current_date=datetime.now().date())
         except Exception as e:
             flash(f'Error mengambil hasil klasifikasi: {str(e)}', 'error')
-            return render_template('classification/results.html', results=[], current_date=datetime.now().date())
+            return render_template('classification/results.html', 
+                                 datasets=[], 
+                                 total_classifications=0,
+                                 total_data_items=0,
+                                 total_radikal=0,
+                                 total_non_radikal=0,
+                                 model_stats={'model1': {'radikal': 0, 'non_radikal': 0},
+                                             'model2': {'radikal': 0, 'non_radikal': 0},
+                                             'model3': {'radikal': 0, 'non_radikal': 0}},
+                                 current_date=datetime.now().date())
     
     @app.route('/classification/batch')
     @login_required
@@ -1411,8 +1510,12 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
             
             processed_count = 0
             error_count = 0
+            radikal_count = 0
+            non_radikal_count = 0
             
-            for item in selected_data:
+            total_data = len(selected_data)
+            
+            for index, item in enumerate(selected_data):
                 try:
                     data_type = item['data_type']
                     data_id = int(item['data_id'])
@@ -1450,6 +1553,9 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                     if word2vec_model:
                         vector = vectorize_text(content, word2vec_model)
                         
+                        # Track predictions from all three models
+                        model_predictions = []
+                        
                         # Classify using all three models
                         for model_name, model in naive_bayes_models.items():
                             if model:
@@ -1475,6 +1581,13 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                                     created_at=datetime.now()
                                 )
                                 db.session.add(result)
+                                
+                                model_predictions.append(prediction)
+                        
+                        # Count ALL radikal/non-radikal predictions from all three models
+                        if model_predictions:
+                            radikal_count += model_predictions.count('radikal')
+                            non_radikal_count += model_predictions.count('non-radikal')
                         
                         processed_count += 1
                     else:
@@ -1497,12 +1610,325 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                 'success': True,
                 'processed': processed_count,
                 'errors': error_count,
+                'radikal_count': radikal_count,
+                'non_radikal_count': non_radikal_count,
+                'total_data': total_data,
                 'message': f'Berhasil memproses {processed_count} data, {error_count} error'
             })
             
         except Exception as e:
             db.session.rollback()
             return jsonify({'success': False, 'message': f'Error: {str(e)}'})
+    
+    # Global variables for progress tracking
+    classification_progress = {}
+    classification_stats = {}
+    
+    @app.route('/api/classification/progress/<dataset_id>', methods=['GET'])
+    @login_required
+    def get_classification_progress(dataset_id):
+        """Get real-time classification progress for a dataset"""
+        progress_data = classification_progress.get(dataset_id, {
+            'processed': 0,
+            'total': 0,
+            'percentage': 0,
+            'radikal_count': 0,
+            'non_radikal_count': 0,
+            'error_count': 0,
+            'status': 'idle'
+        })
+        
+        return jsonify({
+            'success': True,
+            'progress': progress_data
+        })
+
+    @app.route('/api/classification/latest-results', methods=['GET'])
+    @login_required
+    def get_latest_classification_results():
+        """Get latest classification results for the current session"""
+        try:
+            # Get classification results from the last 24 hours for current user
+            twenty_four_hours_ago = datetime.utcnow() - timedelta(hours=24)
+            
+            # Get all classification results for current user in last 24 hours
+            results = ClassificationResult.query.filter(
+                ClassificationResult.classified_by == current_user.id,
+                ClassificationResult.created_at >= twenty_four_hours_ago
+            ).all()
+            
+            # Calculate statistics
+            total_classifications = len(results)
+            
+            # Count predictions by model
+            model_stats = {
+                'model1': {'radikal': 0, 'non_radikal': 0},
+                'model2': {'radikal': 0, 'non_radikal': 0},
+                'model3': {'radikal': 0, 'non_radikal': 0}
+            }
+            
+            for result in results:
+                if result.prediction == 'radikal':
+                    model_stats[result.model_name]['radikal'] += 1
+                else:
+                    model_stats[result.model_name]['non_radikal'] += 1
+            
+            # Calculate totals
+            total_radikal = sum(stats['radikal'] for stats in model_stats.values())
+            total_non_radikal = sum(stats['non_radikal'] for stats in model_stats.values())
+            
+            # Calculate percentages
+            total_predictions = total_radikal + total_non_radikal
+            radikal_percentage = (total_radikal / total_predictions * 100) if total_predictions > 0 else 0
+            non_radikal_percentage = (total_non_radikal / total_predictions * 100) if total_predictions > 0 else 0
+            
+            return jsonify({
+                'success': True,
+                'results': {
+                    'total_classifications': total_classifications,
+                    'total_radikal': total_radikal,
+                    'total_non_radikal': total_non_radikal,
+                    'radikal_percentage': round(radikal_percentage, 1),
+                    'non_radikal_percentage': round(non_radikal_percentage, 1),
+                    'model_stats': model_stats
+                }
+            })
+            
+        except Exception as e:
+            return jsonify({
+                'success': False,
+                'message': f'Error fetching latest results: {str(e)}'
+            })
+
+    @app.route('/api/classification/reset-latest', methods=['POST'])
+    @login_required
+    def reset_latest_classification_results():
+        """Reset latest classification results for the current user"""
+        try:
+            # Delete all classification results for current user in last 24 hours
+            twenty_four_hours_ago = datetime.utcnow() - timedelta(hours=24)
+            
+            deleted_count = ClassificationResult.query.filter(
+                ClassificationResult.classified_by == current_user.id,
+                ClassificationResult.created_at >= twenty_four_hours_ago
+            ).delete()
+            
+            db.session.commit()
+            
+            return jsonify({
+                'success': True,
+                'message': f'Berhasil mereset {deleted_count} hasil klasifikasi terbaru',
+                'deleted_count': deleted_count
+            })
+            
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({
+                'success': False,
+                'message': f'Error resetting latest results: {str(e)}'
+            })
+    
+    @app.route('/api/classification/start', methods=['POST'])
+    @login_required
+    def start_classification_with_progress():
+        """Start classification with real-time progress tracking"""
+        try:
+            data = request.get_json()
+            dataset_id = data.get('dataset_id')
+            
+            if not dataset_id:
+                return jsonify({'success': False, 'message': 'Dataset ID diperlukan'})
+            
+            # Initialize progress tracking
+            classification_progress[dataset_id] = {
+                'processed': 0,
+                'total': 0,
+                'percentage': 0,
+                'radikal_count': 0,
+                'non_radikal_count': 0,
+                'error_count': 0,
+                'status': 'starting'
+            }
+            
+            # Start classification in background thread
+            import threading
+            thread = threading.Thread(
+                target=process_classification_with_progress,
+                args=(dataset_id, current_user.id)
+            )
+            thread.daemon = True
+            thread.start()
+            
+            return jsonify({
+                'success': True,
+                'message': 'Klasifikasi dimulai',
+                'dataset_id': dataset_id
+            })
+            
+        except Exception as e:
+            return jsonify({'success': False, 'message': f'Error: {str(e)}'})
+    
+    def process_classification_with_progress(dataset_id, user_id):
+        """Process classification with real-time progress updates"""
+        try:
+            # Create new app context for this thread
+            with app.app_context():
+                # Get clean data for the dataset
+                clean_data = []
+                
+                # Get upload data
+                upload_data = CleanDataUpload.query.join(RawData).filter(RawData.dataset_id == dataset_id).all()
+                for data in upload_data:
+                    clean_data.append({
+                        'data_type': 'upload',
+                        'data_id': data.id,
+                        'content': data.cleaned_content
+                    })
+                
+                # Get scraper data
+                scraper_data = db.session.execute(
+                    text("""
+                        SELECT cds.* 
+                        FROM clean_data_scraper cds 
+                        JOIN raw_data_scraper rds ON cds.raw_data_scraper_id = rds.id 
+                        WHERE rds.dataset_id = :dataset_id
+                    """),
+                    {'dataset_id': dataset_id}
+                ).fetchall()
+                
+                for data in scraper_data:
+                    clean_data.append({
+                        'data_type': 'scraper', 
+                        'data_id': data.id,
+                        'content': data.cleaned_content
+                    })
+                
+                total_data = len(clean_data)
+                
+                # Update progress with total count
+                classification_progress[dataset_id] = {
+                    'processed': 0,
+                    'total': total_data,
+                    'percentage': 0,
+                    'radikal_count': 0,
+                    'non_radikal_count': 0,
+                    'error_count': 0,
+                    'status': 'processing'
+                }
+                
+                processed_count = 0
+                error_count = 0
+                radikal_count = 0
+                non_radikal_count = 0
+                
+                # Get models
+                word2vec_model = app.config.get('WORD2VEC_MODEL')
+                naive_bayes_models = app.config.get('NAIVE_BAYES_MODELS', {})
+                
+                # Process each item
+                for item in clean_data:
+                    try:
+                        data_type = item['data_type']
+                        data_id = item['data_id']
+                        content = item['content']
+                        
+                        # Check if already classified
+                        result = db.session.execute(
+                            text("SELECT * FROM classification_results WHERE data_type = :data_type AND data_id = :data_id LIMIT 1"),
+                            {'data_type': data_type, 'data_id': data_id}
+                        )
+                        existing_classification = result.fetchone()
+                        
+                        if existing_classification:
+                            continue  # Skip if already classified
+                        
+                        # Vectorize and classify
+                        if word2vec_model:
+                            vector = vectorize_text(content, word2vec_model)
+                            
+                            # Track predictions from all three models
+                            model_predictions = []
+                            
+                            # Classify using all three models
+                            for model_name, model in naive_bayes_models.items():
+                                if model:
+                                    prediction, probabilities = classify_content(vector, model)
+                                    
+                                    # Handle probabilities consistently
+                                    if isinstance(probabilities, (list, tuple, np.ndarray)) and len(probabilities) >= 2:
+                                        prob_non_radikal = float(probabilities[0])
+                                        prob_radikal = float(probabilities[1])
+                                    else:
+                                        prob_non_radikal = 0.0
+                                        prob_radikal = 0.0
+                                    
+                                    result = ClassificationResult(
+                                        data_type=data_type,
+                                        data_id=data_id,
+                                        model_name=model_name,
+                                        prediction=prediction,
+                                        probability_radikal=prob_radikal,
+                                        probability_non_radikal=prob_non_radikal,
+                                        classified_by=user_id,
+                                        created_at=datetime.now()
+                                    )
+                                    db.session.add(result)
+                                    
+                                    model_predictions.append(prediction)
+                            
+                            # Count ALL radikal/non-radikal predictions from all three models
+                            if model_predictions:
+                                radikal_count += model_predictions.count('radikal')
+                                non_radikal_count += model_predictions.count('non-radikal')
+                            
+                            processed_count += 1
+                        
+                        # Update progress
+                        percentage = (processed_count / total_data * 100) if total_data > 0 else 0
+                        classification_progress[dataset_id] = {
+                            'processed': processed_count,
+                            'total': total_data,
+                            'percentage': round(percentage, 1),
+                            'radikal_count': radikal_count,
+                            'non_radikal_count': non_radikal_count,
+                            'error_count': error_count,
+                            'status': 'processing'
+                        }
+                        
+                    except Exception as e:
+                        error_count += 1
+                        # Update progress with error
+                        classification_progress[dataset_id]['error_count'] = error_count
+                        
+                        # Log detailed error information
+                        import traceback
+                        error_details = traceback.format_exc()
+                        app.logger.error(f"Error processing classification item {processed_count + 1}/{total_data}: {str(e)}")
+                        app.logger.error(f"Item details: data_type={item.get('data_type')}, data_id={item.get('data_id')}")
+                        app.logger.error(f"Content preview: {str(item.get('content', ''))[:100]}...")
+                        app.logger.error(f"Full traceback: {error_details}")
+                        
+                        continue
+                
+                db.session.commit()
+                
+                # Update statistics
+                try:
+                    from scheduler import cleanup_scheduler
+                    cleanup_scheduler.update_statistics()
+                except Exception as e:
+                    app.logger.error(f"Error updating statistics: {str(e)}")
+                
+                # Mark as completed
+                classification_progress[dataset_id]['status'] = 'completed'
+            
+        except Exception as e:
+            classification_progress[dataset_id]['status'] = 'error'
+            classification_progress[dataset_id]['error_message'] = str(e)
+            # Use app.logger directly since we might be outside app context
+            app.logger.error(f"Critical error in classification process: {str(e)}")
+            import traceback
+            app.logger.error(f"Full traceback: {traceback.format_exc()}")
     
     # Removed duplicate admin_panel route - using /admin_panel instead
     
@@ -1753,12 +2179,12 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
             .order_by(UserActivity.created_at.desc())\
             .limit(5).all()
         
-        # Format activities for template
+        # Format activities for template using WIB timezone
         recent_activities = []
         for activity in recent_activities_raw:
             recent_activities.append({
-                'date': activity.created_at.strftime('%d %b %Y'),
-                'time': activity.created_at.strftime('%H:%M'),
+                'date': format_datetime(activity.created_at, 'date_only'),
+                'time': format_datetime(activity.created_at, 'time'),
                 'title': activity.action.replace('_', ' ').title(),
                 'description': activity.description,
                 'icon': activity.icon.replace('fa-', '') if activity.icon else 'info-circle',
@@ -1929,7 +2355,12 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                                          .order_by(UserActivity.created_at.desc())\
                                          .limit(limit).all()
             
-            activities_data = [activity.to_dict() for activity in activities]
+            activities_data = []
+            for activity in activities:
+                activity_dict = activity.to_dict()
+                # Format waktu ke WIB untuk respons API
+                activity_dict['created_at'] = format_datetime(activity.created_at, 'full')
+                activities_data.append(activity_dict)
             
             return jsonify({
                 'success': True,
@@ -3685,20 +4116,73 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
             ).filter(RawDataScraper.dataset_id == dataset_id).all()
             
             # Get classification results from both sources with content
+            # Group by data_id to get all three models for each data entry
             classified_upload_data = []
             classified_scraper_data = []
             
             if clean_upload_data:
-                classified_upload_data = db.session.execute(
-                    text("SELECT cr.id, cr.data_type, cr.data_id, cr.model_name, cr.prediction, cr.probability_radikal, cr.probability_non_radikal, cr.created_at, cdu.cleaned_content as content, cdu.username, cdu.url FROM classification_results cr JOIN clean_data_upload cdu ON cr.data_type = 'upload' AND cr.data_id = cdu.id JOIN raw_data rd ON cdu.raw_data_id = rd.id WHERE rd.dataset_id = :dataset_id ORDER BY cr.created_at DESC"),
+                # Get all classification results for upload data
+                upload_results = db.session.execute(
+                    text("SELECT cr.id, cr.data_type, cr.data_id, cr.model_name, cr.prediction, cr.probability_radikal, cr.probability_non_radikal, cr.created_at, cdu.cleaned_content as content, cdu.username, cdu.url FROM classification_results cr JOIN clean_data_upload cdu ON cr.data_type = 'upload' AND cr.data_id = cdu.id JOIN raw_data rd ON cdu.raw_data_id = rd.id WHERE rd.dataset_id = :dataset_id ORDER BY cdu.id, cr.model_name"),
                     {'dataset_id': dataset_id}
                 ).mappings().fetchall()
+                
+                # Group results by data_id
+                upload_data_by_id = {}
+                for result in upload_results:
+                    data_id = result['data_id']
+                    if data_id not in upload_data_by_id:
+                        upload_data_by_id[data_id] = {
+                            'id': result['id'],
+                            'data_type': result['data_type'],
+                            'data_id': data_id,
+                            'content': result['content'],
+                            'username': result['username'],
+                            'url': result['url'],
+                            'created_at': result['created_at'],
+                            'models': {}
+                        }
+                    
+                    # Store model results
+                    upload_data_by_id[data_id]['models'][result['model_name']] = {
+                        'prediction': result['prediction'],
+                        'probability_radikal': result['probability_radikal'],
+                        'probability_non_radikal': result['probability_non_radikal']
+                    }
+                
+                classified_upload_data = list(upload_data_by_id.values())
             
             if clean_scraper_data:
-                classified_scraper_data = db.session.execute(
-                    text("SELECT cr.id, cr.data_type, cr.data_id, cr.model_name, cr.prediction, cr.probability_radikal, cr.probability_non_radikal, cr.created_at, cds.cleaned_content as content, cds.username, cds.url FROM classification_results cr JOIN clean_data_scraper cds ON cr.data_type = 'scraper' AND cr.data_id = cds.id JOIN raw_data_scraper rds ON cds.raw_data_scraper_id = rds.id WHERE rds.dataset_id = :dataset_id ORDER BY cr.created_at DESC"),
+                # Get all classification results for scraper data
+                scraper_results = db.session.execute(
+                    text("SELECT cr.id, cr.data_type, cr.data_id, cr.model_name, cr.prediction, cr.probability_radikal, cr.probability_non_radikal, cr.created_at, cds.cleaned_content as content, cds.username, cds.url FROM classification_results cr JOIN clean_data_scraper cds ON cr.data_type = 'scraper' AND cr.data_id = cds.id JOIN raw_data_scraper rds ON cds.raw_data_scraper_id = rds.id WHERE rds.dataset_id = :dataset_id ORDER BY cds.id, cr.model_name"),
                     {'dataset_id': dataset_id}
                 ).mappings().fetchall()
+                
+                # Group results by data_id
+                scraper_data_by_id = {}
+                for result in scraper_results:
+                    data_id = result['data_id']
+                    if data_id not in scraper_data_by_id:
+                        scraper_data_by_id[data_id] = {
+                            'id': result['id'],
+                            'data_type': result['data_type'],
+                            'data_id': data_id,
+                            'content': result['content'],
+                            'username': result['username'],
+                            'url': result['url'],
+                            'created_at': result['created_at'],
+                            'models': {}
+                        }
+                    
+                    # Store model results
+                    scraper_data_by_id[data_id]['models'][result['model_name']] = {
+                        'prediction': result['prediction'],
+                        'probability_radikal': result['probability_radikal'],
+                        'probability_non_radikal': result['probability_non_radikal']
+                    }
+                
+                classified_scraper_data = list(scraper_data_by_id.values())
             
             return render_template('dataset/details.html', 
                                  dataset=dataset,
@@ -5509,7 +5993,7 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                              active_users=active_users,
                              admin_users=admin_users,
                              inactive_users=inactive_users,
-                             current_time=datetime.now())
+                             current_time=datetime.utcnow())
     
     # Admin API Routes
     @app.route('/api/admin/users', methods=['POST'])

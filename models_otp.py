@@ -20,14 +20,14 @@ class RegistrationRequest(db.Model):
     
     # OTP Fields
     otp_code = db.Column(db.String(6), nullable=False)
-    otp_expires_at = db.Column(db.DateTime, nullable=False)
+    otp_expires_at = db.Column(db.DateTime, nullable=False, index=True)  # Index for performance
     
     # Status Fields
-    status = db.Column(db.String(20), default='pending')  # pending, approved, rejected, expired
+    status = db.Column(db.String(20), default='pending', index=True)  # pending, approved, rejected, expired
     admin_notes = db.Column(db.Text, nullable=True)
     
     # Timestamps
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)  # Index for cleanup operations
     approved_at = db.Column(db.DateTime, nullable=True)
     approved_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     
@@ -40,7 +40,7 @@ class RegistrationRequest(db.Model):
         self.password_hash = password_hash
         self.full_name = full_name
         self.otp_code = self.generate_otp()
-        self.otp_expires_at = datetime.utcnow() + timedelta(minutes=10)
+        self.otp_expires_at = datetime.utcnow() + timedelta(minutes=2)
     
     def generate_otp(self):
         """Generate OTP code using configured length"""
@@ -53,7 +53,7 @@ class RegistrationRequest(db.Model):
     def regenerate_otp(self):
         """Generate new OTP and extend expiry"""
         self.otp_code = self.generate_otp()
-        self.otp_expires_at = datetime.utcnow() + timedelta(minutes=10)
+        self.otp_expires_at = datetime.utcnow() + timedelta(minutes=2)
         return self.otp_code
 
 class AdminNotification(db.Model):

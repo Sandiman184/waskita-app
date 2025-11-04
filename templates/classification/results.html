@@ -50,6 +50,100 @@ Hasil Klasifikasi - Waskita
                         </div>
                     </div>
 
+                    <!-- Statistics Summary -->
+                    {% if datasets %}
+                    <div class="card-body">
+                        <div class="row mb-4">
+                            <!-- Total Results -->
+                            <div class="col-xl-3 col-md-6 mb-4">
+                                <div class="card border-left-primary shadow h-100 py-2">
+                                    <div class="card-body">
+                                        <div class="row no-gutters align-items-center">
+                                            <div class="col mr-2">
+                                                <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Total Hasil Klasifikasi</div>
+                                                <div class="h5 mb-0 font-weight-bold text-gray-800">{{ total_classifications }}</div>
+                                                <div class="text-xs text-muted">{{ total_data_items }} konten × 3 model</div>
+                                                <div class="text-xs text-muted mt-1">
+                                                    Semua prediksi dari ketiga model
+                                                </div>
+                                            </div>
+                                            <div class="col-auto">
+                                                <i class="fas fa-chart-bar fa-2x text-gray-300"></i>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Radical Results -->
+                            <div class="col-xl-3 col-md-6 mb-4">
+                                <div class="card border-left-danger shadow h-100 py-2">
+                                    <div class="card-body">
+                                        <div class="row no-gutters align-items-center">
+                                            <div class="col mr-2">
+                                                <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">Total Radikal</div>
+                                                <div class="h5 mb-0 font-weight-bold text-gray-800">{{ total_radikal }}</div>
+                                                <div class="text-xs text-muted">{{ "%.1f"|format((total_radikal / total_data_items) * 100) if total_data_items > 0 else 0 }}% dari total</div>
+                                                <div class="text-xs text-muted mt-1">
+                                                    Semua prediksi radikal dari 3 model
+                                                </div>
+                                            </div>
+                                            <div class="col-auto">
+                                                <i class="fas fa-exclamation-triangle fa-2x text-gray-300"></i>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Non-Radical Results -->
+                            <div class="col-xl-3 col-md-6 mb-4">
+                                <div class="card border-left-success shadow h-100 py-2">
+                                    <div class="card-body">
+                                        <div class="row no-gutters align-items-center">
+                                            <div class="col mr-2">
+                                                <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Total Non-Radikal</div>
+                                                <div class="h5 mb-0 font-weight-bold text-gray-800">{{ total_non_radikal }}</div>
+                                                <div class="text-xs text-muted">{{ "%.1f"|format((total_non_radikal / total_data_items) * 100) if total_data_items > 0 else 0 }}% dari total</div>
+                                                <div class="text-xs text-muted mt-1">
+                                                    Semua prediksi non-radikal dari 3 model
+                                                </div>
+                                            </div>
+                                            <div class="col-auto">
+                                                <i class="fas fa-check-circle fa-2x text-gray-300"></i>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Model Performance -->
+                            <div class="col-xl-3 col-md-6 mb-4">
+                                <div class="card border-left-info shadow h-100 py-2">
+                                    <div class="card-body">
+                                        <div class="row no-gutters align-items-center">
+                                            <div class="col mr-2">
+                                                <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Hasil Per Model</div>
+                                                <div class="h6 mb-0 font-weight-bold text-gray-800">
+                                                    <small><strong>Model 1:</strong> {{ model_stats.model1.radikal }} radikal, {{ model_stats.model1.non_radikal }} non-radikal</small><br>
+                                                    <small><strong>Model 2:</strong> {{ model_stats.model2.radikal }} radikal, {{ model_stats.model2.non_radikal }} non-radikal</small><br>
+                                                    <small><strong>Model 3:</strong> {{ model_stats.model3.radikal }} radikal, {{ model_stats.model3.non_radikal }} non-radikal</small>
+                                                </div>
+                                                <div class="text-xs text-muted mt-1">
+                                                    Total: {{ total_classifications }} hasil klasifikasi
+                                                </div>
+                                            </div>
+                                            <div class="col-auto">
+                                                <i class="fas fa-brain fa-2x text-gray-300"></i>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+
                     <!-- Dataset View -->
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-center mb-3">

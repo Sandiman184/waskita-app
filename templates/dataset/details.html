@@ -350,7 +350,20 @@
                                                 <tr>
                                                     <td class="text-sm">{{ data.id }}</td>
                                                     <td class="text-sm">{{ data.username if data.username and data.username|string|lower != 'nan' else '-' }}</td>
-                                                    <td class="text-sm">{{ data.url[:50] if data.url and data.url|string|lower != 'nan' else '-' }}{% if data.url and data.url|length > 50 and data.url|string|lower != 'nan' %}...{% endif %}</td>
+                                                    <td class="text-sm">
+                                                        {% if data.url and data.url|string|lower != 'nan' and data.url|length > 0 %}
+                                                            {% if data.url.startswith('http://') or data.url.startswith('https://') %}
+                                                                <a href="{{ data.url }}" target="_blank" rel="noopener noreferrer" class="text-primary" title="{{ data.url }}">
+                                                                    {{ data.url[:50] }}{% if data.url|length > 50 %}...{% endif %}
+                                                                    <i class="fas fa-external-link-alt ml-1" style="font-size: 0.8em;"></i>
+                                                                </a>
+                                                            {% else %}
+                                                                {{ data.url[:50] }}{% if data.url|length > 50 %}...{% endif %}
+                                                            {% endif %}
+                                                        {% else %}
+                                                            -
+                                                        {% endif %}
+                                                    </td>
                                                     <td class="text-sm">{{ data.content[:100] if data.content and data.content|string|lower != 'nan' else '-' }}{% if data.content and data.content|length > 100 and data.content|string|lower != 'nan' %}...{% endif %}</td>
                                                     <td><span class="badge badge-professional badge-upload">Upload</span></td>
                                                     <td class="text-sm">{{ data.created_at|format_datetime('short') if data.created_at else '-' }}</td>
@@ -360,7 +373,20 @@
                                                 <tr>
                                                     <td class="text-sm">{{ data.id }}</td>
                                                     <td class="text-sm">{{ data.username if data.username and data.username|string|lower != 'nan' else '-' }}</td>
-                                                    <td class="text-sm">{{ data.url[:50] if data.url and data.url|string|lower != 'nan' else '-' }}{% if data.url and data.url|length > 50 and data.url|string|lower != 'nan' %}...{% endif %}</td>
+                                                    <td class="text-sm">
+                                                        {% if data.url and data.url|string|lower != 'nan' and data.url|length > 0 %}
+                                                            {% if data.url.startswith('http://') or data.url.startswith('https://') %}
+                                                                <a href="{{ data.url }}" target="_blank" rel="noopener noreferrer" class="text-primary" title="{{ data.url }}">
+                                                                    {{ data.url[:50] }}{% if data.url|length > 50 %}...{% endif %}
+                                                                    <i class="fas fa-external-link-alt ml-1" style="font-size: 0.8em;"></i>
+                                                                </a>
+                                                            {% else %}
+                                                                {{ data.url[:50] }}{% if data.url|length > 50 %}...{% endif %}
+                                                            {% endif %}
+                                                        {% else %}
+                                                            -
+                                                        {% endif %}
+                                                    </td>
                                                     <td class="text-sm">{{ data.content[:100] if data.content and data.content|string|lower != 'nan' else '-' }}{% if data.content and data.content|length > 100 and data.content|string|lower != 'nan' %}...{% endif %}</td>
                                                     <td><span class="badge badge-professional badge-scraping">Scraping</span></td>
                                                     <td class="text-sm">{{ data.created_at|format_datetime('short') if data.created_at else '-' }}</td>
@@ -390,7 +416,20 @@
                                                 <tr>
                                                     <td>{{ data.id }}</td>
                                                     <td>{{ data.username if data.username and data.username|string|lower != 'nan' else '-' }}</td>
-                                                    <td>{{ data.url if data.url and data.url|string|lower != 'nan' else '-' }}</td>
+                                                    <td>
+                                                        {% if data.url and data.url|string|lower != 'nan' and data.url|length > 0 %}
+                                                            {% if data.url.startswith('http://') or data.url.startswith('https://') %}
+                                                                <a href="{{ data.url }}" target="_blank" rel="noopener noreferrer" class="text-primary" title="{{ data.url }}">
+                                                                    {{ data.url[:50] }}{% if data.url|length > 50 %}...{% endif %}
+                                                                    <i class="fas fa-external-link-alt ml-1" style="font-size: 0.8em;"></i>
+                                                                </a>
+                                                            {% else %}
+                                                                {{ data.url[:50] }}{% if data.url|length > 50 %}...{% endif %}
+                                                            {% endif %}
+                                                        {% else %}
+                                                            -
+                                                        {% endif %}
+                                                    </td>
                                                     <td>{{ data.cleaned_content[:100] if data.cleaned_content and data.cleaned_content|string|lower != 'nan' else '-' }}{% if data.cleaned_content and data.cleaned_content|length > 100 and data.cleaned_content|string|lower != 'nan' %}...{% endif %}</td>
                                                     <td><span class="badge badge-professional badge-upload">Upload</span></td>
                                                     <td>{{ data.created_at|format_datetime('short') if data.created_at else '-' }}</td>
@@ -400,7 +439,20 @@
                                                 <tr>
                                                     <td>{{ data.id }}</td>
                                                     <td>{{ data.username if data.username and data.username|string|lower != 'nan' else '-' }}</td>
-                                                    <td>{{ data.url if data.url and data.url|string|lower != 'nan' else '-' }}</td>
+                                                    <td>
+                                                        {% if data.url and data.url|string|lower != 'nan' and data.url|length > 0 %}
+                                                            {% if data.url.startswith('http://') or data.url.startswith('https://') %}
+                                                                <a href="{{ data.url }}" target="_blank" rel="noopener noreferrer" class="text-primary" title="{{ data.url }}">
+                                                                    {{ data.url[:50] }}{% if data.url|length > 50 %}...{% endif %}
+                                                                    <i class="fas fa-external-link-alt ml-1" style="font-size: 0.8em;"></i>
+                                                                </a>
+                                                            {% else %}
+                                                                {{ data.url[:50] }}{% if data.url|length > 50 %}...{% endif %}
+                                                            {% endif %}
+                                                        {% else %}
+                                                            -
+                                                        {% endif %}
+                                                    </td>
                                                     <td>{{ data.cleaned_content[:100] if data.cleaned_content and data.cleaned_content|string|lower != 'nan' else '-' }}{% if data.cleaned_content and data.cleaned_content|length > 100 and data.cleaned_content|string|lower != 'nan' %}...{% endif %}</td>
                                                     <td><span class="badge badge-professional badge-scraping">Scraping</span></td>
                                                     <td>{{ data.created_at|format_datetime('short') if data.created_at else '-' }}</td>
@@ -432,33 +484,61 @@
                                                 {% for data in classified_upload_data %}
                                                 <tr>
                                                     <td>{{ data.id }}</td>
-                                                    <td>{{ data.url if data.url and data.url|string|lower != 'nan' else '-' }}</td>
+                                                    <td>
+                                                        {% if data.url and data.url|string|lower != 'nan' and data.url|length > 0 %}
+                                                            {% if data.url.startswith('http://') or data.url.startswith('https://') %}
+                                                                <a href="{{ data.url }}" target="_blank" rel="noopener noreferrer" class="text-primary" title="{{ data.url }}">
+                                                                    {{ data.url[:50] }}{% if data.url|length > 50 %}...{% endif %}
+                                                                    <i class="fas fa-external-link-alt ml-1" style="font-size: 0.8em;"></i>
+                                                                </a>
+                                                            {% else %}
+                                                                {{ data.url[:50] }}{% if data.url|length > 50 %}...{% endif %}
+                                                            {% endif %}
+                                                        {% else %}
+                                                            -
+                                                        {% endif %}
+                                                    </td>
                                                     <td>{{ data.username if data.username and data.username|string|lower != 'nan' else '-' }}</td>
                                                     <td>{{ data.content[:100] if data.content and data.content|string|lower != 'nan' else '-' }}{% if data.content and data.content|length > 100 and data.content|string|lower != 'nan' %}...{% endif %}</td>
                                                     <td><span class="badge badge-professional badge-upload">Upload</span></td>
                                                     <td>
-                                                        {% if data.prediction == 'radikal' %}
-                                                            <span class="badge badge-professional badge-prediction-radikal">Radikal</span>
+                                                        {% if data.models.model1 %}
+                                                            {% if data.models.model1.prediction == 'radikal' %}
+                                                                <span class="badge badge-professional badge-prediction-radikal">Radikal</span>
+                                                                <br><small class="probability-text">{{ "%.2f"|format(data.models.model1.probability_radikal * 100) }}%</small>
+                                                            {% else %}
+                                                                <span class="badge badge-professional badge-prediction-nonradikal">Non-Radikal</span>
+                                                                <br><small class="probability-text">{{ "%.2f"|format(data.models.model1.probability_non_radikal * 100) }}%</small>
+                                                            {% endif %}
                                                         {% else %}
-                                                            <span class="badge badge-professional badge-prediction-nonradikal">Non-Radikal</span>
+                                                            <span class="badge badge-secondary">Tidak Tersedia</span>
                                                         {% endif %}
-                                                        <br><small class="probability-text">{{ "%.2f"|format(data.probability_radikal * 100) }}%</small>
                                                     </td>
                                                     <td>
-                                                        {% if data.prediction == 'radikal' %}
-                                                            <span class="badge badge-professional badge-prediction-radikal">Radikal</span>
+                                                        {% if data.models.model2 %}
+                                                            {% if data.models.model2.prediction == 'radikal' %}
+                                                                <span class="badge badge-professional badge-prediction-radikal">Radikal</span>
+                                                                <br><small class="probability-text">{{ "%.2f"|format(data.models.model2.probability_radikal * 100) }}%</small>
+                                                            {% else %}
+                                                                <span class="badge badge-professional badge-prediction-nonradikal">Non-Radikal</span>
+                                                                <br><small class="probability-text">{{ "%.2f"|format(data.models.model2.probability_non_radikal * 100) }}%</small>
+                                                            {% endif %}
                                                         {% else %}
-                                                            <span class="badge badge-professional badge-prediction-nonradikal">Non-Radikal</span>
+                                                            <span class="badge badge-secondary">Tidak Tersedia</span>
                                                         {% endif %}
-                                                        <br><small class="probability-text">{{ "%.2f"|format(data.probability_radikal * 100) }}%</small>
                                                     </td>
                                                     <td>
-                                                        {% if data.prediction == 'radikal' %}
-                                                            <span class="badge badge-professional badge-prediction-radikal">Radikal</span>
+                                                        {% if data.models.model3 %}
+                                                            {% if data.models.model3.prediction == 'radikal' %}
+                                                                <span class="badge badge-professional badge-prediction-radikal">Radikal</span>
+                                                                <br><small class="probability-text">{{ "%.2f"|format(data.models.model3.probability_radikal * 100) }}%</small>
+                                                            {% else %}
+                                                                <span class="badge badge-professional badge-prediction-nonradikal">Non-Radikal</span>
+                                                                <br><small class="probability-text">{{ "%.2f"|format(data.models.model3.probability_non_radikal * 100) }}%</small>
+                                                            {% endif %}
                                                         {% else %}
-                                                            <span class="badge badge-professional badge-prediction-nonradikal">Non-Radikal</span>
+                                                            <span class="badge badge-secondary">Tidak Tersedia</span>
                                                         {% endif %}
-                                                        <br><small class="probability-text">{{ "%.2f"|format(data.probability_radikal * 100) }}%</small>
                                                     </td>
                                                     <td>{{ data.created_at|format_datetime('short') if data.created_at else '-' }}</td>
                                                 </tr>
@@ -466,33 +546,61 @@
                                                 {% for data in classified_scraper_data %}
                                                 <tr>
                                                     <td>{{ data.id }}</td>
-                                                    <td>{{ data.url if data.url and data.url|string|lower != 'nan' else '-' }}</td>
+                                                    <td>
+                                                        {% if data.url and data.url|string|lower != 'nan' and data.url|length > 0 %}
+                                                            {% if data.url.startswith('http://') or data.url.startswith('https://') %}
+                                                                <a href="{{ data.url }}" target="_blank" rel="noopener noreferrer" class="text-primary" title="{{ data.url }}">
+                                                                    {{ data.url[:50] }}{% if data.url|length > 50 %}...{% endif %}
+                                                                    <i class="fas fa-external-link-alt ml-1" style="font-size: 0.8em;"></i>
+                                                                </a>
+                                                            {% else %}
+                                                                {{ data.url[:50] }}{% if data.url|length > 50 %}...{% endif %}
+                                                            {% endif %}
+                                                        {% else %}
+                                                            -
+                                                        {% endif %}
+                                                    </td>
                                                     <td>{{ data.username if data.username and data.username|string|lower != 'nan' else '-' }}</td>
                                                     <td>{{ data.content[:100] if data.content and data.content|string|lower != 'nan' else '-' }}{% if data.content and data.content|length > 100 and data.content|string|lower != 'nan' %}...{% endif %}</td>
                                                     <td><span class="badge badge-professional badge-scraping">Scraping</span></td>
                                                     <td>
-                                                        {% if data.prediction == 'radikal' %}
-                                                            <span class="badge badge-professional badge-prediction-radikal">Radikal</span>
+                                                        {% if data.models.model1 %}
+                                                            {% if data.models.model1.prediction == 'radikal' %}
+                                                                <span class="badge badge-professional badge-prediction-radikal">Radikal</span>
+                                                                <br><small class="probability-text">{{ "%.2f"|format(data.models.model1.probability_radikal * 100) }}%</small>
+                                                            {% else %}
+                                                                <span class="badge badge-professional badge-prediction-nonradikal">Non-Radikal</span>
+                                                                <br><small class="probability-text">{{ "%.2f"|format(data.models.model1.probability_non_radikal * 100) }}%</small>
+                                                            {% endif %}
                                                         {% else %}
-                                                            <span class="badge badge-professional badge-prediction-nonradikal">Non-Radikal</span>
+                                                            <span class="badge badge-secondary">Tidak Tersedia</span>
                                                         {% endif %}
-                                                        <br><small class="probability-text">{{ "%.2f"|format(data.probability_radikal * 100) }}%</small>
                                                     </td>
                                                     <td>
-                                                        {% if data.prediction == 'radikal' %}
-                                                            <span class="badge badge-professional badge-prediction-radikal">Radikal</span>
+                                                        {% if data.models.model2 %}
+                                                            {% if data.models.model2.prediction == 'radikal' %}
+                                                                <span class="badge badge-professional badge-prediction-radikal">Radikal</span>
+                                                                <br><small class="probability-text">{{ "%.2f"|format(data.models.model2.probability_radikal * 100) }}%</small>
+                                                            {% else %}
+                                                                <span class="badge badge-professional badge-prediction-nonradikal">Non-Radikal</span>
+                                                                <br><small class="probability-text">{{ "%.2f"|format(data.models.model2.probability_non_radikal * 100) }}%</small>
+                                                            {% endif %}
                                                         {% else %}
-                                                            <span class="badge badge-professional badge-prediction-nonradikal">Non-Radikal</span>
+                                                            <span class="badge badge-secondary">Tidak Tersedia</span>
                                                         {% endif %}
-                                                        <br><small class="probability-text">{{ "%.2f"|format(data.probability_radikal * 100) }}%</small>
                                                     </td>
                                                     <td>
-                                                        {% if data.prediction == 'radikal' %}
-                                                            <span class="badge badge-professional badge-prediction-radikal">Radikal</span>
+                                                        {% if data.models.model3 %}
+                                                            {% if data.models.model3.prediction == 'radikal' %}
+                                                                <span class="badge badge-professional badge-prediction-radikal">Radikal</span>
+                                                                <br><small class="probability-text">{{ "%.2f"|format(data.models.model3.probability_radikal * 100) }}%</small>
+                                                            {% else %}
+                                                                <span class="badge badge-professional badge-prediction-nonradikal">Non-Radikal</span>
+                                                                <br><small class="probability-text">{{ "%.2f"|format(data.models.model3.probability_non_radikal * 100) }}%</small>
+                                                            {% endif %}
                                                         {% else %}
-                                                            <span class="badge badge-professional badge-prediction-nonradikal">Non-Radikal</span>
+                                                            <span class="badge badge-secondary">Tidak Tersedia</span>
                                                         {% endif %}
-                                                        <br><small class="probability-text">{{ "%.2f"|format(data.probability_radikal * 100) }}%</small>
                                                     </td>
                                                     <td>{{ data.created_at|format_datetime('short') if data.created_at else '-' }}</td>
                                                 </tr>

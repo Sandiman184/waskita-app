@@ -20,11 +20,13 @@ from otp_routes import otp_bp
 from config import Config
 
 # Setup logging
+import os
+os.makedirs('logs', exist_ok=True)
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('waskita.log'),
+        logging.FileHandler('logs/waskita.log'),
         logging.StreamHandler()
     ]
 )

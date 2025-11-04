@@ -2,11 +2,13 @@
 # Modul keamanan untuk validasi file dan sanitasi input
 
 import bleach
+import json
 import logging
 import os
 import uuid
 import re
 import mimetypes
+from datetime import datetime
 from functools import wraps
 from flask import request, abort, current_app
 from werkzeug.utils import secure_filename
@@ -145,14 +147,29 @@ class SecurityValidator:
             
             # Jika format tidak terdeteksi, tetap izinkan file (akan ditangani oleh pandas)
             if not file_info['detected_format']:
-                file_info['detected_format'] = 'unknown'
-                security_logger.info(f"Unknown file format for {filename}, will try to process with pandas")
+                    file_info['detected_format'] = 'unknown'
+                    security_logger.info(json.dumps({
+                        "timestamp": datetime.now().isoformat(),
+                        "event_type": "FILE_FORMAT_UNKNOWN",
+                        "message": f"Unknown file format for {filename}, will try to process with pandas",
+                        "filename": filename,
+                        "severity": "INFO"
+                    }))
             
         except Exception as e:
             security_logger.error(f"Error validating file content: {filename} - {str(e)}")
             # Tidak menolak file karena error ini, hanya mencatat
         
-        security_logger.info(f"File upload validated successfully: {filename} ({mime_type}, {file_size} bytes, format: {file_info.get('detected_format', 'unknown')})")
+        security_logger.info(json.dumps({
+            "timestamp": datetime.now().isoformat(),
+            "event_type": "FILE_UPLOAD_VALIDATED",
+            "message": f"File upload validated successfully: {filename}",
+            "filename": filename,
+            "mime_type": mime_type,
+            "file_size": file_size,
+            "detected_format": file_info.get('detected_format', 'unknown'),
+            "severity": "INFO"
+        }))
         return True, "File valid", file_info
     
     @staticmethod
@@ -266,15 +283,18 @@ def generate_secure_filename(original_filename, upload_folder):
 
 def log_security_event(event_type, message, user_id=None, ip_address=None):
     """
-    Log security events untuk monitoring
+    Log security events untuk monitoring dengan format JSON yang konsisten
     """
-    log_message = f"{event_type}: {message}"
-    if user_id:
-        log_message += f" | User: {user_id}"
-    if ip_address:
-        log_message += f" | IP: {ip_address}"
+    log_data = {
+        "timestamp": datetime.now().isoformat(),
+        "event_type": event_type,
+        "message": message,
+        "user_id": user_id,
+        "ip_address": ip_address,
+        "severity": "INFO"
+    }
     
-    security_logger.info(log_message)
+    security_logger.info(json.dumps(log_data))
 
 def rate_limit_by_user(max_requests=10, window=3600):
     """

@@ -2,9 +2,10 @@ import schedule
 import time
 import threading
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from flask import current_app
 from models import db, RawDataScraper, CleanDataScraper, ClassificationResult
+from models_otp import RegistrationRequest, OTPEmailLog
 from sqlalchemy import text
 
 # Setup logging
@@ -75,6 +76,32 @@ class DataCleanupScheduler:
             db.session.rollback()
             return 0
     
+    def cleanup_expired_otp_data(self):
+        """Membersihkan data OTP yang sudah expired dan data log email yang sudah lama"""
+        try:
+            with self.app.app_context():
+                # Hapus registration requests yang sudah expired
+                expired_otp_count = db.session.query(RegistrationRequest).filter(
+                    RegistrationRequest.otp_expires_at < datetime.utcnow(),
+                    RegistrationRequest.status == 'pending'
+                ).delete(synchronize_session=False)
+                
+                # Hapus email logs yang lebih dari 30 hari
+                thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+                old_email_logs_count = db.session.query(OTPEmailLog).filter(
+                    OTPEmailLog.created_at < thirty_days_ago
+                ).delete(synchronize_session=False)
+                
+                db.session.commit()
+                
+                logger.info(f"Berhasil menghapus {expired_otp_count} OTP expired dan {old_email_logs_count} log email lama")
+                return expired_otp_count + old_email_logs_count
+                
+        except Exception as e:
+            logger.error(f"Error saat membersihkan data OTP expired: {str(e)}")
+            db.session.rollback()
+            return 0
+    
     def update_statistics(self):
         """Update statistik dashboard setelah cleanup"""
         try:
@@ -114,15 +141,21 @@ class DataCleanupScheduler:
     
     def scheduled_cleanup(self):
         """Fungsi yang akan dijalankan secara terjadwal"""
-        logger.info(f"Memulai pembersihan otomatis data scraper orphan - {datetime.now()}")
+        logger.info(f"Memulai pembersihan otomatis data - {datetime.now()}")
         
-        deleted_count = self.cleanup_orphaned_scraper_data()
+        # Cleanup data scraper orphan
+        scraper_deleted_count = self.cleanup_orphaned_scraper_data()
         
-        if deleted_count > 0:
+        # Cleanup OTP expired data
+        otp_deleted_count = self.cleanup_expired_otp_data()
+        
+        total_deleted = scraper_deleted_count + otp_deleted_count
+        
+        if total_deleted > 0:
             self.update_statistics()
-            logger.info(f"Pembersihan selesai: {deleted_count} data scraper orphan dihapus")
+            logger.info(f"Pembersihan selesai: {scraper_deleted_count} data scraper orphan dan {otp_deleted_count} data OTP expired dihapus")
         else:
-            logger.info("Pembersihan selesai: tidak ada data orphan yang dihapus")
+            logger.info("Pembersihan selesai: tidak ada data yang dihapus")
     
     def start_scheduler(self):
         """Memulai scheduler untuk pembersihan otomatis"""

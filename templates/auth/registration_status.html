@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="id">
+
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -7,6 +8,7 @@
               content="Status Registrasi - Waskita - Sistem Klasifikasi Konten Radikal menggunakan Machine Learning">
         <meta name="keywords"
               content="status registrasi, waskita, klasifikasi konten, machine learning">
+        <meta name="csrf-token" content="{{ csrf_token() }}">
         <title>Status Registrasi - Waskita</title>
         <!-- Google Font: Source Sans Pro -->
         <link rel="stylesheet"
@@ -271,7 +273,7 @@
                         
                         <div class="info-row">
                             <span class="info-label">Tanggal Permintaan:</span>
-                            <span class="info-value">{{ request.created_at.strftime('%d/%m/%Y %H:%M WIB') }}</span>
+                            <span class="info-value">{{ (request.created_at + timedelta(hours=7)).strftime('%d/%m/%Y %H:%M') }} WIB</span>
                         </div>
                         
                         <div class="info-row">
@@ -279,7 +281,7 @@
                             <span class="info-value">
                                 <span class="badge badge-{{ 'warning' if request.status == 'pending' else 'success' if request.status == 'approved' else 'danger' if request.status == 'rejected' else 'secondary' }}">
                                     {% if request.status == 'pending' %}
-                                        Menunggu Persetujuan
+                                        Menunggu Verifikasi
                                     {% elif request.status == 'approved' %}
                                         Disetujui
                                     {% elif request.status == 'rejected' %}
@@ -294,13 +296,13 @@
                         {% if request.approved_at %}
                         <div class="info-row">
                             <span class="info-label">Tanggal Diproses:</span>
-                            <span class="info-value">{{ request.approved_at.strftime('%d/%m/%Y %H:%M WIB') }}</span>
+                            <span class="info-value">{{ (request.approved_at + timedelta(hours=7)).strftime('%d/%m/%Y %H:%M') }} WIB</span>
                         </div>
                         {% endif %}
                         
                         {% if request.admin_notes %}
                         <div class="info-row">
-                            <span class="info-label">Catatan Admin:</span>
+                            <span class="info-label">Catatan Sistem:</span>
                             <span class="info-value">{{ request.admin_notes }}</span>
                         </div>
                         {% endif %}
@@ -309,23 +311,18 @@
                         {% if request.status == 'pending' %}
                             <div class="alert alert-info mt-4">
                                 <i class="fas fa-info-circle mr-2"></i>
-                                <strong>Informasi:</strong> Administrator telah menerima permintaan registrasi Anda dan akan segera meninjau. 
-                                Anda akan menerima email konfirmasi setelah permintaan diproses.
-                                
-                                {% if request.otp_expires_at %}
-                                    <br><br>
-                                    <strong>Batas waktu:</strong> {{ request.otp_expires_at.strftime('%d/%m/%Y %H:%M WIB') }}
-                                {% endif %}
+                                <strong>Informasi:</strong> Permintaan registrasi Anda sedang diproses. 
+                                Anda akan menerima email notifikasi apabila registrasi Anda telah disetujui.
                             </div>
                         {% elif request.status == 'approved' %}
                             <div class="alert alert-success mt-4">
                                 <i class="fas fa-check-circle mr-2"></i>
-                                <strong>Selamat!</strong> Registrasi Anda telah disetujui. Anda sekarang dapat login menggunakan username dan password yang telah dibuat.
+                                <strong>Selamat!</strong> Registrasi Anda telah berhasil diverifikasi. Anda sekarang dapat login menggunakan username dan password yang telah dibuat.
                             </div>
                         {% elif request.status == 'rejected' %}
                             <div class="alert alert-danger mt-4">
                                 <i class="fas fa-times-circle mr-2"></i>
-                                <strong>Maaf,</strong> permintaan registrasi Anda tidak dapat disetujui. 
+                                <strong>Maaf,</strong> permintaan registrasi Anda tidak dapat diproses. 
                                 {% if request.admin_notes %}
                                     Alasan: {{ request.admin_notes }}
                                 {% endif %}
@@ -432,8 +429,8 @@
                 if (typeof Swal !== 'undefined') {
                     Swal.fire({
                         icon: 'success',
-                        title: 'Registrasi Disetujui!',
-                        text: 'Selamat! Akun Anda telah disetujui dan dapat digunakan.',
+                        title: 'Registrasi Berhasil!',
+                        text: 'Selamat! Akun Anda telah berhasil diverifikasi dan dapat digunakan.',
                         confirmButtonText: 'Login Sekarang',
                         showCancelButton: true,
                         cancelButtonText: 'Nanti'
@@ -447,8 +444,8 @@
                 if (typeof Swal !== 'undefined') {
                     Swal.fire({
                         icon: 'error',
-                        title: 'Registrasi Ditolak',
-                        text: 'Maaf, permintaan registrasi Anda tidak dapat disetujui.',
+                        title: 'Registrasi Gagal',
+                        text: 'Maaf, permintaan registrasi Anda tidak dapat diproses.',
                         confirmButtonText: 'OK'
                     });
                 }
