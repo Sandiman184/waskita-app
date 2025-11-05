@@ -86,6 +86,203 @@ python app.py
 
 Aplikasi akan berjalan di: `http://localhost:5000`
 
+## 📋 Panduan Instalasi Lengkap
+
+### 🖥️ Instalasi Lokal (Development)
+
+#### Persyaratan Sistem
+- **Python**: 3.8+ (recommended 3.11)
+- **PostgreSQL**: 12+ (dengan akses superuser)
+- **RAM**: Minimal 4GB (8GB recommended untuk model ML)
+- **Storage**: Minimal 2GB free space
+- **Git**: Versi terbaru
+
+#### Langkah 1: Clone Repository
+```bash
+git clone https://github.com/Sandiman184/waskita-app.git
+cd waskita-app
+```
+
+#### Langkah 2: Setup Environment Python
+```bash
+# Buat virtual environment
+python -m venv venv
+
+# Aktivasi virtual environment
+# Windows:
+venv\Scripts\activate
+# Linux/Mac:
+source venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
+```
+
+#### Langkah 3: Setup Database PostgreSQL
+
+**Opsi A: Setup Otomatis (Recommended)**
+```bash
+python setup_postgresql.py
+```
+
+**Opsi B: Setup Manual**
+1. Install PostgreSQL dan pastikan service berjalan
+2. Buat database: `waskita_db`
+3. Buat user: `waskita_user` dengan password `waskita_password123`
+4. Jalankan schema SQL: `psql -U postgres -d waskita_db -f docker/database_schema.sql`
+
+#### Langkah 4: Konfigurasi Environment
+```bash
+# Copy template environment
+cp .env.example .env
+
+# Edit file .env dengan konfigurasi database Anda
+nano .env  # atau gunakan text editor favorit
+```
+
+**Konfigurasi minimal yang perlu diubah:**
+```env
+DATABASE_URL=postgresql://waskita_user:waskita_password123@localhost:5432/waskita_db
+SECRET_KEY=your-super-secret-key-change-this-in-production
+```
+
+#### Langkah 5: Jalankan Aplikasi
+
+**Mode Development (Default):**
+```bash
+python app.py
+```
+
+**Mode Production (dengan Gunicorn):**
+```bash
+# Install gunicorn jika belum ada
+pip install gunicorn
+
+# Jalankan dengan gunicorn
+gunicorn -w 4 -b 0.0.0.0:5000 app:app
+```
+
+**Mode Development dengan Auto-reload:**
+```bash
+# Install watchdog untuk auto-reload
+pip install watchdog
+
+# Jalankan dengan auto-reload
+python app.py --reload
+```
+
+Aplikasi akan berjalan di: `http://localhost:5000`
+
+**Akses Aplikasi Setelah Instalasi:**
+1. Buka browser dan kunjungi: `http://localhost:5000`
+2. Login dengan kredensial default (lihat bagian Default Login)
+3. Untuk pertama kali, sistem akan meminta verifikasi OTP via email
+4. Setup konfigurasi email di `.env` untuk menerima OTP
+
+### 🐳 Instalasi dengan Docker (Production Ready)
+
+#### Persyaratan Sistem
+- **Docker**: 20.10+
+- **Docker Compose**: 2.20+
+- **RAM**: Minimal 8GB (untuk model Word2Vec)
+- **Storage**: Minimal 5GB free space
+
+#### Langkah 1: Clone Repository
+```bash
+git clone https://github.com/Sandiman184/waskita-app.git
+cd waskita-app
+```
+
+#### Langkah 2: Setup Environment Variables
+```bash
+# Copy template environment untuk Docker
+cp .env.example .env
+
+# Edit konfigurasi untuk Docker
+nano .env
+```
+
+**Konfigurasi penting untuk Docker:**
+```env
+FLASK_ENV=production
+CREATE_SAMPLE_DATA=false
+DATABASE_URL=postgresql://postgres:Sandiman184@db:5432/waskita_db
+```
+
+#### Langkah 3: Build dan Jalankan dengan Docker Compose
+```bash
+# Build dan jalankan containers
+cd docker
+docker-compose up -d --build
+
+# Atau jalankan dengan logging
+cd docker
+docker-compose up --build
+```
+
+#### Langkah 4: Verifikasi Instalasi
+```bash
+# Cek status containers
+docker-compose ps
+
+# Lihat logs aplikasi
+docker-compose logs web
+
+# Test aplikasi
+curl http://localhost:5000
+```
+
+Aplikasi akan berjalan di: `http://localhost:5000` (atau port yang dikonfigurasi)
+
+### 🔧 Troubleshooting Instalasi
+
+#### Masalah Database Connection
+```bash
+# Cek koneksi PostgreSQL
+psql -U postgres -c "\l"
+
+# Restart PostgreSQL service
+sudo systemctl restart postgresql
+```
+
+#### Masalah Dependencies Python
+```bash
+# Install ulang dependencies
+pip uninstall -r requirements.txt -y
+pip install -r requirements.txt
+```
+
+#### Masalah Docker
+```bash
+# Reset Docker containers
+cd docker
+docker-compose down -v
+docker-compose up --build
+
+# Cek resource Docker
+docker system df
+docker system prune -f
+```
+
+#### Masalah Model Machine Learning
+```bash
+# Pastikan model files ada di folder yang benar
+ls -la models/embeddings/
+ls -la models/navesbayes/
+
+# Download model files jika belum ada (wajib untuk ML)
+mkdir -p models/embeddings models/navesbayes
+
+# Download Word2Vec model (500MB+)
+# Hubungi tim penelitian untuk akses model atau gunakan model custom
+# Model default: wiki_word2vec_csv_updated.model
+
+# Download Naive Bayes models
+# Hubungi tim penelitian untuk akses model trained
+```
+
+**Catatan Penting**: Model machine learning tidak termasuk dalam repository karena ukuran besar (500MB+). Silakan hubungi tim penelitian untuk mendapatkan akses model atau train model custom menggunakan dataset penelitian Anda.
+
 **Status Aplikasi Saat Ini (Januari 2025):**
 - ✅ **Development Mode**: Berjalan dengan konfigurasi development
 - ✅ **Database**: PostgreSQL dengan schema lengkap
@@ -111,7 +308,15 @@ Email: admin@waskita.com
 - ✅ **Password Hashing**: Password disimpan dengan bcrypt hashing
 - ✅ **Session Security**: HttpOnly cookies dengan secure flags
 
-⚠️ **Penting**: Ganti password default setelah login pertama dan setup email SMTP untuk fitur OTP!
+⚠️ **Penting**: 
+1. Ganti password default setelah login pertama
+2. Setup email SMTP di file `.env` untuk fitur OTP:
+   ```env
+   MAIL_USERNAME=your-email@gmail.com
+   MAIL_PASSWORD=your-app-password
+   MAIL_DEFAULT_SENDER=your-email@gmail.com
+   ```
+3. Untuk development, bisa disable OTP sementara dengan set `OTP_ENABLED=false` di `.env`
 
 ## 📁 Struktur Project (Januari 2025)
 
