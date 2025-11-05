@@ -28,11 +28,9 @@ Hasil Klasifikasi - Waskita
                                 <h6 class="mb-2">Hasil Klasifikasi Data</h6>
                                 <p class="text-sm mb-0">Analisis komprehensif hasil klasifikasi data media sosial</p>
                                 {% if datasets %}
-                                    {% set total_items = datasets|sum(attribute='total_items') %}
-                                    {% set total_classifications = total_items * 3 %}
                                     <small class="text-muted">
                                         <i class="fas fa-info-circle mr-1"></i>
-                                        {{ total_items }} konten diklasifikasi dengan 3 model = {{ total_classifications }} hasil klasifikasi
+                                        {{ total_data_items }} konten diklasifikasi dengan 3 model = {{ total_classifications }} hasil klasifikasi
                                     </small>
                                 {% endif %}
                             </div>
@@ -83,7 +81,7 @@ Hasil Klasifikasi - Waskita
                                             <div class="col mr-2">
                                                 <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">Total Radikal</div>
                                                 <div class="h5 mb-0 font-weight-bold text-gray-800">{{ total_radikal }}</div>
-                                                <div class="text-xs text-muted">{{ "%.1f"|format((total_radikal / total_data_items) * 100) if total_data_items > 0 else 0 }}% dari total</div>
+                                                <div class="text-xs text-muted">{{ "%.1f"|format((total_radikal / total_classifications) * 100) if total_classifications > 0 else 0 }}% dari total</div>
                                                 <div class="text-xs text-muted mt-1">
                                                     Semua prediksi radikal dari 3 model
                                                 </div>
@@ -104,7 +102,7 @@ Hasil Klasifikasi - Waskita
                                             <div class="col mr-2">
                                                 <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Total Non-Radikal</div>
                                                 <div class="h5 mb-0 font-weight-bold text-gray-800">{{ total_non_radikal }}</div>
-                                                <div class="text-xs text-muted">{{ "%.1f"|format((total_non_radikal / total_data_items) * 100) if total_data_items > 0 else 0 }}% dari total</div>
+                                                <div class="text-xs text-muted">{{ "%.1f"|format((total_non_radikal / total_classifications) * 100) if total_classifications > 0 else 0 }}% dari total</div>
                                                 <div class="text-xs text-muted mt-1">
                                                     Semua prediksi non-radikal dari 3 model
                                                 </div>

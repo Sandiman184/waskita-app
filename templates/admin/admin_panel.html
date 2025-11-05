@@ -873,12 +873,34 @@ $('#addUserForm').submit(function(e) {
         },
         success: function(response) {
             if (response.success) {
-                Swal.fire('Berhasil', 'Pengguna berhasil ditambahkan', 'success').then(() => {
-                    $('#addUserModal').modal('hide');
-                    location.reload();
-                });
+                Swal.fire({
+                icon: 'success',
+                title: 'Berhasil',
+                text: 'Pengguna berhasil ditambahkan',
+                customClass: {
+                    popup: 'swal2-popup',
+                    title: 'swal2-title',
+                    htmlContainer: 'swal2-html-container',
+                    actions: 'swal2-actions',
+                    confirmButton: 'swal2-confirm'
+                }
+            }).then(() => {
+                $('#addUserModal').modal('hide');
+                location.reload();
+            });
             } else {
-                Swal.fire('Error', response.message || 'Gagal menambahkan pengguna', 'error');
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: response.message || 'Gagal menambahkan pengguna',
+                    customClass: {
+                        popup: 'swal2-popup',
+                        title: 'swal2-title',
+                        htmlContainer: 'swal2-html-container',
+                        actions: 'swal2-actions',
+                        confirmButton: 'swal2-confirm'
+                    }
+                });
             }
         },
         error: function(xhr) {
@@ -886,7 +908,18 @@ $('#addUserForm').submit(function(e) {
             if (xhr.responseJSON && xhr.responseJSON.message) {
                 errorMsg = xhr.responseJSON.message;
             }
-            Swal.fire('Error', errorMsg, 'error');
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: errorMsg,
+                customClass: {
+                    popup: 'swal2-popup',
+                    title: 'swal2-title',
+                    htmlContainer: 'swal2-html-container',
+                    actions: 'swal2-actions',
+                    confirmButton: 'swal2-confirm'
+                }
+            });
         }
     });
 });
@@ -936,7 +969,22 @@ function viewUser(userId) {
         $('#userDetailBody').html(content);
         $('#viewUserModal').modal('show');
     }).fail(function() {
-        Swal.fire('Error', 'Gagal memuat detail pengguna', 'error');
+        if (typeof swalError === 'function') {
+            swalError('Error', 'Gagal memuat detail pengguna');
+        } else {
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'Gagal memuat detail pengguna',
+                customClass: {
+                    popup: 'swal2-popup',
+                    title: 'swal2-title',
+                    htmlContainer: 'swal2-html-container',
+                    actions: 'swal2-actions',
+                    confirmButton: 'swal2-confirm'
+                }
+            });
+        }
     });
 }
 
@@ -1027,9 +1075,26 @@ function toggleUserStatus(userId, status) {
                 },
                 success: function(response) {
                     if (response.success) {
-                        Swal.fire('Berhasil', `Pengguna berhasil ${status ? 'diaktifkan' : 'dinonaktifkan'}`, 'success').then(() => {
-                            location.reload();
-                        });
+                        if (typeof swalSuccess === 'function') {
+                            swalSuccess('Berhasil', `Pengguna berhasil ${status ? 'diaktifkan' : 'dinonaktifkan'}`).then(() => {
+                                location.reload();
+                            });
+                        } else {
+                            Swal.fire({
+                                icon: 'success',
+                                title: 'Berhasil',
+                                text: `Pengguna berhasil ${status ? 'diaktifkan' : 'dinonaktifkan'}`,
+                                customClass: {
+                                    popup: 'swal2-popup',
+                                    title: 'swal2-title',
+                                    htmlContainer: 'swal2-html-container',
+                                    actions: 'swal2-actions',
+                                    confirmButton: 'swal2-confirm'
+                                }
+                            }).then(() => {
+                                location.reload();
+                            });
+                        }
                     } else {
                         Swal.fire('Error', response.message || 'Gagal mengubah status pengguna', 'error');
                     }

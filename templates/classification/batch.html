@@ -287,7 +287,14 @@ function loadPreviewData() {
                 title: 'Error',
                 text: errorMessage,
                 icon: errorIcon,
-                confirmButtonText: 'OK'
+                confirmButtonText: 'OK',
+                customClass: {
+                    popup: 'swal2-popup',
+                    title: 'swal2-title',
+                    htmlContainer: 'swal2-html-container',
+                    actions: 'swal2-actions',
+                    confirmButton: 'swal2-confirm'
+                }
             });
         }
     });
@@ -348,16 +355,27 @@ function displayPreviewData() {
 
 function startBatchClassification() {
     // Show loading state
-    Swal.fire({
-        title: 'Memuat Data...',
-        text: 'Sedang memuat data untuk klasifikasi',
-        icon: 'info',
-        allowOutsideClick: false,
-        showConfirmButton: false,
-        didOpen: () => {
-            Swal.showLoading();
-        }
-    });
+    if (typeof swalLoading === 'function') {
+        swalLoading('Memuat Data...', 'Sedang memuat data untuk klasifikasi');
+    } else {
+        Swal.fire({
+            title: 'Memuat Data...',
+            text: 'Sedang memuat data untuk klasifikasi',
+            icon: 'info',
+            allowOutsideClick: false,
+            showConfirmButton: false,
+            didOpen: () => {
+                Swal.showLoading();
+            },
+            customClass: {
+                popup: 'swal2-popup',
+                title: 'swal2-title',
+                htmlContainer: 'swal2-html-container',
+                actions: 'swal2-actions',
+                confirmButton: 'swal2-confirm'
+            }
+        });
+    }
 
     $.ajax({
         url: `/api/dataset/${currentDatasetId}/clean-data`,
@@ -383,25 +401,45 @@ function startBatchClassification() {
                     };
                 });
                 
-                Swal.fire({
-                    title: 'Konfirmasi Klasifikasi Batch',
-                    text: `Anda akan mengklasifikasi semua ${allData.length} data dalam dataset ini. Lanjutkan?`,
-                    icon: 'question',
-                    showCancelButton: true,
-                    confirmButtonColor: '#28a745',
-                    cancelButtonColor: '#6c757d',
-                    confirmButtonText: 'Ya, Klasifikasi Semua',
-                    cancelButtonText: 'Batal'
-                }).then((result) => {
-                    if (result.isConfirmed) {
-                        processAllData(allData);
-                    }
-                });
+                if (typeof swalConfirm === 'function') {
+                    swalConfirm(`Anda akan mengklasifikasi semua ${allData.length} data dalam dataset ini. Apakah Anda yakin ingin melanjutkan?`, {
+                        title: 'Konfirmasi Klasifikasi Batch',
+                        confirmButtonText: 'Ya, Klasifikasi Semua',
+                        cancelButtonText: 'Batal',
+                        confirmButtonColor: '#28a745',
+                        cancelButtonColor: '#6c757d'
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            processAllData(allData);
+                        }
+                    });
+                } else {
+                    Swal.fire({
+                        title: 'Konfirmasi Klasifikasi Batch',
+                        text: `Anda akan mengklasifikasi semua ${allData.length} data dalam dataset ini. Apakah Anda yakin ingin melanjutkan?`,
+                        icon: 'question',
+                        showCancelButton: true,
+                        confirmButtonColor: '#28a745',
+                        cancelButtonColor: '#6c757d',
+                        confirmButtonText: 'Ya, Klasifikasi Semua',
+                        cancelButtonText: 'Batal',
+                        customClass: {
+                            popup: 'swal2-popup',
+                            title: 'swal2-title',
+                            htmlContainer: 'swal2-html-container',
+                            actions: 'swal2-actions',
+                            confirmButton: 'swal2-confirm',
+                            cancelButton: 'swal2-cancel'
+                        }
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            processAllData(allData);
+                        }
+                    });
+                }
             } else {
-                Swal.fire({
-                    icon: 'warning',
-                    title: 'Data Tidak Tersedia',
-                    html: `
+                if (typeof swalWarning === 'function') {
+                    swalWarning(`
                         <p>Tidak ada data yang tersedia untuk diklasifikasi.</p>
                         <p><strong>Kemungkinan penyebab:</strong></p>
                         <ul style="text-align: left; margin: 10px 0;">
@@ -410,10 +448,36 @@ function startBatchClassification() {
                             <li>Dataset kosong</li>
                         </ul>
                         <p>Silakan periksa data Anda terlebih dahulu.</p>
-                    `,
-                    confirmButtonText: 'OK',
-                    confirmButtonColor: '#007bff'
-                });
+                    `, {
+                        title: 'Data Tidak Tersedia',
+                        confirmButtonText: 'OK',
+                        confirmButtonColor: '#007bff'
+                    });
+                } else {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Data Tidak Tersedia',
+                        html: `
+                            <p>Tidak ada data yang tersedia untuk diklasifikasi.</p>
+                            <p><strong>Kemungkinan penyebab:</strong></p>
+                            <ul style="text-align: left; margin: 10px 0;">
+                                <li>Data belum di-upload atau di-scrape</li>
+                                <li>Data belum dibersihkan (cleaning)</li>
+                                <li>Dataset kosong</li>
+                            </ul>
+                            <p>Silakan periksa data Anda terlebih dahulu.</p>
+                        `,
+                        confirmButtonText: 'OK',
+                        confirmButtonColor: '#007bff',
+                        customClass: {
+                            popup: 'swal2-popup',
+                            title: 'swal2-title',
+                            htmlContainer: 'swal2-html-container',
+                            actions: 'swal2-actions',
+                            confirmButton: 'swal2-confirm'
+                        }
+                    });
+                }
             }
         },
         error: function(xhr, status, error) {
@@ -436,13 +500,28 @@ function startBatchClassification() {
                 errorMessage = 'Tidak dapat terhubung ke server. Periksa koneksi internet Anda.';
             }
             
-            Swal.fire({
-                icon: 'error',
-                title: errorTitle,
-                text: errorMessage,
-                confirmButtonText: 'OK',
-                confirmButtonColor: '#dc3545'
-            });
+            if (typeof swalError === 'function') {
+                swalError(errorMessage, {
+                    title: errorTitle,
+                    confirmButtonText: 'OK',
+                    confirmButtonColor: '#dc3545'
+                });
+            } else {
+                Swal.fire({
+                    icon: 'error',
+                    title: errorTitle,
+                    text: errorMessage,
+                    confirmButtonText: 'OK',
+                    confirmButtonColor: '#dc3545',
+                    customClass: {
+                        popup: 'swal2-popup',
+                        title: 'swal2-title',
+                        htmlContainer: 'swal2-html-container',
+                        actions: 'swal2-actions',
+                        confirmButton: 'swal2-confirm'
+                    }
+                });
+            }
         }
     });
 }
@@ -463,9 +542,12 @@ function processAllData(allData) {
         headers: {
             'X-CSRFToken': csrfToken
         },
+        data: JSON.stringify({
+            dataset_id: currentDatasetId
+        }),
         success: function(resetResponse) {
             if (resetResponse.success) {
-                console.log('Reset previous results:', resetResponse.message);
+                
                 
                 // Start classification with progress tracking
                 startClassificationProcess();
@@ -493,19 +575,32 @@ function processAllData(allData) {
                 dataset_id: currentDatasetId
             }),
         success: function(response) {
-            if (response.success) {
-                // Start polling for progress updates
-                startProgressPolling(currentDatasetId);
-            } else {
-                throw new Error(response.message);
-            }
-        },
+                if (response.success) {
+                    // Start polling for progress with optimized intervals and retry mechanism
+                    startOptimizedProgressPolling(currentDatasetId);
+                } else {
+                    throw new Error(response.message);
+                }
+            },
         error: function(xhr, status, error) {
-            Swal.fire({
-                icon: 'error',
-                title: 'Error',
-                text: `Terjadi kesalahan: ${error}`
-            });
+            if (typeof swalError === 'function') {
+                swalError(`Terjadi kesalahan: ${error}`, {
+                    title: 'Error'
+                });
+            } else {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: `Terjadi kesalahan: ${error}`,
+                    customClass: {
+                        popup: 'swal2-popup',
+                        title: 'swal2-title',
+                        htmlContainer: 'swal2-html-container',
+                        actions: 'swal2-actions',
+                        confirmButton: 'swal2-confirm'
+                    }
+                });
+            }
             $('#startClassification').prop('disabled', false).html(`
                 <i class="fas fa-play mr-2"></i>Mulai Klasifikasi
             `);
@@ -514,95 +609,125 @@ function processAllData(allData) {
     }
 }
 
-function startProgressPolling(datasetId) {
-    let progressInterval = setInterval(function() {
+function startOptimizedProgressPolling(datasetId) {
+    let pollingInterval = 1000; // Mulai 1 detik
+    let consecutiveErrors = 0;
+    let maxPollingTime = 300000; // 5 menit maksimal
+    let startTime = Date.now();
+    
+    function pollProgress() {
+        if (Date.now() - startTime > maxPollingTime) {
+            // Timeout setelah 5 menit
+            if (typeof swalError === 'function') {
+                swalError('Klasifikasi timeout setelah 5 menit. Silakan coba lagi.', {
+                    title: 'Timeout'
+                });
+            }
+            $('#startClassification').prop('disabled', false).html(`
+                <i class="fas fa-play mr-2"></i>Mulai Klasifikasi
+            `);
+            return;
+        }
+        
         $.ajax({
-            url: `/api/classification/progress/${datasetId}`,
+            url: `/api/classification/status/${datasetId}`,
             method: 'GET',
             success: function(response) {
                 if (response.success) {
-                    const progress = response.progress;
+                    const datasetStatus = response.dataset.status;
                     
-                    // Update progress bar
-                    $('#progressBar').css('width', `${progress.percentage}%`).text(`${progress.percentage}%`);
-                    
-                    // Update progress text with real-time statistics
+                    // Update progress text based on status
                     $('#progressText').html(`
-                        <div class="row">
-                            <div class="col-4">
-                                <small class="text-success">
-                                    <i class="fas fa-check-circle"></i> Diproses: ${progress.processed}/${progress.total}
-                                </small>
-                            </div>
-                            <div class="col-4">
-                                <small class="text-danger">
-                                    <i class="fas fa-radiation"></i> Radikal: ${progress.radikal_count}
-                                </small>
-                            </div>
-                            <div class="col-4">
-                                <small class="text-primary">
-                                    <i class="fas fa-shield-alt"></i> Non-Radikal: ${progress.non_radikal_count}
-                                </small>
-                            </div>
-                        </div>
-                        <div class="row mt-1">
-                            <div class="col-12">
-                                <small class="text-warning">
-                                    <i class="fas fa-exclamation-triangle"></i> Error: ${progress.error_count}
-                                </small>
-                            </div>
-                        </div>
+                        <i class="fas fa-sync-alt fa-spin mr-1"></i>
+                        Status: ${datasetStatus}
                     `);
                     
-                    // Check if completed
-                    if (progress.status === 'completed') {
-                        clearInterval(progressInterval);
-                        
-                        Swal.fire({
-                            icon: 'success',
-                            title: 'Klasifikasi Selesai',
-                            html: `
-                                <div class="text-left">
-                                    <p><strong>Hasil Klasifikasi:</strong></p>
-                                    <div class="d-flex justify-content-between mb-2">
-                                        <span class="text-success">✓ Diproses: ${progress.processed} data</span>
-                                        <span class="text-danger">☢ Radikal: ${progress.radikal_count}</span>
-                                    </div>
-                                    <div class="d-flex justify-content-between mb-2">
-                                        <span class="text-primary">🛡 Non-Radikal: ${progress.non_radikal_count}</span>
-                                        <span class="text-warning">⚠ Error: ${progress.error_count}</span>
-                                    </div>
-                                </div>
-                            `,
-                            confirmButtonText: 'Lihat Hasil'
-                        }).then(() => {
-                            // Show latest classification results
-                            showLatestClassificationResults();
+                    if (datasetStatus === 'Terklasifikasi') {
+                        // Klasifikasi selesai, redirect ke hasil klasifikasi
+                        setTimeout(() => {
+                            if (typeof swalSuccess === 'function') {
+                                swalSuccess('Berhasil', 'Klasifikasi berhasil diselesaikan!', {
+                                    confirmButtonText: 'Lihat Hasil'
+                                }).then((result) => {
+                                    if (result.isConfirmed) {
+                                        window.location.href = '/classification/results';
+                                    }
+                                });
+                            } else {
+                                Swal.fire({
+                                    icon: 'success',
+                                    title: 'Berhasil',
+                                    text: 'Klasifikasi berhasil diselesaikan!',
+                                    confirmButtonText: 'Lihat Hasil',
+                                    showCancelButton: true,
+                                    cancelButtonText: 'Tutup'
+                                }).then((result) => {
+                                    if (result.isConfirmed) {
+                                        window.location.href = '/classification/results';
+                                    }
+                                });
+                            }
+                        }, 1000);
+                    } else if (datasetStatus === 'Terkirim') {
+                        // Masih diproses, lanjutkan polling
+                        setTimeout(pollProgress, pollingInterval);
+                    } else if (datasetStatus === 'Selesai' || datasetStatus === 'Completed') {
+                        // Status alternatif untuk klasifikasi selesai
+                        setTimeout(() => {
                             window.location.href = '/classification/results';
-                        });
+                        }, 1000);
+                    } else {
+                        // Status tidak valid
+                        consecutiveErrors++;
+                        if (consecutiveErrors > 5) {
+                            if (typeof swalError === 'function') {
+                                swalError(`Status klasifikasi tidak valid: ${datasetStatus}`, {
+                                    title: 'Error'
+                                });
+                            }
+                            $('#startClassification').prop('disabled', false).html(`
+                                <i class="fas fa-play mr-2"></i>Mulai Klasifikasi
+                            `);
+                        } else {
+                            setTimeout(pollProgress, pollingInterval);
+                        }
                     }
-                    
-                    // Check if error
-                    if (progress.status === 'error') {
-                        clearInterval(progressInterval);
-                        
-                        Swal.fire({
-                            icon: 'error',
-                            title: 'Error',
-                            text: 'Terjadi kesalahan selama proses klasifikasi'
-                        });
-                        
+                } else {
+                    consecutiveErrors++;
+                    if (consecutiveErrors > 5) {
+                        if (typeof swalError === 'function') {
+                            swalError('Gagal memantau status klasifikasi. Silakan refresh halaman.', {
+                                title: 'Error'
+                            });
+                        }
                         $('#startClassification').prop('disabled', false).html(`
                             <i class="fas fa-play mr-2"></i>Mulai Klasifikasi
                         `);
+                    } else {
+                        setTimeout(pollProgress, pollingInterval);
                     }
                 }
             },
-            error: function(xhr, status, error) {
-                console.error('Error fetching progress:', error);
+            error: function() {
+                consecutiveErrors++;
+                if (consecutiveErrors > 5) {
+                    if (typeof swalError === 'function') {
+                        swalError('Gagal memantau progress klasifikasi. Silakan refresh halaman.', {
+                            title: 'Error'
+                        });
+                    }
+                    $('#startClassification').prop('disabled', false).html(`
+                        <i class="fas fa-play mr-2"></i>Mulai Klasifikasi
+                    `);
+                } else {
+                    setTimeout(pollProgress, pollingInterval);
+                }
             }
         });
-    }, 1000); // Poll every second
+    }
+    
+    // Mulai polling
+    pollProgress();
 }
 
 function showLatestClassificationResults() {
@@ -620,15 +745,14 @@ function showLatestClassificationResults() {
                 const model3Total = results.model_stats.model3.radikal + results.model_stats.model3.non_radikal;
                 
                 // Show results in a modal
-                Swal.fire({
-                    title: 'Hasil Klasifikasi Terbaru',
-                    html: `
+                if (typeof swalInfo === 'function') {
+                    swalInfo('Hasil Klasifikasi Terbaru', `
                         <div class="text-left">
                             <div class="mb-3">
                                 <h6 class="text-primary">Total Hasil Klasifikasi</h6>
                                 <div class="d-flex justify-content-between">
                                     <span>${results.total_classifications} konten × 3 model</span>
-                                    <strong>${results.total_classifications * 3} hasil</strong>
+                                    <strong>${results.total_classifications} hasil</strong>
                                 </div>
                                 <small class="text-muted">Semua prediksi dari ketiga model</small>
                             </div>
@@ -651,33 +775,123 @@ function showLatestClassificationResults() {
                                 <small class="text-muted">Semua prediksi non-radikal dari 3 model</small>
                             </div>
                             
-                            <div class="mb-3">
-                                <h6 class="text-info">Hasil Per Model</h6>
-                                <div class="row">
-                                    <div class="col-4">
-                                        <small>Model 1:</small><br>
-                                        <span class="text-danger">${results.model_stats.model1.radikal} radikal</span><br>
-                                        <span class="text-success">${results.model_stats.model1.non_radikal} non-radikal</span>
+                            <div class="mb-4 p-3 bg-light rounded">
+                                    <h6 class="text-info mb-3">Hasil Per Model</h6>
+                                    <div class="row">
+                                        <div class="col-4">
+                                            <div class="text-center p-2 border rounded">
+                                                <small class="text-primary fw-bold">Model 1</small><br>
+                                                <span class="text-danger fw-bold">${results.model_stats.model1.radikal} radikal</span><br>
+                                                <span class="text-success fw-bold">${results.model_stats.model1.non_radikal} non-radikal</span>
+                                            </div>
+                                        </div>
+                                        <div class="col-4">
+                                            <div class="text-center p-2 border rounded">
+                                                <small class="text-primary fw-bold">Model 2</small><br>
+                                                <span class="text-danger fw-bold">${results.model_stats.model2.radikal} radikal</span><br>
+                                                <span class="text-success fw-bold">${results.model_stats.model2.non_radikal} non-radikal</span>
+                                            </div>
+                                        </div>
+                                        <div class="col-4">
+                                            <div class="text-center p-2 border rounded">
+                                                <small class="text-primary fw-bold">Model 3</small><br>
+                                                <span class="text-danger fw-bold">${results.model_stats.model3.radikal} radikal</span><br>
+                                                <span class="text-success fw-bold">${results.model_stats.model3.non_radikal} non-radikal</span>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div class="col-4">
-                                        <small>Model 2:</small><br>
-                                        <span class="text-danger">${results.model_stats.model2.radikal} radikal</span><br>
-                                        <span class="text-success">${results.model_stats.model2.non_radikal} non-radikal</span>
-                                    </div>
-                                    <div class="col-4">
-                                        <small>Model 3:</small><br>
-                                        <span class="text-danger">${results.model_stats.model3.radikal} radikal</span><br>
-                                        <span class="text-success">${results.model_stats.model3.non_radikal} non-radikal</span>
+                                    <div class="text-center mt-3">
+                                        <small class="text-muted">Total: ${results.total_classifications} hasil klasifikasi</small>
                                     </div>
                                 </div>
-                                <small class="text-muted">Total: ${results.total_classifications * 3} hasil klasifikasi</small>
-                            </div>
                         </div>
-                    `,
-                    width: '600px',
-                    confirmButtonText: 'Tutup',
-                    showCloseButton: true
-                });
+                    `, {
+                        width: '800px',
+                        confirmButtonText: 'Tutup',
+                        showCloseButton: true,
+                        customClass: {
+                            popup: 'swal2-popup-wide',
+                            title: 'swal2-title',
+                            htmlContainer: 'swal2-html-container',
+                            actions: 'swal2-actions',
+                            confirmButton: 'swal2-confirm'
+                        }
+                    });
+                } else {
+                    Swal.fire({
+                        title: 'Hasil Klasifikasi Terbaru',
+                        html: `
+                            <div class="text-left">
+                                <div class="mb-3">
+                                    <h6 class="text-primary">Total Hasil Klasifikasi</h6>
+                                    <div class="d-flex justify-content-between">
+                                        <span>${results.total_classifications} konten × 3 model</span>
+                                        <strong>${results.total_classifications} hasil</strong>
+                                    </div>
+                                    <small class="text-muted">Semua prediksi dari ketiga model</small>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <h6 class="text-danger">Total Radikal</h6>
+                                    <div class="d-flex justify-content-between">
+                                        <span>${results.total_radikal} prediksi</span>
+                                        <strong>${results.radikal_percentage}% dari total</strong>
+                                    </div>
+                                    <small class="text-muted">Semua prediksi radikal dari 3 model</small>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <h6 class="text-success">Total Non-Radikal</h6>
+                                    <div class="d-flex justify-content-between">
+                                        <span>${results.total_non_radikal} prediksi</span>
+                                        <strong>${results.non_radikal_percentage}% dari total</strong>
+                                    </div>
+                                    <small class="text-muted">Semua prediksi non-radikal dari 3 model</small>
+                                </div>
+                                
+                                <div class="mb-4 p-3 bg-light rounded">
+                                    <h6 class="text-info mb-3">Hasil Per Model</h6>
+                                    <div class="row">
+                                        <div class="col-4">
+                                            <div class="text-center p-2 border rounded">
+                                                <small class="text-primary fw-bold">Model 1</small><br>
+                                                <span class="text-danger fw-bold">${results.model_stats.model1.radikal} radikal</span><br>
+                                                <span class="text-success fw-bold">${results.model_stats.model1.non_radikal} non-radikal</span>
+                                            </div>
+                                        </div>
+                                        <div class="col-4">
+                                            <div class="text-center p-2 border rounded">
+                                                <small class="text-primary fw-bold">Model 2</small><br>
+                                                <span class="text-danger fw-bold">${results.model_stats.model2.radikal} radikal</span><br>
+                                                <span class="text-success fw-bold">${results.model_stats.model2.non_radikal} non-radikal</span>
+                                            </div>
+                                        </div>
+                                        <div class="col-4">
+                                            <div class="text-center p-2 border rounded">
+                                                <small class="text-primary fw-bold">Model 3</small><br>
+                                                <span class="text-danger fw-bold">${results.model_stats.model3.radikal} radikal</span><br>
+                                                <span class="text-success fw-bold">${results.model_stats.model3.non_radikal} non-radikal</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="text-center mt-3">
+                                        <small class="text-muted">Total: ${results.total_classifications} hasil klasifikasi</small>
+                                    </div>
+                                </div>
+                            </div>
+                        `,
+                        width: '800px',
+                        confirmButtonText: 'Tutup',
+                        showCloseButton: true,
+                        customClass: {
+                            popup: 'swal2-popup-wide',
+                            title: 'swal2-title',
+                            htmlContainer: 'swal2-html-container',
+                            actions: 'swal2-actions',
+                            confirmButton: 'swal2-confirm'
+                        }
+                    });
+                }
             } else {
                 console.error('Error fetching latest results:', response.message);
             }

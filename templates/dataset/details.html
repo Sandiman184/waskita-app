@@ -338,11 +338,11 @@
                                             <thead>
                                                 <tr>
                                                     <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">ID</th>
-                                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Username</th>
+                                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">USERNAME</th>
                                                     <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">URL</th>
-                                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Konten</th>
-                                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Sumber</th>
-                                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Tanggal</th>
+                                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">KONTEN</th>
+                                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">SUMBER</th>
+                                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">TANGGAL</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -394,6 +394,65 @@
                                                 {% endfor %}
                                             </tbody>
                                         </table>
+                                        
+                                        <!-- Pagination for Raw Data -->
+                                        {% if raw_total_pages > 1 %}
+                                        <nav aria-label="Raw data pagination">
+                                            <ul class="pagination pagination-sm justify-content-center mt-3">
+                                                {% if raw_page > 1 %}
+                                                <li class="page-item">
+                                                    <a class="page-link" href="?raw_page={{ raw_page - 1 }}&clean_page=1&classified_page=1#raw" tabindex="-1">Sebelumnya</a>
+                                                </li>
+                                                {% else %}
+                                                <li class="page-item disabled">
+                                                    <span class="page-link">Sebelumnya</span>
+                                                </li>
+                                                {% endif %}
+                                                
+                                                {% set start_page = [raw_page - 2, 1]|max %}
+                                                {% set end_page = [start_page + 4, raw_total_pages]|min %}
+                                                {% if start_page > 1 %}
+                                                <li class="page-item disabled">
+                                                    <span class="page-link">...</span>
+                                                </li>
+                                                {% endif %}
+                                                
+                                                {% for p in range(start_page, end_page + 1) %}
+                                                <li class="page-item {% if p == raw_page %}active{% endif %}">
+                                                    <a class="page-link" href="?raw_page={{ p }}&clean_page=1&classified_page=1#raw">{{ p }}</a>
+                                                </li>
+                                                {% endfor %}
+                                                
+                                                {% if end_page < raw_total_pages %}
+                                                <li class="page-item disabled">
+                                                    <span class="page-link">...</span>
+                                                </li>
+                                                {% endif %}
+                                                
+                                                {% if raw_page < raw_total_pages %}
+                                                <li class="page-item">
+                                                    <a class="page-link" href="?raw_page={{ raw_page + 1 }}&clean_page=1&classified_page=1#raw">Selanjutnya</a>
+                                                </li>
+                                                {% else %}
+                                                <li class="page-item disabled">
+                                                    <span class="page-link">Selanjutnya</span>
+                                                </li>
+                                                {% endif %}
+                                            </ul>
+                                            <p class="text-center text-muted small mb-0">
+                                                Menampilkan {{ (raw_page - 1) * per_page + 1 }} - {{ [raw_page * per_page, total_raw_items]|min }} dari {{ total_raw_items }} data mentah
+                                            </p>
+                                            <p class="text-center text-muted small mt-1">
+                                                {% if raw_upload_total_pages > 0 and raw_scraper_total_pages > 0 %}
+                                                    Data UPLOAD: halaman {{ raw_page }} dari {{ raw_upload_total_pages }} | Data SCRAPING: halaman {{ raw_page }} dari {{ raw_scraper_total_pages }}
+                                                {% elif raw_upload_total_pages > 0 %}
+                                                    Data UPLOAD: halaman {{ raw_page }} dari {{ raw_upload_total_pages }}
+                                                {% elif raw_scraper_total_pages > 0 %}
+                                                    Data SCRAPING: halaman {{ raw_page }} dari {{ raw_scraper_total_pages }}
+                                                {% endif %}
+                                            </p>
+                                        </nav>
+                                        {% endif %}
                                     </div>
                                 </div>
                                 
@@ -404,11 +463,11 @@
                                             <thead>
                                                 <tr>
                                                     <th>ID</th>
-                                                    <th>Username</th>
+                                                    <th>USERNAME</th>
                                                     <th>URL</th>
-                                                    <th>Konten Bersih</th>
-                                                    <th>Sumber</th>
-                                                    <th>Tanggal</th>
+                                                    <th>KONTEN BERSIH</th>
+                                                    <th>SUMBER</th>
+                                                    <th>TANGGAL</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -460,6 +519,65 @@
                                                 {% endfor %}
                                             </tbody>
                                         </table>
+                                        
+                                        <!-- Pagination for Clean Data -->
+                                        {% if clean_total_pages > 1 %}
+                                        <nav aria-label="Clean data pagination">
+                                            <ul class="pagination pagination-sm justify-content-center mt-3">
+                                                {% if clean_page > 1 %}
+                                                <li class="page-item">
+                                                    <a class="page-link" href="?raw_page=1&clean_page={{ clean_page - 1 }}&classified_page=1#clean" tabindex="-1">Sebelumnya</a>
+                                                </li>
+                                                {% else %}
+                                                <li class="page-item disabled">
+                                                    <span class="page-link">Sebelumnya</span>
+                                                </li>
+                                                {% endif %}
+                                                
+                                                {% set start_page = [clean_page - 2, 1]|max %}
+                                                {% set end_page = [start_page + 4, clean_total_pages]|min %}
+                                                {% if start_page > 1 %}
+                                                <li class="page-item disabled">
+                                                    <span class="page-link">...</span>
+                                                </li>
+                                                {% endif %}
+                                                
+                                                {% for p in range(start_page, end_page + 1) %}
+                                                <li class="page-item {% if p == clean_page %}active{% endif %}">
+                                                    <a class="page-link" href="?raw_page=1&clean_page={{ p }}&classified_page=1#clean">{{ p }}</a>
+                                                </li>
+                                                {% endfor %}
+                                                
+                                                {% if end_page < clean_total_pages %}
+                                                <li class="page-item disabled">
+                                                    <span class="page-link">...</span>
+                                                </li>
+                                                {% endif %}
+                                                
+                                                {% if clean_page < clean_total_pages %}
+                                                <li class="page-item">
+                                                    <a class="page-link" href="?raw_page=1&clean_page={{ clean_page + 1 }}&classified_page=1#clean">Selanjutnya</a>
+                                                </li>
+                                                {% else %}
+                                                <li class="page-item disabled">
+                                                    <span class="page-link">Selanjutnya</span>
+                                                </li>
+                                                {% endif %}
+                                            </ul>
+                                            <p class="text-center text-muted small mb-0">
+                                                Menampilkan {{ (clean_page - 1) * per_page + 1 }} - {{ [clean_page * per_page, total_clean_items]|min }} dari {{ total_clean_items }} data bersih
+                                            </p>
+                                            <p class="text-center text-muted small mt-1">
+                                                {% if clean_upload_total_pages > 0 and clean_scraper_total_pages > 0 %}
+                                                    Data UPLOAD: halaman {{ clean_page }} dari {{ clean_upload_total_pages }} | Data SCRAPING: halaman {{ clean_page }} dari {{ clean_scraper_total_pages }}
+                                                {% elif clean_upload_total_pages > 0 %}
+                                                    Data UPLOAD: halaman {{ clean_page }} dari {{ clean_upload_total_pages }}
+                                                {% elif clean_scraper_total_pages > 0 %}
+                                                    Data SCRAPING: halaman {{ clean_page }} dari {{ clean_scraper_total_pages }}
+                                                {% endif %}
+                                            </p>
+                                        </nav>
+                                        {% endif %}
                                     </div>
                                 </div>
                                 
@@ -471,13 +589,13 @@
                                                 <tr>
                                                     <th>ID</th>
                                                     <th>URL</th>
-                                                    <th>Username</th>
-                                                    <th>Konten</th>
-                                                    <th>Tipe Data</th>
-                                                    <th>Model 1</th>
-                                                    <th>Model 2</th>
-                                                    <th>Model 3</th>
-                                                    <th>Tanggal</th>
+                                                    <th>USERNAME</th>
+                                                    <th>KONTEN</th>
+                                                    <th>TIPE DATA</th>
+                                                    <th>MODEL 1</th>
+                                                    <th>MODEL 2</th>
+                                                    <th>MODEL 3</th>
+                                                    <th>TANGGAL</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -607,6 +725,65 @@
                                                 {% endfor %}
                                             </tbody>
                                         </table>
+                                        
+                                        <!-- Pagination for Classification Results -->
+                                        {% if classified_total_pages > 1 %}
+                                        <nav aria-label="Classification results pagination">
+                                            <ul class="pagination pagination-sm justify-content-center mt-3">
+                                                {% if classified_page > 1 %}
+                                                <li class="page-item">
+                                                    <a class="page-link" href="?raw_page=1&clean_page=1&classified_page={{ classified_page - 1 }}#classified" tabindex="-1">Sebelumnya</a>
+                                                </li>
+                                                {% else %}
+                                                <li class="page-item disabled">
+                                                    <span class="page-link">Sebelumnya</span>
+                                                </li>
+                                                {% endif %}
+                                                
+                                                {% set start_page = [classified_page - 2, 1]|max %}
+                                                {% set end_page = [start_page + 4, classified_total_pages]|min %}
+                                                {% if start_page > 1 %}
+                                                <li class="page-item disabled">
+                                                    <span class="page-link">...</span>
+                                                </li>
+                                                {% endif %}
+                                                
+                                                {% for p in range(start_page, end_page + 1) %}
+                                                <li class="page-item {% if p == classified_page %}active{% endif %}">
+                                                    <a class="page-link" href="?raw_page=1&clean_page=1&classified_page={{ p }}#classified">{{ p }}</a>
+                                                </li>
+                                                {% endfor %}
+                                                
+                                                {% if end_page < classified_total_pages %}
+                                                <li class="page-item disabled">
+                                                    <span class="page-link">...</span>
+                                                </li>
+                                                {% endif %}
+                                                
+                                                {% if classified_page < classified_total_pages %}
+                                                <li class="page-item">
+                                                    <a class="page-link" href="?raw_page=1&clean_page=1&classified_page={{ classified_page + 1 }}#classified">Selanjutnya</a>
+                                                </li>
+                                                {% else %}
+                                                <li class="page-item disabled">
+                                                    <span class="page-link">Selanjutnya</span>
+                                                </li>
+                                                {% endif %}
+                                            </ul>
+                                            <p class="text-center text-muted small mb-0">
+                                                Menampilkan {{ (classified_page - 1) * per_page + 1 }} - {{ [classified_page * per_page, total_classified_items]|min }} dari {{ total_classified_items }} hasil klasifikasi
+                                            </p>
+                                            <p class="text-center text-muted small mt-1">
+                                                {% if classified_upload_total_pages > 0 and classified_scraper_total_pages > 0 %}
+                                                    Data UPLOAD: halaman {{ classified_page }} dari {{ classified_upload_total_pages }} | Data SCRAPING: halaman {{ classified_page }} dari {{ classified_scraper_total_pages }}
+                                                {% elif classified_upload_total_pages > 0 %}
+                                                    Data UPLOAD: halaman {{ classified_page }} dari {{ classified_upload_total_pages }}
+                                                {% elif classified_scraper_total_pages > 0 %}
+                                                    Data SCRAPING: halaman {{ classified_page }} dari {{ classified_scraper_total_pages }}
+                                                {% endif %}
+                                            </p>
+                                        </nav>
+                                        {% endif %}
                                     </div>
                                 </div>
                             </div>
@@ -626,6 +803,31 @@ $(document).ready(function() {
     $('[data-toggle="tab"]').on('click', function (e) {
         e.preventDefault();
         $(this).tab('show');
+    });
+    
+    // Activate tab based on URL hash when page loads or URL changes
+    function activateTabFromHash() {
+        var hash = window.location.hash;
+        if (hash) {
+            var tabId = hash.substring(1); // Remove the '#' character
+            var tabElement = $('a[href="#' + tabId + '"]');
+            if (tabElement.length) {
+                tabElement.tab('show');
+                
+                // Scroll to the tab content if needed
+                $('html, body').animate({
+                    scrollTop: $('#' + tabId).offset().top - 100
+                }, 100);
+            }
+        }
+    }
+    
+    // Activate tab on page load
+    activateTabFromHash();
+    
+    // Also activate tab when hash changes (back/forward navigation)
+    $(window).on('hashchange', function() {
+        activateTabFromHash();
     });
 });
 </script>

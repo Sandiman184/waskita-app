@@ -14,12 +14,22 @@ from flask import request, abort, current_app
 from werkzeug.utils import secure_filename
 
 # Setup security logger
+from logging.handlers import RotatingFileHandler
+
 security_logger = logging.getLogger('security')
 security_logger.setLevel(logging.INFO)
 
-# File handler untuk security logs
+# File handler untuk security logs dengan rotasi
 if not security_logger.handlers:
-    handler = logging.FileHandler('logs/security.log')
+    # Pastikan folder logs ada
+    os.makedirs('logs', exist_ok=True)
+    
+    handler = RotatingFileHandler(
+        'logs/security.log',
+        maxBytes=5*1024*1024,  # 5MB
+        backupCount=3,
+        encoding='utf-8'
+    )
     formatter = logging.Formatter(
         '%(asctime)s - SECURITY - %(levelname)s - %(message)s'
     )

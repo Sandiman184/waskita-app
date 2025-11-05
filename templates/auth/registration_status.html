@@ -170,22 +170,81 @@
     .action-buttons {
         text-align: center;
         margin-top: 30px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 20px;
+    }
+    
+    .primary-actions {
+        display: flex;
+        flex-direction: row;
+        justify-content: center;
+        align-items: center;
+        gap: 15px;
+        width: 100%;
+        flex-wrap: wrap;
+    }
+    
+    .secondary-actions {
+        display: flex;
+        justify-content: center;
+        width: 100%;
+        padding-top: 15px;
+        border-top: 1px solid #e9ecef;
+        margin-top: 5px;
     }
     
         .btn-refresh {
             background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
             border: none;
-            border-radius: 25px;
-            padding: 12px 30px;
+            border-radius: 20px;
+            padding: 10px 20px;
             color: white;
             font-weight: 600;
             transition: all 0.3s ease;
+            min-width: 160px;
+            font-size: 14px;
         }
         
         .btn-refresh:hover {
             transform: translateY(-2px);
             box-shadow: 0 5px 15px rgba(0, 123, 255, 0.4);
             color: white;
+        }
+        
+        .btn-success,
+        .btn-primary {
+            border-radius: 20px;
+            padding: 10px 20px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            min-width: 160px;
+            border: none;
+            font-size: 14px;
+        }
+        
+        .btn-success:hover,
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(40, 167, 69, 0.4);
+        }
+        
+        .btn-outline-secondary {
+            border-radius: 20px;
+            padding: 8px 18px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            min-width: 140px;
+            border: 2px solid #6c757d;
+            font-size: 13px;
+        }
+        
+        .btn-outline-secondary:hover {
+            background-color: #6c757d;
+            color: white;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(108, 117, 125, 0.3);
         }
         
         .alert-info {
@@ -377,27 +436,33 @@
                         
                         <!-- Action Buttons -->
                         <div class="action-buttons">
-                            <a href="{{ url_for('otp.registration_status', request_id=request.id) }}" class="btn btn-refresh">
-                                <i class="fas fa-sync-alt mr-2"></i>
-                                Refresh Status
-                            </a>
-                            
-                            {% if request.status == 'approved' %}
-                                <a href="{{ url_for('login') }}" class="btn btn-success ml-2">
-                                    <i class="fas fa-sign-in-alt mr-2"></i>
-                                    Login Sekarang
+                            <!-- Primary Actions -->
+                            <div class="primary-actions">
+                                <a href="{{ url_for('otp.registration_status', request_id=request.id) }}" class="btn btn-refresh">
+                                    <i class="fas fa-sync-alt mr-2"></i>
+                                    Refresh Status
                                 </a>
-                            {% elif request.status in ['rejected', 'expired'] %}
-                                <a href="{{ url_for('otp.register_request') }}" class="btn btn-primary ml-2">
-                                    <i class="fas fa-user-plus mr-2"></i>
-                                    Daftar Ulang
-                                </a>
-                            {% endif %}
+                                
+                                {% if request.status == 'approved' %}
+                                    <a href="{{ url_for('login') }}" class="btn btn-success">
+                                        <i class="fas fa-sign-in-alt mr-2"></i>
+                                        Login Sekarang
+                                    </a>
+                                {% elif request.status in ['rejected', 'expired'] %}
+                                    <a href="{{ url_for('otp.register_request') }}" class="btn btn-primary">
+                                        <i class="fas fa-user-plus mr-2"></i>
+                                        Daftar Ulang
+                                    </a>
+                                {% endif %}
+                            </div>
                             
-                            <a href="{{ url_for('index') }}" class="btn btn-outline-secondary ml-2">
-                                <i class="fas fa-home mr-2"></i>
-                                Kembali ke Beranda
-                            </a>
+                            <!-- Secondary Actions -->
+                            <div class="secondary-actions">
+                                <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">
+                                    <i class="fas fa-home mr-2"></i>
+                                    Kembali ke Beranda
+                                </a>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -426,14 +491,29 @@
             // Show notification if status changed
             {% if request.status == 'approved' %}
                 // Show success notification
-                if (typeof Swal !== 'undefined') {
+                if (typeof swalSuccess === 'function') {
+                    swalSuccess('Registrasi Berhasil!', 'Selamat! Akun Anda telah berhasil diverifikasi dan dapat digunakan.', 'Login Sekarang', 'Nanti')
+                    .then((result) => {
+                        if (result.isConfirmed) {
+                            window.location.href = "{{ url_for('login') }}";
+                        }
+                    });
+                } else if (typeof Swal !== 'undefined') {
                     Swal.fire({
                         icon: 'success',
                         title: 'Registrasi Berhasil!',
                         text: 'Selamat! Akun Anda telah berhasil diverifikasi dan dapat digunakan.',
                         confirmButtonText: 'Login Sekarang',
                         showCancelButton: true,
-                        cancelButtonText: 'Nanti'
+                        cancelButtonText: 'Nanti',
+                        customClass: {
+                            popup: 'swal2-popup',
+                            title: 'swal2-title',
+                            htmlContainer: 'swal2-html-container',
+                            actions: 'swal2-actions',
+                            confirmButton: 'swal2-confirm',
+                            cancelButton: 'swal2-cancel'
+                        }
                     }).then((result) => {
                         if (result.isConfirmed) {
                             window.location.href = "{{ url_for('login') }}";
@@ -446,7 +526,14 @@
                         icon: 'error',
                         title: 'Registrasi Gagal',
                         text: 'Maaf, permintaan registrasi Anda tidak dapat diproses.',
-                        confirmButtonText: 'OK'
+                        confirmButtonText: 'OK',
+                        customClass: {
+                            popup: 'swal2-popup',
+                            title: 'swal2-title',
+                            htmlContainer: 'swal2-html-container',
+                            actions: 'swal2-actions',
+                            confirmButton: 'swal2-confirm'
+                        }
                     });
                 }
             {% endif %}

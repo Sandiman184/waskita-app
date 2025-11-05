@@ -296,7 +296,7 @@ function updateDashboardStats() {
             return response.json();
         })
         .then(data => {
-            console.log('Dashboard stats received:', data);
+            
             
             // Update info boxes
             document.querySelector('#upload-stats').nextElementSibling.textContent = data.total_raw_upload || 0;

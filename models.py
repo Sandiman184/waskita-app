@@ -65,6 +65,7 @@ class Dataset(db.Model):
     total_records = db.Column(db.Integer, default=0)
     cleaned_records = db.Column(db.Integer, default=0)
     classified_records = db.Column(db.Integer, default=0)
+    status = db.Column(db.String(20), default='Mentah')  # Mentah, Dibersihkan, Terklasifikasi
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     

@@ -49,6 +49,9 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
     if not csrf:
         csrf = CSRFProtect(app)
     
+    # Import limiter from app module
+    from app import limiter
+    
     @app.route('/')
     def index():
         if current_user.is_authenticated:
@@ -63,6 +66,9 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
     def login():
         if current_user.is_authenticated:
             return redirect(url_for('dashboard'))
+        
+        # Create form once for CSRF protection
+        form = FlaskForm()
         
         if request.method == 'POST':
             # Sanitize and validate input
@@ -80,7 +86,7 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                     ip_address=request.remote_addr
                 )
                 flash('Username tidak boleh kosong!', 'error')
-                return render_template('auth/login.html', form=FlaskForm())
+                return render_template('auth/login.html', form=form)
             
             if not SecurityValidator.validate_username(username):
                 log_security_event(
@@ -89,13 +95,13 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                     ip_address=request.remote_addr
                 )
                 flash('Format username tidak valid!', 'error')
-                return render_template('auth/login.html', form=FlaskForm())
+                return render_template('auth/login.html', form=form)
             
             user = User.query.filter_by(username=username).first()
             
             if user and user.check_password(password) and user.is_active:
-                # Check if this is first login (first_login is None for new users)
-                if user.first_login is None:
+                # Check if this is first login (first_login is True for first login)
+                if user.first_login:
                     # This is first login - redirect to OTP verification
                     session['first_login_user_id'] = user.id
                     session['first_login_remember'] = remember
@@ -109,10 +115,22 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                     
                     # Send OTP email
                     from email_service import email_service
-                    email_service.send_first_login_otp(user, otp_code)
+                    success, error_message = email_service.send_first_login_otp(user, otp_code)
                     
-                    flash('Ini adalah login pertama Anda. Silakan cek email untuk instruksi lebih lanjut.', 'info')
-                    return redirect(url_for('otp.verify_first_login_otp'))
+                    if success:
+                        flash('Ini adalah login pertama Anda. Silakan cek email untuk instruksi lebih lanjut.', 'info')
+                        return redirect(url_for('otp.verify_first_login_otp'))
+                    else:
+                        # Log error and provide alternative
+                        current_app.logger.error(f"Failed to send first login OTP email: {error_message}")
+                        flash('Gagal mengirim email OTP. Silakan hubungi administrator atau coba lagi nanti.', 'error')
+                        # Clear session to allow normal login
+                        session.pop('first_login_user_id', None)
+                        session.pop('first_login_otp', None)
+                        session.pop('first_login_otp_expires', None)
+                        session.pop('first_login_remember', None)
+                        session.pop('first_login_next', None)
+                        return redirect(url_for('login'))
                 
                 # Update last_login with UTC timezone (will be converted to WIB in display)
                 user.last_login = datetime.utcnow()
@@ -149,8 +167,6 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                 )
                 flash('Username atau password salah!', 'error')
         
-        # Create a simple form class for CSRF token
-        form = FlaskForm()
         return render_template('auth/login.html', form=form)
     
     @app.route('/register', methods=['GET', 'POST'])
@@ -183,44 +199,77 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
     @app.route('/dashboard/stats')
     @login_required
     def dashboard_stats():
-        # Get statistics
-        stats = DatasetStatistics.query.first()
-        if not stats:
-            stats = DatasetStatistics()
-            db.session.add(stats)
-            db.session.commit()
-        
-        # Get platform statistics
-        platform_stats = {
-            'twitter_upload': RawData.query.filter_by(platform='twitter').count(),
-            'tiktok_upload': RawData.query.filter_by(platform='tiktok').count(),
-            'facebook_upload': RawData.query.filter_by(platform='facebook').count(),
-            'instagram_upload': RawData.query.filter_by(platform='instagram').count(),
-            'twitter_scraper': RawDataScraper.query.filter_by(platform='twitter').count(),
-            'tiktok_scraper': RawDataScraper.query.filter_by(platform='tiktok').count(),
-            'facebook_scraper': RawDataScraper.query.filter_by(platform='facebook').count(),
-            'instagram_scraper': RawDataScraper.query.filter_by(platform='instagram').count(),
-        }
-        
-        # Calculate percentages
-        radikal_percentage = 0
-        non_radikal_percentage = 0
-        if stats.total_classified and stats.total_classified > 0:
-            radikal_percentage = (stats.total_radikal / stats.total_classified) * 100
-            non_radikal_percentage = (stats.total_non_radikal / stats.total_classified) * 100
-        
-        return jsonify({
-            'total_raw_upload': stats.total_raw_upload,
-            'total_raw_scraper': stats.total_raw_scraper,
-            'total_clean_upload': stats.total_clean_upload,
-            'total_clean_scraper': stats.total_clean_scraper,
-            'total_classified': stats.total_classified,
-            'total_radikal': stats.total_radikal,
-            'total_non_radikal': stats.total_non_radikal,
-            'radikal_percentage': radikal_percentage,
-            'non_radikal_percentage': non_radikal_percentage,
-            **platform_stats
-        })
+        try:
+            # Get statistics with timeout protection
+            stats = DatasetStatistics.query.first()
+            if not stats:
+                stats = DatasetStatistics()
+                db.session.add(stats)
+                db.session.commit()
+            
+            # Get platform statistics with simplified queries to avoid database locks
+            platform_stats = {}
+            
+            # Use cached statistics if available during heavy operations
+            from datetime import datetime, timedelta
+            cache_timeout = timedelta(seconds=30)  # Cache for 30 seconds
+            
+            # Check if we should use cached data (during classification operations)
+            use_cached = False
+            
+            if not use_cached:
+                # Get fresh statistics
+                platform_stats = {
+                    'twitter_upload': RawData.query.filter_by(platform='twitter').filter(RawData.dataset_id.isnot(None)).count(),
+                    'tiktok_upload': RawData.query.filter_by(platform='tiktok').filter(RawData.dataset_id.isnot(None)).count(),
+                    'facebook_upload': RawData.query.filter_by(platform='facebook').filter(RawData.dataset_id.isnot(None)).count(),
+                    'instagram_upload': RawData.query.filter_by(platform='instagram').filter(RawData.dataset_id.isnot(None)).count(),
+                    'twitter_scraper': RawDataScraper.query.filter_by(platform='twitter').filter(RawDataScraper.dataset_id.isnot(None)).count(),
+                    'tiktok_scraper': RawDataScraper.query.filter_by(platform='tiktok').filter(RawDataScraper.dataset_id.isnot(None)).count(),
+                    'facebook_scraper': RawDataScraper.query.filter_by(platform='facebook').filter(RawDataScraper.dataset_id.isnot(None)).count(),
+                    'instagram_scraper': RawDataScraper.query.filter_by(platform='instagram').filter(RawDataScraper.dataset_id.isnot(None)).count(),
+                }
+            else:
+                # Use basic statistics without detailed platform breakdown during heavy operations
+                platform_stats = {
+                    'twitter_upload': 0,
+                    'tiktok_upload': 0,
+                    'facebook_upload': 0,
+                    'instagram_upload': 0,
+                    'twitter_scraper': 0,
+                    'tiktok_scraper': 0,
+                    'facebook_scraper': 0,
+                    'instagram_scraper': 0,
+                }
+            
+            # Calculate percentages
+            radikal_percentage = 0
+            non_radikal_percentage = 0
+            if stats.total_classified and stats.total_classified > 0:
+                radikal_percentage = (stats.total_radikal / stats.total_classified) * 100
+                non_radikal_percentage = (stats.total_non_radikal / stats.total_classified) * 100
+            
+            return jsonify({
+                'success': True,
+                'total_raw_upload': stats.total_raw_upload,
+                'total_raw_scraper': stats.total_raw_scraper,
+                'total_clean_upload': stats.total_clean_upload,
+                'total_clean_scraper': stats.total_clean_scraper,
+                'total_classified': stats.total_classified,
+                'total_radikal': stats.total_radikal,
+                'total_non_radikal': stats.total_non_radikal,
+                'radikal_percentage': radikal_percentage,
+                'non_radikal_percentage': non_radikal_percentage,
+                **platform_stats
+            })
+            
+        except Exception as e:
+            app.logger.error(f"Error in dashboard stats: {str(e)}")
+            return jsonify({
+                'success': False,
+                'message': 'Gagal mengambil statistik dashboard',
+                'error': str(e)
+            }), 500
 
     @app.route('/dashboard')
     @login_required
@@ -232,16 +281,16 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
             db.session.add(stats)
             db.session.commit()
         
-        # Get platform statistics
+        # Get platform statistics - only count data that belongs to existing datasets
         platform_stats = {
-            'twitter_upload': RawData.query.filter_by(platform='twitter').count(),
-        'tiktok_upload': RawData.query.filter_by(platform='tiktok').count(),
-        'facebook_upload': RawData.query.filter_by(platform='facebook').count(),
-        'instagram_upload': RawData.query.filter_by(platform='instagram').count(),
-        'twitter_scraper': RawDataScraper.query.filter_by(platform='twitter').count(),
-        'tiktok_scraper': RawDataScraper.query.filter_by(platform='tiktok').count(),
-        'facebook_scraper': RawDataScraper.query.filter_by(platform='facebook').count(),
-        'instagram_scraper': RawDataScraper.query.filter_by(platform='instagram').count(),
+            'twitter_upload': RawData.query.filter_by(platform='twitter').filter(RawData.dataset_id.isnot(None)).count(),
+            'tiktok_upload': RawData.query.filter_by(platform='tiktok').filter(RawData.dataset_id.isnot(None)).count(),
+            'facebook_upload': RawData.query.filter_by(platform='facebook').filter(RawData.dataset_id.isnot(None)).count(),
+            'instagram_upload': RawData.query.filter_by(platform='instagram').filter(RawData.dataset_id.isnot(None)).count(),
+            'twitter_scraper': RawDataScraper.query.filter_by(platform='twitter').filter(RawDataScraper.dataset_id.isnot(None)).count(),
+            'tiktok_scraper': RawDataScraper.query.filter_by(platform='tiktok').filter(RawDataScraper.dataset_id.isnot(None)).count(),
+            'facebook_scraper': RawDataScraper.query.filter_by(platform='facebook').filter(RawDataScraper.dataset_id.isnot(None)).count(),
+            'instagram_scraper': RawDataScraper.query.filter_by(platform='instagram').filter(RawDataScraper.dataset_id.isnot(None)).count(),
         }
         
         # Get model status
@@ -901,6 +950,7 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                     cleaned_content=cleaned_content,
                     url=raw_data.url,
                     platform=raw_data.platform,
+                    dataset_id=raw_data.dataset_id,
                     cleaned_by=current_user.id
                 )
                 
@@ -1351,7 +1401,7 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
     @login_required
     def classification_results():
         try:
-            # Get classification results with joined data for upload including dataset info
+            # Get all classification results from all datasets
             upload_results = db.session.execute(
                 text("""
                     SELECT cr.id, cr.data_type, cr.data_id, cr.model_name, cr.prediction, 
@@ -1362,11 +1412,11 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                     JOIN clean_data_upload cdu ON cr.data_type = 'upload' AND cr.data_id = cdu.id
                     JOIN raw_data rd ON cdu.raw_data_id = rd.id
                     JOIN datasets d ON rd.dataset_id = d.id
-                    ORDER BY d.name, cr.created_at DESC
+                    ORDER BY cr.created_at DESC
                 """)
             ).fetchall()
             
-            # Get classification results with joined data for scraper including dataset info
+            # Get classification results with joined data for scraper including dataset info (all datasets)
             scraper_results = db.session.execute(
                 text("""
                     SELECT cr.id, cr.data_type, cr.data_id, cr.model_name, cr.prediction, 
@@ -1377,28 +1427,20 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                     JOIN clean_data_scraper cds ON cr.data_type = 'scraper' AND cr.data_id = cds.id
                     JOIN raw_data_scraper rds ON cds.raw_data_scraper_id = rds.id
                     JOIN datasets d ON rds.dataset_id = d.id
-                    ORDER BY d.name, cr.created_at DESC
+                    ORDER BY cr.created_at DESC
                 """)
             ).fetchall()
             
             # Combine results
             all_results = list(upload_results) + list(scraper_results)
             
-            # Group results by dataset first, then by data_id and data_type
-            datasets_grouped = {}
+            # Group results by data_id and data_type (only one dataset now)
+            data_items_dict = {}
             for result in all_results:
-                dataset_key = result.dataset_name
                 data_key = f"{result.data_type}_{result.data_id}"
                 
-                if dataset_key not in datasets_grouped:
-                    datasets_grouped[dataset_key] = {
-                        'dataset_name': result.dataset_name,
-                        'dataset_id': result.dataset_id,
-                        'data_items': {}
-                    }
-                
-                if data_key not in datasets_grouped[dataset_key]['data_items']:
-                    datasets_grouped[dataset_key]['data_items'][data_key] = {
+                if data_key not in data_items_dict:
+                    data_items_dict[data_key] = {
                         'data_id': result.data_id,
                         'data_type': result.data_type,
                         'username': result.username,
@@ -1410,65 +1452,121 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                         'models': {}
                     }
                 
-                datasets_grouped[dataset_key]['data_items'][data_key]['models'][result.model_name] = {
+                data_items_dict[data_key]['models'][result.model_name] = {
                     'prediction': result.prediction,
                     'probability_radikal': result.probability_radikal,
                     'probability_non_radikal': result.probability_non_radikal
                 }
             
             # Convert to final structure for template
+            data_items = list(data_items_dict.values())
+            data_items.sort(key=lambda x: x['created_at'], reverse=True)
+            
+            # Calculate statistics for the latest dataset
+            total_items = len(data_items)
+            # Count all model predictions individually
+            radikal_count = 0
+            non_radikal_count = 0
+            
+            for item in data_items:
+                # Count all predictions from all models
+                for model_name, model_data in item['models'].items():
+                    if model_data['prediction'] == 'radikal':
+                        radikal_count += 1
+                    else:
+                        non_radikal_count += 1
+            
+            # Create final datasets structure for all datasets
             final_datasets = []
-            for dataset_name, dataset_data in datasets_grouped.items():
-                data_items = list(dataset_data['data_items'].values())
-                data_items.sort(key=lambda x: x['created_at'], reverse=True)
-                
-                # Calculate statistics for this dataset
-                total_items = len(data_items)
-                # Remove majority vote - count all model predictions individually
-                radikal_count = 0
-                non_radikal_count = 0
-                
+            if all_results:
+                # Group by dataset
+                datasets_dict = {}
                 for item in data_items:
-                    # Count all predictions from all models
+                    dataset_id = item['dataset_id']
+                    dataset_name = item['dataset_name']
+                    
+                    if dataset_id not in datasets_dict:
+                        datasets_dict[dataset_id] = {
+                            'dataset_name': dataset_name,
+                            'dataset_id': dataset_id,
+                            'data_items': [],
+                            'radikal_count': 0,
+                            'non_radikal_count': 0
+                        }
+                    
+                    datasets_dict[dataset_id]['data_items'].append(item)
+                    
+                    # Count predictions for this dataset
                     for model_name, model_data in item['models'].items():
                         if model_data['prediction'] == 'radikal':
-                            radikal_count += 1
+                            datasets_dict[dataset_id]['radikal_count'] += 1
                         else:
-                            non_radikal_count += 1
+                            datasets_dict[dataset_id]['non_radikal_count'] += 1
                 
-                final_datasets.append({
-                    'dataset_name': dataset_name,
-                    'dataset_id': dataset_data['dataset_id'],
-                    'data_items': data_items,
-                    'total_items': total_items,
-                    'radikal_count': radikal_count,
-                    'non_radikal_count': non_radikal_count,
-                    'radikal_percentage': (radikal_count / total_items * 100) if total_items > 0 else 0,
-                    'non_radikal_percentage': (non_radikal_count / total_items * 100) if total_items > 0 else 0
-                })
+                # Convert to final structure
+                for dataset_id, dataset_data in datasets_dict.items():
+                    total_items = len(dataset_data['data_items'])
+                    radikal_count = dataset_data['radikal_count']
+                    non_radikal_count = dataset_data['non_radikal_count']
+                    
+                    final_datasets.append({
+                        'dataset_name': dataset_data['dataset_name'],
+                        'dataset_id': dataset_id,
+                        'data_items': dataset_data['data_items'],
+                        'total_items': total_items,
+                        'radikal_count': radikal_count,
+                        'non_radikal_count': non_radikal_count,
+                        'radikal_percentage': (radikal_count / (radikal_count + non_radikal_count) * 100) if (radikal_count + non_radikal_count) > 0 else 0,
+                        'non_radikal_percentage': (non_radikal_count / (radikal_count + non_radikal_count) * 100) if (radikal_count + non_radikal_count) > 0 else 0
+                    })
+                
+                # Sort datasets by latest classification time (newest first)
+            # Find the latest classification time for each dataset
+            for dataset in final_datasets:
+                latest_classification_time = None
+                for item in dataset['data_items']:
+                    if latest_classification_time is None or item['created_at'] > latest_classification_time:
+                        latest_classification_time = item['created_at']
+                dataset['latest_classification_time'] = latest_classification_time
             
-            # Sort datasets by name
-            final_datasets.sort(key=lambda x: x['dataset_name'])
+            # Sort datasets by latest classification time descending (newest first)
+            final_datasets.sort(key=lambda x: x['latest_classification_time'] or datetime.min, reverse=True)
             
-            # Calculate overall statistics
-            total_classifications = len(all_results)
-            total_data_items = sum(dataset['total_items'] for dataset in final_datasets)
-            # Total radikal and non-radikal now represent all model predictions, not majority vote
-            total_radikal = sum(dataset['radikal_count'] for dataset in final_datasets)
-            total_non_radikal = sum(dataset['non_radikal_count'] for dataset in final_datasets)
+            # Calculate overall statistics - only for the latest dataset (first in the sorted list)
+            if final_datasets:
+                latest_dataset = final_datasets[0]  # Get the latest dataset (sorted by classification time descending)
+                total_classifications = latest_dataset['radikal_count'] + latest_dataset['non_radikal_count']  # Total predictions from latest dataset
+                total_data_items = latest_dataset['total_items']
+                total_radikal = latest_dataset['radikal_count']
+                total_non_radikal = latest_dataset['non_radikal_count']
+            else:
+                total_classifications = 0
+                total_data_items = 0
+                total_radikal = 0
+                total_non_radikal = 0
             
-            # Calculate model-wise statistics
+            # Calculate model-wise statistics - only for the latest dataset
             model_stats = {
                 'model1': {'radikal': 0, 'non_radikal': 0},
                 'model2': {'radikal': 0, 'non_radikal': 0},
                 'model3': {'radikal': 0, 'non_radikal': 0}
             }
             
-            for result in all_results:
-                if result.prediction == 'radikal':
-                    model_stats[result.model_name]['radikal'] += 1
-                else:
-                    model_stats[result.model_name]['non_radikal'] += 1
+            if final_datasets:
+                latest_dataset_id = final_datasets[0]['dataset_id']
+                for result in all_results:
+                    # Check if this result belongs to the latest dataset
+                    result_dataset_id = None
+                    if hasattr(result, 'dataset_id'):
+                        result_dataset_id = result.dataset_id
+                    elif hasattr(result, '_mapping') and 'dataset_id' in result._mapping:
+                        result_dataset_id = result._mapping['dataset_id']
+                    
+                    if result_dataset_id == latest_dataset_id:
+                        if result.prediction == 'radikal':
+                            model_stats[result.model_name]['radikal'] += 1
+                        else:
+                            model_stats[result.model_name]['non_radikal'] += 1
             
             return render_template('classification/results.html', 
                                  datasets=final_datasets, 
@@ -1620,42 +1718,89 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
             db.session.rollback()
             return jsonify({'success': False, 'message': f'Error: {str(e)}'})
     
-    # Global variables for progress tracking
-    classification_progress = {}
-    classification_stats = {}
-    
-    @app.route('/api/classification/progress/<dataset_id>', methods=['GET'])
-    @login_required
-    def get_classification_progress(dataset_id):
-        """Get real-time classification progress for a dataset"""
-        progress_data = classification_progress.get(dataset_id, {
-            'processed': 0,
-            'total': 0,
-            'percentage': 0,
-            'radikal_count': 0,
-            'non_radikal_count': 0,
-            'error_count': 0,
-            'status': 'idle'
-        })
-        
-        return jsonify({
-            'success': True,
-            'progress': progress_data
-        })
+
 
     @app.route('/api/classification/latest-results', methods=['GET'])
     @login_required
     def get_latest_classification_results():
         """Get latest classification results for the current session"""
         try:
-            # Get classification results from the last 24 hours for current user
-            twenty_four_hours_ago = datetime.utcnow() - timedelta(hours=24)
+            # Get the most recent dataset that was classified by current user
+            # Find the latest dataset by checking the most recent classification result
+            latest_classification = ClassificationResult.query.filter(
+                ClassificationResult.classified_by == current_user.id
+            ).order_by(ClassificationResult.created_at.desc()).first()
             
-            # Get all classification results for current user in last 24 hours
-            results = ClassificationResult.query.filter(
-                ClassificationResult.classified_by == current_user.id,
-                ClassificationResult.created_at >= twenty_four_hours_ago
-            ).all()
+            if not latest_classification:
+                latest_dataset = None
+            else:
+                # Get dataset based on data type
+                if latest_classification.data_type == 'upload':
+                    clean_data = CleanDataUpload.query.get(latest_classification.data_id)
+                    if clean_data:
+                        raw_data = RawData.query.get(clean_data.raw_data_id)
+                        latest_dataset = Dataset.query.get(raw_data.dataset_id) if raw_data else None
+                else:  # scraper
+                    clean_data = CleanDataScraper.query.get(latest_classification.data_id)
+                    if clean_data:
+                        raw_data = RawDataScraper.query.get(clean_data.raw_data_scraper_id)
+                        latest_dataset = Dataset.query.get(raw_data.dataset_id) if raw_data else None
+            
+            # Debug: Log which dataset we found
+            if latest_dataset:
+                app.logger.info(f"Found latest dataset: {latest_dataset.name} (ID: {latest_dataset.id})")
+            else:
+                app.logger.info("No latest dataset found")
+            
+            if not latest_dataset:
+                return jsonify({
+                    'success': True,
+                    'results': {
+                        'total_classifications': 0,
+                        'total_radikal': 0,
+                        'total_non_radikal': 0,
+                        'radikal_percentage': 0,
+                        'non_radikal_percentage': 0,
+                        'model_stats': {
+                            'model1': {'radikal': 0, 'non_radikal': 0},
+                            'model2': {'radikal': 0, 'non_radikal': 0},
+                            'model3': {'radikal': 0, 'non_radikal': 0}
+                        }
+                    }
+                })
+            
+            # Get classification results for the latest dataset only
+            # First, get all clean data IDs that belong to this dataset
+            clean_data_ids = []
+            
+            # For upload data
+            clean_uploads = CleanDataUpload.query\
+                .join(RawData, CleanDataUpload.raw_data_id == RawData.id)\
+                .filter(RawData.dataset_id == latest_dataset.id)\
+                .all()
+            clean_data_ids.extend([('upload', upload.id) for upload in clean_uploads])
+            
+            # For scraper data  
+            clean_scrapers = CleanDataScraper.query\
+                .join(RawDataScraper, CleanDataScraper.raw_data_scraper_id == RawDataScraper.id)\
+                .filter(RawDataScraper.dataset_id == latest_dataset.id)\
+                .all()
+            clean_data_ids.extend([('scraper', scraper.id) for scraper in clean_scrapers])
+            
+            # Now get classification results for these clean data IDs
+            results = []
+            for data_type, data_id in clean_data_ids:
+                dataset_results = ClassificationResult.query\
+                    .filter(
+                        ClassificationResult.data_type == data_type,
+                        ClassificationResult.data_id == data_id,
+                        ClassificationResult.classified_by == current_user.id
+                    )\
+                    .all()
+                results.extend(dataset_results)
+            
+            # Debug: Log the number of clean data IDs and results found
+            app.logger.info(f"Latest dataset: {latest_dataset.name}, Clean data IDs: {len(clean_data_ids)}, Results found: {len(results)}")
             
             # Calculate statistics
             total_classifications = len(results)
@@ -1703,24 +1848,53 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
     @app.route('/api/classification/reset-latest', methods=['POST'])
     @login_required
     def reset_latest_classification_results():
-        """Reset latest classification results for the current user"""
+        """Reset latest classification results for the current user, limited to a dataset"""
         try:
-            # Delete all classification results for current user in last 24 hours
+            data = request.get_json(silent=True) or {}
+            dataset_id = data.get('dataset_id')
+            if not dataset_id:
+                return jsonify({'success': False, 'message': 'Dataset ID diperlukan untuk reset hasil terbaru'}), 400
+
             twenty_four_hours_ago = datetime.utcnow() - timedelta(hours=24)
-            
-            deleted_count = ClassificationResult.query.filter(
-                ClassificationResult.classified_by == current_user.id,
-                ClassificationResult.created_at >= twenty_four_hours_ago
-            ).delete()
-            
+
+            # Collect IDs of classification results for uploads in the specified dataset
+            upload_ids = [row[0] for row in db.session.query(ClassificationResult.id)
+                .join(CleanDataUpload, ClassificationResult.data_id == CleanDataUpload.id)
+                .join(RawData, RawData.id == CleanDataUpload.raw_data_id)
+                .filter(
+                    ClassificationResult.data_type == 'upload',
+                    RawData.dataset_id == dataset_id,
+                    ClassificationResult.classified_by == current_user.id,
+                    ClassificationResult.created_at >= twenty_four_hours_ago
+                ).all()]
+
+            # Collect IDs of classification results for scraper in the specified dataset
+            scraper_ids = [row[0] for row in db.session.query(ClassificationResult.id)
+                .join(CleanDataScraper, ClassificationResult.data_id == CleanDataScraper.id)
+                .join(RawDataScraper, RawDataScraper.id == CleanDataScraper.raw_data_scraper_id)
+                .filter(
+                    ClassificationResult.data_type == 'scraper',
+                    RawDataScraper.dataset_id == dataset_id,
+                    ClassificationResult.classified_by == current_user.id,
+                    ClassificationResult.created_at >= twenty_four_hours_ago
+                ).all()]
+
+            ids_to_delete = upload_ids + scraper_ids
+
+            deleted_count = 0
+            if ids_to_delete:
+                deleted_count = ClassificationResult.query.filter(
+                    ClassificationResult.id.in_(ids_to_delete)
+                ).delete(synchronize_session=False)
+
             db.session.commit()
-            
+
             return jsonify({
                 'success': True,
-                'message': f'Berhasil mereset {deleted_count} hasil klasifikasi terbaru',
+                'message': f'Berhasil mereset {deleted_count} hasil klasifikasi terbaru untuk dataset {dataset_id}',
                 'deleted_count': deleted_count
             })
-            
+
         except Exception as e:
             db.session.rollback()
             return jsonify({
@@ -1730,49 +1904,58 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
     
     @app.route('/api/classification/start', methods=['POST'])
     @login_required
-    def start_classification_with_progress():
-        """Start classification with real-time progress tracking"""
+    def start_classification():
+        """Start classification without progress tracking"""
         try:
             data = request.get_json()
-            dataset_id = data.get('dataset_id')
+            dataset_id_raw = data.get('dataset_id')
+            try:
+                dataset_id = int(str(dataset_id_raw))
+            except Exception:
+                return jsonify({'success': False, 'message': 'Dataset ID tidak valid'}), 400
             
             if not dataset_id:
                 return jsonify({'success': False, 'message': 'Dataset ID diperlukan'})
             
-            # Initialize progress tracking
-            classification_progress[dataset_id] = {
-                'processed': 0,
-                'total': 0,
-                'percentage': 0,
-                'radikal_count': 0,
-                'non_radikal_count': 0,
-                'error_count': 0,
-                'status': 'starting'
-            }
-            
+            # Validate dataset exists before starting
+            dataset = Dataset.query.get(dataset_id)
+            if not dataset:
+                return jsonify({'success': False, 'message': 'Dataset tidak ditemukan'}), 404
+
             # Start classification in background thread
             import threading
             thread = threading.Thread(
-                target=process_classification_with_progress,
-                args=(dataset_id, current_user.id)
+                target=process_classification_simple,
+                args=(dataset_id, current_user.id),
+                name=f"classification_thread_{dataset_id}"
             )
             thread.daemon = True
             thread.start()
             
+            # Log thread start for debugging
+            app.logger.info(f"Started classification thread for dataset {dataset_id}")
+            
             return jsonify({
                 'success': True,
-                'message': 'Klasifikasi dimulai',
+                'message': 'Klasifikasi dimulai. Proses akan berjalan di background.',
                 'dataset_id': dataset_id
             })
             
         except Exception as e:
             return jsonify({'success': False, 'message': f'Error: {str(e)}'})
     
-    def process_classification_with_progress(dataset_id, user_id):
-        """Process classification with real-time progress updates"""
+    def process_classification_simple(dataset_id, user_id):
+        """Process classification without progress tracking"""
+        
         try:
             # Create new app context for this thread
             with app.app_context():
+                # Check if dataset still exists before starting
+                dataset = Dataset.query.get(dataset_id)
+                if not dataset:
+                    app.logger.error(f"Dataset {dataset_id} tidak ditemukan atau telah dihapus")
+                    return False
+                
                 # Get clean data for the dataset
                 clean_data = []
                 
@@ -1805,126 +1988,123 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                 
                 total_data = len(clean_data)
                 
-                # Update progress with total count
-                classification_progress[dataset_id] = {
-                    'processed': 0,
-                    'total': total_data,
-                    'percentage': 0,
-                    'radikal_count': 0,
-                    'non_radikal_count': 0,
-                    'error_count': 0,
-                    'status': 'processing'
-                }
+                if total_data == 0:
+                    app.logger.error(f"Tidak ada data bersih untuk dataset {dataset_id}")
+                    return False
                 
+                # Get models
+                word2vec_model = app.config.get('WORD2VEC_MODEL')
+                naive_bayes_models = app.config.get('NAIVE_BAYES_MODELS', {})
+
+                # If no NB models are loaded, fail fast with a clear error to avoid false completion
+                if not naive_bayes_models:
+                    app.logger.error('Model Naive Bayes tidak tersedia. Pastikan path model di .env benar dan server memuatnya.')
+                    return False
+                
+                # Process each item
                 processed_count = 0
                 error_count = 0
                 radikal_count = 0
                 non_radikal_count = 0
                 
-                # Get models
-                word2vec_model = app.config.get('WORD2VEC_MODEL')
-                naive_bayes_models = app.config.get('NAIVE_BAYES_MODELS', {})
+                app.logger.info(f"Starting classification for dataset {dataset_id} with {len(clean_data)} items")
                 
-                # Process each item
-                for item in clean_data:
+                for index, item in enumerate(clean_data):
                     try:
                         data_type = item['data_type']
                         data_id = item['data_id']
                         content = item['content']
                         
-                        # Check if already classified
-                        result = db.session.execute(
-                            text("SELECT * FROM classification_results WHERE data_type = :data_type AND data_id = :data_id LIMIT 1"),
-                            {'data_type': data_type, 'data_id': data_id}
-                        )
-                        existing_classification = result.fetchone()
+                        # Check if already classified for THIS dataset
+                        # Hapus pemeriksaan ini agar setiap dataset baru menambah ke statistik yang ada
+                        # Data yang sudah diklasifikasi dari dataset lain tetap diproses untuk statistik akumulatif
                         
-                        if existing_classification:
-                            continue  # Skip if already classified
-                        
-                        # Vectorize and classify
-                        if word2vec_model:
-                            vector = vectorize_text(content, word2vec_model)
-                            
-                            # Track predictions from all three models
-                            model_predictions = []
-                            
-                            # Classify using all three models
-                            for model_name, model in naive_bayes_models.items():
-                                if model:
-                                    prediction, probabilities = classify_content(vector, model)
-                                    
-                                    # Handle probabilities consistently
+                        # Vectorize and classify using available models
+                        vector = vectorize_text(content, word2vec_model)
+                        model_predictions = []
+
+                        # Classify using all available Naive Bayes models
+                        for model_name, model in naive_bayes_models.items():
+                            if model:
+                                prediction, probabilities = classify_content(vector, model)
+
+                                # Map probabilities to radikal / non-radikal
+                                prob_radikal, prob_non_radikal = 0.0, 0.0
+                                try:
+                                    classes = getattr(model, 'classes_', None)
                                     if isinstance(probabilities, (list, tuple, np.ndarray)) and len(probabilities) >= 2:
-                                        prob_non_radikal = float(probabilities[0])
-                                        prob_radikal = float(probabilities[1])
-                                    else:
-                                        prob_non_radikal = 0.0
-                                        prob_radikal = 0.0
-                                    
-                                    result = ClassificationResult(
-                                        data_type=data_type,
-                                        data_id=data_id,
-                                        model_name=model_name,
-                                        prediction=prediction,
-                                        probability_radikal=prob_radikal,
-                                        probability_non_radikal=prob_non_radikal,
-                                        classified_by=user_id,
-                                        created_at=datetime.now()
-                                    )
-                                    db.session.add(result)
-                                    
-                                    model_predictions.append(prediction)
-                            
-                            # Count ALL radikal/non-radikal predictions from all three models
-                            if model_predictions:
-                                radikal_count += model_predictions.count('radikal')
-                                non_radikal_count += model_predictions.count('non-radikal')
-                            
-                            processed_count += 1
+                                        if classes is not None and len(classes) == len(probabilities):
+                                            classes_list = list(classes)
+                                            idx_rad = classes_list.index('Radikal') if 'Radikal' in classes_list else 1
+                                            idx_non = classes_list.index('Non-Radikal') if 'Non-Radikal' in classes_list else 0
+                                            prob_radikal = float(probabilities[idx_rad])
+                                            prob_non_radikal = float(probabilities[idx_non])
+                                        else:
+                                            # Fallback: assume [Non-Radikal, Radikal]
+                                            prob_non_radikal = float(probabilities[0])
+                                            prob_radikal = float(probabilities[1])
+                                except Exception:
+                                    # Keep defaults on mapping error
+                                    pass
+
+                                result = ClassificationResult(
+                                    data_type=data_type,
+                                    data_id=data_id,
+                                    model_name=model_name,
+                                    prediction=prediction,
+                                    probability_radikal=prob_radikal,
+                                    probability_non_radikal=prob_non_radikal,
+                                    classified_by=user_id,
+                                    created_at=datetime.now()
+                                )
+                                db.session.add(result)
+                                model_predictions.append(prediction)
+
+                        # Count predictions
+                        if model_predictions:
+                            radikal_count += model_predictions.count('radikal')
+                            non_radikal_count += model_predictions.count('non-radikal')
+
+                        processed_count += 1
                         
-                        # Update progress
-                        percentage = (processed_count / total_data * 100) if total_data > 0 else 0
-                        classification_progress[dataset_id] = {
-                            'processed': processed_count,
-                            'total': total_data,
-                            'percentage': round(percentage, 1),
-                            'radikal_count': radikal_count,
-                            'non_radikal_count': non_radikal_count,
-                            'error_count': error_count,
-                            'status': 'processing'
-                        }
-                        
+                        # Commit every 10 items to reduce database load
+                        if processed_count % 10 == 0:
+                            db.session.commit()
+                            app.logger.info(f"Processed {processed_count}/{total_data} items")
+                            
                     except Exception as e:
                         error_count += 1
-                        # Update progress with error
-                        classification_progress[dataset_id]['error_count'] = error_count
-                        
-                        # Log detailed error information
-                        import traceback
-                        error_details = traceback.format_exc()
-                        app.logger.error(f"Error processing classification item {processed_count + 1}/{total_data}: {str(e)}")
-                        app.logger.error(f"Item details: data_type={item.get('data_type')}, data_id={item.get('data_id')}")
-                        app.logger.error(f"Content preview: {str(item.get('content', ''))[:100]}...")
-                        app.logger.error(f"Full traceback: {error_details}")
-                        
+                        app.logger.error(f"Error processing item {index + 1}/{len(clean_data)}: {str(e)}")
                         continue
                 
+                # Final commit
                 db.session.commit()
                 
                 # Update statistics
                 try:
-                    from scheduler import cleanup_scheduler
-                    cleanup_scheduler.update_statistics()
+                    update_statistics_simplified()
+                    app.logger.info("Statistics updated successfully")
                 except Exception as e:
                     app.logger.error(f"Error updating statistics: {str(e)}")
                 
-                # Mark as completed
-                classification_progress[dataset_id]['status'] = 'completed'
-            
+                app.logger.info(f"Classification completed for dataset {dataset_id}. Processed: {processed_count}, Errors: {error_count}, Radikal: {radikal_count}, Non-Radikal: {non_radikal_count}")
+                
+                # Update dataset status to 'Terklasifikasi' in database
+                try:
+                    dataset.status = 'Terklasifikasi'
+                    dataset.classified_at = datetime.now()
+                    db.session.commit()
+                    app.logger.info(f"Dataset {dataset_id} marked as classified")
+                except Exception as e:
+                    app.logger.error(f"Error updating dataset status: {str(e)}")
+                
+                return True
+                
         except Exception as e:
-            classification_progress[dataset_id]['status'] = 'error'
-            classification_progress[dataset_id]['error_message'] = str(e)
+            app.logger.error(f"Error in classification process: {str(e)}")
+            return False
+
+        except Exception as e:
             # Use app.logger directly since we might be outside app context
             app.logger.error(f"Critical error in classification process: {str(e)}")
             import traceback
@@ -2569,6 +2749,7 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
             try:
                 session['upload_file_path'] = filepath
                 session['upload_filename'] = unique_filename
+                session['upload_original_filename'] = file.filename  # Store original filename for display
                 session['upload_file_size'] = file_size
                 session['upload_columns'] = list(df.columns)
                 session['upload_sample_data'] = sample_data
@@ -2655,11 +2836,15 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
             
             # Get file info from session
             filepath = session.get('upload_file_path')
-            filename = session.get('upload_filename')
+            filename = session.get('upload_filename')  # Hashed filename for storage
+            original_filename = session.get('upload_original_filename')  # Original filename for display
             file_size = session.get('upload_file_size', 0)
             description = session.get('upload_description', '')
             source = session.get('upload_source', 'manual')
             dataset_name = session.get('upload_dataset_name', 'Unknown Dataset')
+            
+            # Use original filename for display if available, otherwise fallback to hashed filename
+            display_filename = original_filename if original_filename else filename
             
             if not filepath or not os.path.exists(filepath):
                 return jsonify({
@@ -2741,14 +2926,14 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
             update_statistics()
             
             # Log aktivitas upload data
-            log_message = f'Berhasil mengupload {records_added} data dari file {filename}'
+            log_message = f'Berhasil mengupload {records_added} data dari file {display_filename}'
             
             generate_activity_log(
                 action='upload_data',
                 description=log_message,
                 user_id=current_user.id,
                 details={
-                    'filename': filename,
+                    'filename': display_filename,
                     'records_count': records_added,
                     'dataset_name': dataset_name,
                     'file_size': file_size
@@ -2761,6 +2946,7 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
             os.remove(filepath)
             session.pop('upload_file_path', None)
             session.pop('upload_filename', None)
+            session.pop('upload_original_filename', None)
             session.pop('upload_file_size', None)
             session.pop('upload_columns', None)
             session.pop('upload_sample_data', None)
@@ -2768,17 +2954,50 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
             session.pop('upload_source', None)
             session.pop('upload_dataset_name', None)
             
-            success_message = f'Berhasil mengupload {records_added} data baru dari file {filename}'
+            success_message = f'Berhasil mengupload {records_added} data baru dari file {display_filename}'
             
-            return jsonify({
+            # Pastikan response hanya berisi pesan yang bersih tanpa ID apapun
+            response_data = {
                 'success': True,
-                'message': success_message,
-                'records_added': records_added
-            })
+                'message': success_message
+            }
+            
+            # Bersihkan session data secara menyeluruh untuk menghindari kebocoran data
+            session_keys_to_remove = [
+                'upload_file_path', 'upload_filename', 'upload_file_size',
+                'upload_columns', 'upload_sample_data', 'upload_description',
+                'upload_source', 'upload_dataset_name', 'scraping_temp_id',
+                'scraping_data', 'scraping_raw_data', 'scraping_platform',
+                'scraping_keyword', 'scraping_date_from', 'scraping_date_to',
+                'scraping_dataset_id', 'scraping_dataset_name', 'scraping_run_id'
+            ]
+            
+            for key in session_keys_to_remove:
+                session.pop(key, None)
+            
+            return jsonify(response_data)
             
         except Exception as e:
             db.session.rollback()
-
+            
+            # Clean up file if it exists
+            filepath = session.get('upload_file_path')
+            if filepath and os.path.exists(filepath):
+                try:
+                    os.remove(filepath)
+                except Exception:
+                    pass
+            
+            # Clean session data
+            session.pop('upload_file_path', None)
+            session.pop('upload_filename', None)
+            session.pop('upload_file_size', None)
+            session.pop('upload_columns', None)
+            session.pop('upload_sample_data', None)
+            session.pop('upload_description', None)
+            session.pop('upload_source', None)
+            session.pop('upload_dataset_name', None)
+            
             return jsonify({'success': False, 'message': f'Error: {str(e)}'}), 500
     
     @app.route('/process_scraping_column_mapping', methods=['POST'])
@@ -2882,7 +3101,6 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                 
                 # Skip empty content
                 if not content_value or not str(content_value).strip():
-                    app.logger.debug(f"Skipping empty content: {content_value}")
                     continue
                 
                 # Ensure username is not empty
@@ -2900,7 +3118,6 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                 
                 if existing_scraper_data:
                     # Skip duplicate content
-                    app.logger.debug(f"Skipping duplicate content: {content_to_check[:50]}...")
                     continue
                 
                 # Extract engagement data based on platform
@@ -3049,7 +3266,6 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                 RawData.uploaded_by == current_user.id
             ).group_by(
                 RawData.original_filename,
-                RawData.uploaded_by,
                 RawData.dataset_id
             ).count()
             
@@ -3119,20 +3335,20 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                         ClassificationResult.data_id.in_(clean_upload_ids_list)
                     ).scalar() or 0
                 
-                # Status logic: Terklasifikasi if any data is classified, Dibersihkan if cleaned but not classified, Mentah otherwise
-                if classified_count > 0:
-                    status = 'Terklasifikasi'
-                elif cleaned_count > 0:
-                    status = 'Dibersihkan'
-                else:
-                    status = 'Mentah'
-                
                 # Get first raw data ID from this upload file for actions
                 first_raw_data = RawData.query.filter(
                     RawData.uploaded_by == current_user.id,
                     RawData.original_filename == session.filename,
                     RawData.dataset_id == session.dataset_id
                 ).first()
+                
+                # Use stored status from database instead of calculating dynamically
+                # Get dataset status if available
+                status = 'Mentah'  # Default status
+                if first_raw_data and first_raw_data.dataset_id:
+                    dataset = Dataset.query.get(first_raw_data.dataset_id)
+                    if dataset and dataset.status:
+                        status = dataset.status
                 
                 # Get dataset name if available
                 dataset_name = None
@@ -3170,6 +3386,10 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                 }
             })
         except Exception as e:
+            app.logger.error(f"Error in api_recent_uploads: {str(e)}")
+            app.logger.error(f"Exception type: {type(e).__name__}")
+            import traceback
+            app.logger.error(f"Traceback: {traceback.format_exc()}")
             return jsonify({'success': False, 'message': str(e)}), 500
     
     @app.route('/api/upload-statistics')
@@ -3550,6 +3770,9 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                         errors.append(f'Tidak memiliki akses ke dataset {dataset.name}')
                         continue
                     
+                    # Check if classification is currently in progress for this dataset
+                    # Note: Progress tracking has been removed, classification runs synchronously
+                    
                     # Check if dataset already has clean data
                     has_clean_upload = db.session.query(CleanDataUpload).join(
                         RawData, CleanDataUpload.raw_data_id == RawData.id
@@ -3893,6 +4116,9 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
             
             db.session.commit()
             
+            # Update statistics after deletion
+            update_statistics()
+            
             # Log activity
             generate_activity_log(
                 action='bulk_delete_datasets',
@@ -4102,6 +4328,12 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                 flash('Anda tidak memiliki akses ke dataset ini', 'error')
                 return redirect(url_for('dataset_management_table'))
             
+            # Get page parameters for each tab
+            raw_page = request.args.get('raw_page', 1, type=int)
+            clean_page = request.args.get('clean_page', 1, type=int)
+            classified_page = request.args.get('classified_page', 1, type=int)
+            per_page = 10  # Show 10 items per page
+            
             # Get dataset statistics (both upload and scraper data)
             raw_upload_data = RawData.query.filter_by(dataset_id=dataset_id).all()
             raw_scraper_data = RawDataScraper.query.filter_by(dataset_id=dataset_id).all()
@@ -4184,14 +4416,57 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                 
                 classified_scraper_data = list(scraper_data_by_id.values())
             
+            # Prepare paginated data for each tab with independent pagination
+            # Raw data pagination - separate for upload and scraper
+            raw_upload_paginated = raw_upload_data[(raw_page-1)*per_page:raw_page*per_page]
+            raw_scraper_paginated = raw_scraper_data[(raw_page-1)*per_page:raw_page*per_page]
+            raw_upload_total_pages = (len(raw_upload_data) + per_page - 1) // per_page
+            raw_scraper_total_pages = (len(raw_scraper_data) + per_page - 1) // per_page
+            raw_total_pages = max(raw_upload_total_pages, raw_scraper_total_pages)
+            
+            # Clean data pagination - separate for upload and scraper
+            clean_upload_paginated = clean_upload_data[(clean_page-1)*per_page:clean_page*per_page]
+            clean_scraper_paginated = clean_scraper_data[(clean_page-1)*per_page:clean_page*per_page]
+            clean_upload_total_pages = (len(clean_upload_data) + per_page - 1) // per_page
+            clean_scraper_total_pages = (len(clean_scraper_data) + per_page - 1) // per_page
+            clean_total_pages = max(clean_upload_total_pages, clean_scraper_total_pages)
+            
+            # Classification results pagination - separate for upload and scraper
+            classified_upload_paginated = classified_upload_data[(classified_page-1)*per_page:classified_page*per_page]
+            classified_scraper_paginated = classified_scraper_data[(classified_page-1)*per_page:classified_page*per_page]
+            classified_upload_total_pages = (len(classified_upload_data) + per_page - 1) // per_page
+            classified_scraper_total_pages = (len(classified_scraper_data) + per_page - 1) // per_page
+            classified_total_pages = max(classified_upload_total_pages, classified_scraper_total_pages)
+            
+            # Calculate total items for each type
+            total_raw_items = len(raw_upload_data) + len(raw_scraper_data)
+            total_clean_items = len(clean_upload_data) + len(clean_scraper_data)
+            total_classified_items = len(classified_upload_data) + len(classified_scraper_data)
+            
             return render_template('dataset/details.html', 
                                  dataset=dataset,
-                                 raw_upload_data=raw_upload_data,
-                                 raw_scraper_data=raw_scraper_data,
-                                 clean_upload_data=clean_upload_data,
-                                 clean_scraper_data=clean_scraper_data,
-                                 classified_upload_data=classified_upload_data,
-                                 classified_scraper_data=classified_scraper_data)
+                                 raw_upload_data=raw_upload_paginated,
+                                 raw_scraper_data=raw_scraper_paginated,
+                                 clean_upload_data=clean_upload_paginated,
+                                 clean_scraper_data=clean_scraper_paginated,
+                                 classified_upload_data=classified_upload_paginated,
+                                 classified_scraper_data=classified_scraper_paginated,
+                                 raw_page=raw_page,
+                                 clean_page=clean_page,
+                                 classified_page=classified_page,
+                                 per_page=per_page,
+                                 raw_upload_total_pages=raw_upload_total_pages,
+                                 raw_scraper_total_pages=raw_scraper_total_pages,
+                                 clean_upload_total_pages=clean_upload_total_pages,
+                                 clean_scraper_total_pages=clean_scraper_total_pages,
+                                 classified_upload_total_pages=classified_upload_total_pages,
+                                 classified_scraper_total_pages=classified_scraper_total_pages,
+                                 raw_total_pages=raw_total_pages,
+                                 clean_total_pages=clean_total_pages,
+                                 classified_total_pages=classified_total_pages,
+                                 total_raw_items=total_raw_items,
+                                 total_clean_items=total_clean_items,
+                                 total_classified_items=total_classified_items)
         except Exception as e:
             flash(f'Error loading dataset details: {str(e)}', 'error')
             return redirect(url_for('dataset_management_table'))
@@ -4248,6 +4523,30 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
         except Exception as e:
             return jsonify({'error': f'Internal server error: {str(e)}'}), 500
     
+    @app.route('/api/classification/status/<int:dataset_id>', methods=['GET'])
+    @login_required
+    def api_classification_status(dataset_id):
+        try:
+            dataset = Dataset.query.get_or_404(dataset_id)
+            
+            # Check permission
+            if current_user.role != 'admin' and dataset.uploaded_by != current_user.id:
+                return jsonify({'success': False, 'error': 'Unauthorized'}), 403
+            
+            # Return dataset status in JSON format
+            return jsonify({
+                'success': True,
+                'dataset': {
+                    'id': dataset.id,
+                    'name': dataset.name,
+                    'status': dataset.status,
+                    'updated_at': dataset.updated_at.isoformat() if dataset.updated_at else None
+                }
+            })
+            
+        except Exception as e:
+            return jsonify({'success': False, 'error': f'Internal server error: {str(e)}'}), 500
+
     @app.route('/api/dataset/<int:dataset_id>/clean', methods=['POST'])
     @login_required
     def api_dataset_clean(dataset_id):
@@ -4547,6 +4846,9 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
             if current_user.role != 'admin' and dataset.uploaded_by != current_user.id:
                 return jsonify({'success': False, 'message': 'Unauthorized'}), 403
             
+            # Check if classification is currently in progress for this dataset
+            # Note: Progress tracking has been removed, classification runs synchronously
+            
             # Delete all related data
             # Delete classification results first (both upload and scraper)
             clean_data_ids = [cd.id for cd in CleanDataUpload.query.filter_by(dataset_id=dataset_id).all()]
@@ -4593,6 +4895,9 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
             db.session.delete(dataset)
             
             db.session.commit()
+            
+            # Clean up classification progress data for this dataset
+            # Note: Progress tracking has been removed, classification runs synchronously
             
             # Log activity
             generate_activity_log(
@@ -4931,12 +5236,12 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                         RawDataScraper.scraped_by == current_user.id
                     ).count()
                 
-                if classified_count > 0:
-                    status = 'Terklasifikasi'
-                elif cleaned_count > 0:
-                    status = 'Dibersihkan'
-                else:
-                    status = 'Mentah'
+                # Use stored status from database instead of calculating dynamically
+                status = 'Mentah'  # Default status
+                if job.dataset_id:
+                    dataset = Dataset.query.get(job.dataset_id)
+                    if dataset and dataset.status:
+                        status = dataset.status
                 
                 # Get dataset information
                 dataset = Dataset.query.get(job.dataset_id) if job.dataset_id else None
@@ -5900,31 +6205,38 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
         return '.' in filename and \
                filename.rsplit('.', 1)[1].lower() in {'csv', 'xlsx', 'xls'}
     
-    def update_statistics():
-        """Update dataset statistics (excluding soft-deleted records)"""
+    def update_statistics_simplified():
+        """Simplified statistics update for use during classification to avoid database locks"""
         try:
             stats = DatasetStatistics.query.first()
             if not stats:
                 stats = DatasetStatistics()
                 db.session.add(stats)
             
-            # Count actual data (excluding soft-deleted records) - improved version
+            # Use raw SQL for faster counting with minimal locking
+            # Count raw upload data
             stats.total_raw_upload = db.session.execute(
-                text("SELECT COUNT(*) FROM raw_data")
+                text("SELECT COUNT(*) FROM raw_data WHERE dataset_id IS NOT NULL")
             ).scalar() or 0
             
+            # Count raw scraper data
             stats.total_raw_scraper = db.session.execute(
-                text("SELECT COUNT(*) FROM raw_data_scraper")
+                text("SELECT COUNT(*) FROM raw_data_scraper WHERE dataset_id IS NOT NULL")
             ).scalar() or 0
             
+            # Count clean upload data using efficient EXISTS subquery
             stats.total_clean_upload = db.session.execute(
-                text("SELECT COUNT(*) FROM clean_data_upload")
+                text("""SELECT COUNT(*) FROM clean_data_upload cdu 
+                WHERE EXISTS (SELECT 1 FROM raw_data rd WHERE rd.id = cdu.raw_data_id AND rd.dataset_id IS NOT NULL)""")
             ).scalar() or 0
             
+            # Count clean scraper data using efficient EXISTS subquery
             stats.total_clean_scraper = db.session.execute(
-                text("SELECT COUNT(*) FROM clean_data_scraper")
+                text("""SELECT COUNT(*) FROM clean_data_scraper cds 
+                WHERE EXISTS (SELECT 1 FROM raw_data_scraper rds WHERE rds.id = cds.raw_data_scraper_id AND rds.dataset_id IS NOT NULL)""")
             ).scalar() or 0
             
+            # Use efficient counting for classification results
             stats.total_classified = db.session.execute(
                 text("SELECT COUNT(*) FROM classification_results")
             ).scalar() or 0
@@ -5935,6 +6247,59 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
             
             stats.total_non_radikal = db.session.execute(
                 text("SELECT COUNT(*) FROM classification_results WHERE prediction = 'non-radikal'")
+            ).scalar() or 0
+            
+            db.session.commit()
+            app.logger.info("Simplified statistics updated successfully with optimized queries")
+            
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f"Error updating simplified statistics: {str(e)}")
+            # Don't raise exception to avoid breaking classification process
+    
+    def update_statistics():
+        """Update dataset statistics - only count data that belongs to existing datasets"""
+        try:
+            stats = DatasetStatistics.query.first()
+            if not stats:
+                stats = DatasetStatistics()
+                db.session.add(stats)
+            
+            # Count only data that belongs to existing datasets
+            stats.total_raw_upload = db.session.execute(
+                text("SELECT COUNT(*) FROM raw_data WHERE dataset_id IS NOT NULL")
+            ).scalar() or 0
+            
+            stats.total_raw_scraper = db.session.execute(
+                text("SELECT COUNT(*) FROM raw_data_scraper WHERE dataset_id IS NOT NULL")
+            ).scalar() or 0
+            
+            stats.total_clean_upload = db.session.execute(
+                text("SELECT COUNT(*) FROM clean_data_upload WHERE dataset_id IS NOT NULL")
+            ).scalar() or 0
+            
+            stats.total_clean_scraper = db.session.execute(
+                text("SELECT COUNT(*) FROM clean_data_scraper WHERE raw_data_scraper_id IN (SELECT id FROM raw_data_scraper WHERE dataset_id IS NOT NULL)")
+            ).scalar() or 0
+            
+            stats.total_classified = db.session.execute(
+                text("""SELECT COUNT(*) FROM classification_results 
+                WHERE (data_type = 'upload' AND data_id IN (SELECT id FROM clean_data_upload WHERE dataset_id IS NOT NULL))
+                OR (data_type = 'scraper' AND data_id IN (SELECT id FROM clean_data_scraper WHERE raw_data_scraper_id IN (SELECT id FROM raw_data_scraper WHERE dataset_id IS NOT NULL)))""")
+            ).scalar() or 0
+            
+            stats.total_radikal = db.session.execute(
+                text("""SELECT COUNT(*) FROM classification_results 
+                WHERE prediction = 'radikal'
+                AND ((data_type = 'upload' AND data_id IN (SELECT id FROM clean_data_upload WHERE dataset_id IS NOT NULL))
+                OR (data_type = 'scraper' AND data_id IN (SELECT id FROM clean_data_scraper WHERE raw_data_scraper_id IN (SELECT id FROM raw_data_scraper WHERE dataset_id IS NOT NULL))))""")
+            ).scalar() or 0
+            
+            stats.total_non_radikal = db.session.execute(
+                text("""SELECT COUNT(*) FROM classification_results 
+                WHERE prediction = 'non-radikal'
+                AND ((data_type = 'upload' AND data_id IN (SELECT id FROM clean_data_upload WHERE dataset_id IS NOT NULL))
+                OR (data_type = 'scraper' AND data_id IN (SELECT id FROM clean_data_scraper WHERE raw_data_scraper_id IN (SELECT id FROM raw_data_scraper WHERE dataset_id IS NOT NULL))))""")
             ).scalar() or 0
             
             db.session.commit()

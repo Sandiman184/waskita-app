@@ -68,7 +68,7 @@ if ($Clean) {
     Write-Host ""
     Write-Host "=== MEMBERSIHKAN INSTALASI LAMA ===" -ForegroundColor Yellow
     Write-Host "Menghentikan container yang berjalan..." -ForegroundColor Gray
-    docker-compose down --volumes --remove-orphans 2>$null
+    docker-compose -f docker/docker-compose.yml down --volumes --remove-orphans 2>$null
     
     Write-Host "Menghapus volume database lama..." -ForegroundColor Gray
     docker volume rm waskita_postgres_data -f 2>$null
@@ -77,13 +77,13 @@ if ($Clean) {
 }
 
 # Determine environment
-$composeFile = "docker-compose.yml"
+$composeFile = "docker/docker-compose.yml"
 $envFile = ".env"
 
 if ($Production) {
     Write-Host ""
     Write-Host "=== PRODUCTION BUILD ===" -ForegroundColor Magenta
-    $composeFile = "docker-compose.prod.yml"
+    $composeFile = "docker/docker-compose.prod.yml"
     $envFile = ".env.production"
     
     if (-not (Test-Path $envFile)) {
@@ -104,10 +104,72 @@ if (-not (Test-Path $envFile)) {
         Write-Host "Membuat file .env dari .env.example..." -ForegroundColor Yellow
         Copy-Item ".env.example" $envFile
         Write-Host "File .env berhasil dibuat dari template" -ForegroundColor Green
+        
+        # Prompt user untuk mengisi kredensial database secara interaktif
+        Write-Host ""
+        Write-Host "=== KONFIGURASI DATABASE ===" -ForegroundColor Cyan
+        Write-Host "Silakan masukkan kredensial database PostgreSQL:" -ForegroundColor Yellow
+        
+        $dbUser = Read-Host "Database Username (default: admin_ws)"
+        if ([string]::IsNullOrEmpty($dbUser)) { $dbUser = "admin_ws" }
+        
+        $dbPass = Read-Host "Database Password (default: your_secure_password)" -AsSecureString
+        $dbPassPlain = if ($dbPass) { [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($dbPass)) } else { "your_secure_password" }
+        
+        $dbName = Read-Host "Database Name (default: waskita_db)"
+        if ([string]::IsNullOrEmpty($dbName)) { $dbName = "waskita_db" }
+        
+        # Update file .env dengan kredensial yang dimasukkan
+        $envContent = Get-Content $envFile -Raw
+        $envContent = $envContent -replace "DATABASE_USER=.*", "DATABASE_USER=$dbUser"
+        $envContent = $envContent -replace "DATABASE_PASSWORD=.*", "DATABASE_PASSWORD=$dbPassPlain"
+        $envContent = $envContent -replace "DATABASE_NAME=.*", "DATABASE_NAME=$dbName"
+        $envContent = $envContent -replace "POSTGRES_USER=.*", "POSTGRES_USER=$dbUser"
+        $envContent = $envContent -replace "POSTGRES_PASSWORD=.*", "POSTGRES_PASSWORD=$dbPassPlain"
+        $envContent = $envContent -replace "POSTGRES_DB=.*", "POSTGRES_DB=$dbName"
+        
+        Set-Content -Path $envFile -Value $envContent
+        Write-Host "Kredensial database berhasil diupdate!" -ForegroundColor Green
+        
     } else {
         Write-Host "Error: File .env.example tidak ditemukan!" -ForegroundColor Red
         Write-Host "Silakan buat file .env secara manual atau pastikan .env.example tersedia." -ForegroundColor Yellow
         exit 1
+    }
+} else {
+    # Periksa apakah kredensial masih menggunakan nilai default
+    $envContent = Get-Content $envFile -Raw
+    if ($envContent -match "your_secure_password" -or $envContent -match "admin_ws") {
+        Write-Host ""
+        Write-Host "=== PERINGATAN KEAMANAN ===" -ForegroundColor Red
+        Write-Host "File .env masih menggunakan kredensial default!" -ForegroundColor Yellow
+        Write-Host "Sangat disarankan untuk mengubah kredensial database." -ForegroundColor Yellow
+        
+        $changeCreds = Read-Host "Apakah Anda ingin mengubah kredensial sekarang? (y/N)"
+        if ($changeCreds -eq "y" -or $changeCreds -eq "Y") {
+            Write-Host ""
+            Write-Host "=== UPDATE KREDENSIAL DATABASE ===" -ForegroundColor Cyan
+            
+            $dbUser = Read-Host "Database Username (default: admin_ws)"
+            if ([string]::IsNullOrEmpty($dbUser)) { $dbUser = "admin_ws" }
+            
+            $dbPass = Read-Host "Database Password" -AsSecureString
+            $dbPassPlain = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($dbPass))
+            
+            $dbName = Read-Host "Database Name (default: waskita_db)"
+            if ([string]::IsNullOrEmpty($dbName)) { $dbName = "waskita_db" }
+            
+            # Update file .env dengan kredensial baru
+            $envContent = $envContent -replace "DATABASE_USER=.*", "DATABASE_USER=$dbUser"
+            $envContent = $envContent -replace "DATABASE_PASSWORD=.*", "DATABASE_PASSWORD=$dbPassPlain"
+            $envContent = $envContent -replace "DATABASE_NAME=.*", "DATABASE_NAME=$dbName"
+            $envContent = $envContent -replace "POSTGRES_USER=.*", "POSTGRES_USER=$dbUser"
+            $envContent = $envContent -replace "POSTGRES_PASSWORD=.*", "POSTGRES_PASSWORD=$dbPassPlain"
+            $envContent = $envContent -replace "POSTGRES_DB=.*", "POSTGRES_DB=$dbName"
+            
+            Set-Content -Path $envFile -Value $envContent
+            Write-Host "Kredensial database berhasil diupdate!" -ForegroundColor Green
+        }
     }
 }
 
@@ -121,7 +183,7 @@ if ($Production) {
     docker-compose -f $composeFile up --build -d
 } else {
     $env:CREATE_SAMPLE_DATA = "true"
-    docker-compose up --build -d
+    docker-compose -f $composeFile up --build -d
 }
 
 if ($LASTEXITCODE -ne 0) {
@@ -138,7 +200,7 @@ Start-Sleep -Seconds 10
 
 # Check if services are running
 Write-Host "Memeriksa status services..." -ForegroundColor Yellow
-$containers = docker-compose ps --services --filter "status=running"
+$containers = docker-compose -f docker/docker-compose.yml ps --services --filter "status=running"
 if ($containers -match "app" -and $containers -match "db") {
     Write-Host "Services berjalan dengan baik" -ForegroundColor Green
 } else {
@@ -175,10 +237,10 @@ Write-Host ""
 
 # Useful commands
 Write-Host "Commands berguna:" -ForegroundColor White
-Write-Host "- Lihat logs:     docker-compose logs -f" -ForegroundColor Gray
-Write-Host "- Stop services:  docker-compose down" -ForegroundColor Gray
-Write-Host "- Restart:        docker-compose restart" -ForegroundColor Gray
-Write-Host "- Status:         docker-compose ps" -ForegroundColor Gray
+Write-Host "- Lihat logs:     docker-compose -f docker/docker-compose.yml logs -f" -ForegroundColor Gray
+Write-Host "- Stop services:  docker-compose -f docker/docker-compose.yml down" -ForegroundColor Gray
+Write-Host "- Restart:        docker-compose -f docker/docker-compose.yml restart" -ForegroundColor Gray
+Write-Host "- Status:         docker-compose -f docker/docker-compose.yml ps" -ForegroundColor Gray
 Write-Host ""
 
 if ($Clean) {

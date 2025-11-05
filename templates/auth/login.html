@@ -250,16 +250,26 @@
                     return;
                 }
                 
-                // Show loading
-                Swal.fire({
-                    title: 'Memproses...',
-                    text: 'Sedang memverifikasi login',
-                    allowOutsideClick: false,
-                    showConfirmButton: false,
-                    willOpen: () => {
-                        Swal.showLoading();
-                    }
-                });
+                // Show loading using global function
+                if (typeof showLoading === 'function') {
+                    showLoading('Memproses...', 'Sedang memverifikasi login');
+                } else {
+                    // Fallback to direct usage with custom styling
+                    Swal.fire({
+                        title: 'Memproses...',
+                        text: 'Sedang memverifikasi login',
+                        allowOutsideClick: false,
+                        showConfirmButton: false,
+                        customClass: {
+                            popup: 'swal2-popup',
+                            title: 'swal2-title',
+                            htmlContainer: 'swal2-html-container'
+                        },
+                        willOpen: () => {
+                            Swal.showLoading();
+                        }
+                    });
+                }
                 
                 // Submit form
                 this.submit();

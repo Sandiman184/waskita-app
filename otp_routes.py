@@ -260,41 +260,13 @@ def approve_registration_public(request_id):
     
     try:
         # Get form data
-        otp_input = request.form.get('otp_code', '').strip()
         action = request.form.get('action')  # 'approve' or 'reject'
         admin_notes = request.form.get('admin_notes', '').strip()
-        admin_email = request.form.get('admin_email', '').strip()
         
-        # Validate required fields
-        if not otp_input:
-            flash('Kode OTP wajib diisi', 'error')
-            return render_template('admin/approve_registration_public.html', 
-                                 request=registration_request)
-        
-        # Handle admin email - if 'system_admin', get the first active admin
-        if admin_email == 'system_admin' or not admin_email:
-            admin_user = User.query.filter_by(role='admin', is_active=True).first()
-            if not admin_user:
-                flash('Tidak ada admin aktif yang ditemukan', 'error')
-                return render_template('admin/approve_registration_public.html', 
-                                     request=registration_request)
-        else:
-            # Validate specific admin email
-            admin_user = User.query.filter_by(email=admin_email, role='admin', is_active=True).first()
-            if not admin_user:
-                flash('Email admin tidak valid atau tidak aktif', 'error')
-                return render_template('admin/approve_registration_public.html', 
-                                     request=registration_request)
-        
-        # Validate OTP
-        if otp_input != registration_request.otp_code:
-            flash('Kode OTP tidak valid', 'error')
-            return render_template('admin/approve_registration_public.html', 
-                                 request=registration_request)
-        
-        # Check OTP expiration
-        if datetime.utcnow() > registration_request.otp_expires_at:
-            flash('Kode OTP sudah expired. Silakan minta OTP baru.', 'error')
+        # Get the first active admin
+        admin_user = User.query.filter_by(role='admin', is_active=True).first()
+        if not admin_user:
+            flash('Tidak ada admin aktif yang ditemukan', 'error')
             return render_template('admin/approve_registration_public.html', 
                                  request=registration_request)
         
@@ -453,8 +425,8 @@ def verify_first_login_otp():
             flash('User tidak ditemukan!', 'error')
             return redirect(url_for('login'))
         
-        # Mark first login as completed (set to True since it's a boolean field)
-        user.first_login = True
+        # Mark first login as completed (set to False since first login is done)
+        user.first_login = False
         user.last_login = datetime.utcnow()
         db.session.commit()
         
@@ -600,11 +572,11 @@ def resend_otp(request_id):
         
         db.session.commit()
         
-        # Send new OTP to admin
-        success, message = email_service.send_otp_to_admin(registration_request)
+        # Send new OTP to user (bukan ke admin)
+        success, message = email_service.send_otp_to_user(registration_request)
         
         if success:
-            return jsonify({'success': True, 'message': f'OTP baru berhasil dikirim: {message}'})
+            return jsonify({'success': True, 'message': 'OTP baru berhasil dikirim ke user'})
         else:
             return jsonify({'success': False, 'message': f'Gagal mengirim OTP: {message}'}), 500
             
@@ -652,6 +624,62 @@ def delete_registration_request(request_id):
         return jsonify({
             'success': False,
             'message': 'Terjadi kesalahan sistem'
+        }), 500
+
+@otp_bp.route('/admin/delete-all-registration-history', methods=['POST'])
+@login_required
+@admin_required
+def delete_all_registration_history():
+    """
+    Hapus semua riwayat registrasi yang sudah diproses (approved/rejected/expired)
+    """
+    try:
+        # Hanya hapus data yang sudah diproses, bukan yang masih pending
+        processed_requests = RegistrationRequest.query.filter(
+            RegistrationRequest.status.in_(['approved', 'rejected', 'expired'])
+        ).all()
+        
+        if not processed_requests:
+            return jsonify({
+                'success': True,
+                'message': 'Tidak ada riwayat registrasi yang perlu dihapus',
+                'deleted_count': 0
+            })
+        
+        deleted_count = 0
+        
+        for request in processed_requests:
+            # Delete related AdminNotifications
+            AdminNotification.query.filter_by(registration_request_id=request.id).delete()
+            
+            # Delete related OTPEmailLogs
+            OTPEmailLog.query.filter_by(registration_request_id=request.id).delete()
+            
+            # Delete the registration request
+            db.session.delete(request)
+            deleted_count += 1
+        
+        # Log admin activity
+        log_user_activity(
+            user_id=current_user.id,
+            action='all_registration_history_deleted',
+            description=f'Deleted all registration history ({deleted_count} records)'
+        )
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Berhasil menghapus {deleted_count} riwayat registrasi',
+            'deleted_count': deleted_count
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error deleting all registration history: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': 'Terjadi kesalahan sistem saat menghapus semua riwayat'
         }), 500
 
 @otp_bp.route('/admin/delete-registration-history/<int:request_id>', methods=['POST'])

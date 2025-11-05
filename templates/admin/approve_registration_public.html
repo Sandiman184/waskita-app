@@ -380,26 +380,15 @@
                     <form method="POST" id="approvalForm">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                         
-                        <!-- OTP Section -->
+                        <!-- Admin Notes Section -->
                         <div class="form-section">
-                            <h5><i class="fas fa-key mr-2"></i>Kode OTP</h5>
-                            <p class="text-muted mb-3">Masukkan kode OTP 6 digit dari email</p>
-                            <input type="text" 
-                                   name="otp_code" 
-                                   class="form-control otp-input" 
-                                   placeholder="000000" 
-                                   maxlength="6" 
-                                   pattern="[0-9]{6}" 
-                                   required>
-                            <small class="text-muted">
-                                <i class="fas fa-clock mr-1"></i>
-                                Berlaku hingga: {{ request.otp_expires_at.strftime('%d %B %Y, %H:%M') }}
-                            </small>
+                            <h5><i class="fas fa-sticky-note mr-2"></i>Catatan Administrator</h5>
+                            <p class="text-muted mb-3">Tambahkan catatan untuk pengguna (opsional)</p>
+                            <textarea name="admin_notes" 
+                                      class="form-control" 
+                                      rows="3" 
+                                      placeholder="Tambahkan catatan untuk pengguna..."></textarea>
                         </div>
-                        
-                        <!-- Admin Email Section - REMOVED FOR SECURITY -->
-                        <!-- Email admin akan diambil dari konfigurasi sistem secara otomatis -->
-                        <input type="hidden" name="admin_email" value="system_admin">
                         
                         
                         <!-- Notes Section -->
@@ -445,11 +434,6 @@
     
     <script>
         $(document).ready(function() {
-            // OTP Input formatting
-            $('input[name="otp_code"]').on('input', function() {
-                this.value = this.value.replace(/[^0-9]/g, '');
-            });
-            
             // Form submission with confirmation
             $('#approvalForm').on('submit', function(e) {
                 e.preventDefault();

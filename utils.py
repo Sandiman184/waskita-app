@@ -29,7 +29,11 @@ class DateTimeEncoder(json.JSONEncoder):
 # Load environment variables
 try:
     from dotenv import load_dotenv
-    load_dotenv()
+    import os
+    
+    # Load environment variables from .env file (development only)
+    if os.getenv('FLASK_ENV') == 'development':
+        load_dotenv()
 except ImportError:
     pass
 
@@ -315,31 +319,47 @@ def classify_content(text_vector, naive_bayes_model):
         current_app.logger.error(f"Traceback: {traceback.format_exc()}")
         return 'non-radikal', [0.0, 1.0]  # [prob_radikal, prob_non_radikal]
 
-def load_word2vec_model():
+def load_word2vec_model(app=None):
     """
-    Load Word2Vec model from configured path
+    Load Word2Vec model from configured path dengan optimasi memory mapping
     """
     if not GENSIM_AVAILABLE:
+        print("Gensim not available - Word2Vec model loading skipped")
         return None
         
     try:
-        from flask import current_app
         import os
         
-        # Get model path from config
-        model_path = current_app.config.get('WORD2VEC_MODEL_PATH')
+        # Get model path from config - either from provided app or current_app
+        if app:
+            model_path = app.config.get('WORD2VEC_MODEL_PATH')
+        else:
+            from flask import current_app
+            model_path = current_app.config.get('WORD2VEC_MODEL_PATH')
         
         if not model_path:
+            print(f"Word2Vec model path not configured in config")
             return None
             
         if not os.path.exists(model_path):
+            print(f"Word2Vec model file not found at path: {model_path}")
             return None
             
+        print(f"Attempting to load Word2Vec model from: {model_path}")
+        print(f"File exists: {os.path.exists(model_path)}")
+        print(f"File size: {os.path.getsize(model_path) if os.path.exists(model_path) else 'N/A'} bytes")
+            
         from gensim.models import Word2Vec
-        model = Word2Vec.load(model_path)
+        # Gunakan memory mapping untuk mengurangi beban memory
+        print("Loading Word2Vec model with memory mapping...")
+        model = Word2Vec.load(model_path, mmap='r')
+        print("Word2Vec model loaded successfully!")
         return model
         
     except Exception as e:
+        print(f"Error loading Word2Vec model: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return None
 
 def load_naive_bayes_models():
@@ -804,7 +824,6 @@ def wait_for_apify_completion(run_id, max_wait_time=300, check_interval=10):
             
             # Log status changes
             if status != last_status:
-                print(f"Apify run {run_id} status: {status}")
                 last_status = status
             
             if status == 'SUCCEEDED':
@@ -820,7 +839,6 @@ def wait_for_apify_completion(run_id, max_wait_time=300, check_interval=10):
             
         except Exception as e:
             # If we can't check status, wait a bit and try again
-            print(f"Error checking status: {e}")
             time.sleep(check_interval)
     
     return False, 'timeout'
@@ -914,35 +932,24 @@ def scrape_with_apify(platform, keyword, date_from=None, date_to=None, max_resul
     Main function to scrape data using Apify API with comprehensive error handling
     """
     try:
-        print(f"Starting Apify scraping for {platform} with keyword: {keyword}")
-        
         # Start the actor
         run_id, initial_status = start_apify_actor(platform, keyword, date_from, date_to, max_results, instagram_params)
-        print(f"Apify actor started with run ID: {run_id}, initial status: {initial_status}")
         
         # Wait for completion
-        print("Waiting for scraping to complete...")
         success, final_status = wait_for_apify_completion(run_id)
-        print(f"Scraping completed with status: {final_status}")
         
         if success:
             # Get results
-            print("Retrieving scraping results...")
             raw_results = get_apify_run_results(run_id)
-            print(f"Retrieved {len(raw_results)} raw results")
             
             if raw_results and len(raw_results) > 0:
-                print("Processing results...")
                 # Process results based on platform
                 processed_results = process_apify_results(raw_results, platform, max_results)
-                print(f"Processed {len(processed_results)} results")
                 
                 return processed_results, run_id
             else:
                 raise Exception("Tidak ada data yang berhasil di-scrape. Coba dengan keyword yang berbeda atau periksa konfigurasi Apify.")
         else:
-            print(f"Scraping failed: {final_status}")
-            
             # Provide specific error messages based on failure type
             if "failed:" in final_status:
                 raise Exception(f"Scraping gagal: {final_status.replace('failed:', '').strip()}")
@@ -954,8 +961,6 @@ def scrape_with_apify(platform, keyword, date_from=None, date_to=None, max_resul
                 raise Exception(f"Scraping gagal dengan status: {final_status}")
             
     except Exception as e:
-        print(f"Scraping error: {e}")
-        
         # Enhanced error handling with specific Apify error messages
         error_message = str(e)
         

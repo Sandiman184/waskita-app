@@ -65,9 +65,16 @@ python setup_postgresql.py
 Script ini akan:
 - ✅ Membuat database PostgreSQL
 - ✅ Membuat user database
-- ✅ Membuat semua tabel
+- ✅ Membuat semua tabel (termasuk tabel OTP untuk sistem registrasi)
 - ✅ Membuat admin user default
-- ✅ Update file .env
+- ✅ Update file .env dengan konfigurasi lengkap
+
+**Fitur Database Terbaru:**
+- ✅ Sistem OTP untuk registrasi dan login pertama
+- ✅ Tabel `registration_requests` untuk mengelola pendaftaran pengguna
+- ✅ Tabel `admin_notifications` untuk notifikasi admin
+- ✅ Tabel `otp_email_logs` untuk logging email OTP
+- ✅ Index yang dioptimalkan untuk performa query
 
 ### 5. Jalankan Aplikasi
 

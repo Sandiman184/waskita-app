@@ -115,14 +115,22 @@ class DataCleanupScheduler:
                     stats = DatasetStatistics()
                     db.session.add(stats)
                 
-                # Update statistics using the same method as routes.py
-                stats.total_raw_upload = db.session.execute(text("SELECT COUNT(*) FROM raw_data")).scalar() or 0
-                stats.total_raw_scraper = db.session.execute(text("SELECT COUNT(*) FROM raw_data_scraper")).scalar() or 0
-                stats.total_clean_upload = db.session.execute(text("SELECT COUNT(*) FROM clean_data_upload")).scalar() or 0
-                stats.total_clean_scraper = db.session.execute(text("SELECT COUNT(*) FROM clean_data_scraper")).scalar() or 0
-                stats.total_classified = db.session.execute(text("SELECT COUNT(*) FROM classification_results")).scalar() or 0
-                stats.total_radikal = db.session.execute(text("SELECT COUNT(*) FROM classification_results WHERE prediction = 'radikal'")).scalar() or 0
-                stats.total_non_radikal = db.session.execute(text("SELECT COUNT(*) FROM classification_results WHERE prediction = 'non-radikal'")).scalar() or 0
+                # Update statistics - only count data that belongs to existing datasets
+                stats.total_raw_upload = db.session.execute(text("SELECT COUNT(*) FROM raw_data WHERE dataset_id IS NOT NULL")).scalar() or 0
+                stats.total_raw_scraper = db.session.execute(text("SELECT COUNT(*) FROM raw_data_scraper WHERE dataset_id IS NOT NULL")).scalar() or 0
+                stats.total_clean_upload = db.session.execute(text("SELECT COUNT(*) FROM clean_data_upload WHERE dataset_id IS NOT NULL")).scalar() or 0
+                stats.total_clean_scraper = db.session.execute(text("SELECT COUNT(*) FROM clean_data_scraper WHERE raw_data_scraper_id IN (SELECT id FROM raw_data_scraper WHERE dataset_id IS NOT NULL)")).scalar() or 0
+                stats.total_classified = db.session.execute(text("""SELECT COUNT(*) FROM classification_results 
+                WHERE (data_type = 'upload' AND data_id IN (SELECT id FROM clean_data_upload WHERE dataset_id IS NOT NULL))
+                OR (data_type = 'scraper' AND data_id IN (SELECT id FROM clean_data_scraper WHERE raw_data_scraper_id IN (SELECT id FROM raw_data_scraper WHERE dataset_id IS NOT NULL)))""")).scalar() or 0
+                stats.total_radikal = db.session.execute(text("""SELECT COUNT(*) FROM classification_results 
+                WHERE prediction = 'radikal'
+                AND ((data_type = 'upload' AND data_id IN (SELECT id FROM clean_data_upload WHERE dataset_id IS NOT NULL))
+                OR (data_type = 'scraper' AND data_id IN (SELECT id FROM clean_data_scraper WHERE raw_data_scraper_id IN (SELECT id FROM raw_data_scraper WHERE dataset_id IS NOT NULL))))""")).scalar() or 0
+                stats.total_non_radikal = db.session.execute(text("""SELECT COUNT(*) FROM classification_results 
+                WHERE prediction = 'non-radikal'
+                AND ((data_type = 'upload' AND data_id IN (SELECT id FROM clean_data_upload WHERE dataset_id IS NOT NULL))
+                OR (data_type = 'scraper' AND data_id IN (SELECT id FROM clean_data_scraper WHERE raw_data_scraper_id IN (SELECT id FROM raw_data_scraper WHERE dataset_id IS NOT NULL))))""")).scalar() or 0
                 
                 # Calculate percentages
                 if stats.total_classified > 0:

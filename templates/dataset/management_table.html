@@ -964,14 +964,62 @@ $(document).ready(function() {
                     },
                     success: function(data) {
                         if (data.success) {
-                            Swal.fire('Berhasil', 'Dataset berhasil dihapus', 'success')
-                                .then(() => location.reload());
+                            if (typeof swalSuccess === 'function') {
+                                swalSuccess('Berhasil', 'Dataset berhasil dihapus').then(() => {
+                                    location.reload();
+                                    // Update dashboard stats after successful deletion
+                                    updateDashboardStatsAfterDeletion();
+                                });
+                            } else {
+                                Swal.fire({
+                                    icon: 'success',
+                                    title: 'Berhasil',
+                                    text: 'Dataset berhasil dihapus',
+                                    customClass: {
+                                        popup: 'swal2-popup',
+                                        title: 'swal2-title',
+                                        htmlContainer: 'swal2-html-container',
+                                        actions: 'swal2-actions',
+                                        confirmButton: 'swal2-confirm'
+                                    }
+                                }).then(() => {
+                                    location.reload();
+                                    // Update dashboard stats after successful deletion
+                                    updateDashboardStatsAfterDeletion();
+                                });
+                            }
                         } else {
-                            Swal.fire('Error', data.message, 'error');
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'Error',
+                                text: data.message,
+                                customClass: {
+                                    popup: 'swal2-popup',
+                                    title: 'swal2-title',
+                                    htmlContainer: 'swal2-html-container',
+                                    actions: 'swal2-actions',
+                                    confirmButton: 'swal2-confirm'
+                                }
+                            });
                         }
                     },
                     error: function() {
-                        Swal.fire('Error', 'Gagal menghapus dataset', 'error');
+                        if (typeof swalError === 'function') {
+                            swalError('Error', 'Gagal menghapus dataset');
+                        } else {
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'Error',
+                                text: 'Gagal menghapus dataset',
+                                customClass: {
+                                    popup: 'swal2-popup',
+                                    title: 'swal2-title',
+                                    htmlContainer: 'swal2-html-container',
+                                    actions: 'swal2-actions',
+                                    confirmButton: 'swal2-confirm'
+                                }
+                            });
+                        }
                     }
                 });
             }
@@ -985,7 +1033,22 @@ $(document).ready(function() {
         }).get();
         
         if (selectedIds.length === 0) {
-             Swal.fire('Peringatan', 'Pilih minimal satu dataset untuk dibersihkan', 'warning');
+             if (typeof swalWarning === 'function') {
+                 swalWarning('Peringatan', 'Pilih minimal satu dataset untuk dibersihkan');
+             } else {
+                 Swal.fire({
+                     icon: 'warning',
+                     title: 'Peringatan',
+                     text: 'Pilih minimal satu dataset untuk dibersihkan',
+                     customClass: {
+                         popup: 'swal2-popup',
+                         title: 'swal2-title',
+                         htmlContainer: 'swal2-html-container',
+                         actions: 'swal2-actions',
+                         confirmButton: 'swal2-confirm'
+                     }
+                 });
+             }
              return;
          }
      
@@ -1009,25 +1072,57 @@ $(document).ready(function() {
                 data: JSON.stringify({ dataset_ids: selectedIds }),
                 success: function(data) {
                     if (data.success) {
-                        let message = data.message;
-                        if (data.errors && data.errors.length > 0) {
-                            message += `\n\nError pada beberapa dataset:\n${data.errors.join('\n')}`;
+                            let message = data.message;
+                            if (data.errors && data.errors.length > 0) {
+                                message += `\n\nError pada beberapa dataset:\n${data.errors.join('\n')}`;
+                            }
+                            
+                            // Tentukan jenis notifikasi berdasarkan status
+                            let icon = 'success';
+                            if (data.already_cleaned > 0 && data.processed === 0) {
+                                icon = 'info';
+                            }
+                            
+                            Swal.fire({
+                                icon: icon,
+                                title: icon === 'success' ? 'Berhasil' : 'Info',
+                                text: message,
+                                customClass: {
+                                    popup: 'swal2-popup',
+                                    title: 'swal2-title',
+                                    htmlContainer: 'swal2-html-container',
+                                    actions: 'swal2-actions',
+                                    confirmButton: 'swal2-confirm'
+                                }
+                            }).then(() => location.reload());
+                        } else {
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'Error',
+                                text: data.message,
+                                customClass: {
+                                    popup: 'swal2-popup',
+                                    title: 'swal2-title',
+                                    htmlContainer: 'swal2-html-container',
+                                    actions: 'swal2-actions',
+                                    confirmButton: 'swal2-confirm'
+                                }
+                            });
                         }
-                        
-                        // Tentukan jenis notifikasi berdasarkan status
-                        let icon = 'success';
-                        if (data.already_cleaned > 0 && data.processed === 0) {
-                            icon = 'info';
-                        }
-                        
-                        Swal.fire('Berhasil', message, icon)
-                            .then(() => location.reload());
-                    } else {
-                        Swal.fire('Error', data.message, 'error');
-                    }
                 },
                 error: function(xhr, status, error) {
-                    Swal.fire('Error', 'Gagal membersihkan dataset', 'error');
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error',
+                        text: 'Gagal membersihkan dataset',
+                        customClass: {
+                            popup: 'swal2-popup',
+                            title: 'swal2-title',
+                            htmlContainer: 'swal2-html-container',
+                            actions: 'swal2-actions',
+                            confirmButton: 'swal2-confirm'
+                        }
+                    });
                 }
             });
         }
@@ -1040,7 +1135,18 @@ $(document).ready(function() {
     }).get();
     
     if (selectedIds.length === 0) {
-        Swal.fire('Peringatan', 'Pilih dataset terlebih dahulu', 'warning');
+        Swal.fire({
+            icon: 'warning',
+            title: 'Peringatan',
+            text: 'Pilih dataset terlebih dahulu',
+            customClass: {
+                popup: 'swal2-popup',
+                title: 'swal2-title',
+                htmlContainer: 'swal2-html-container',
+                actions: 'swal2-actions',
+                confirmButton: 'swal2-confirm'
+            }
+        });
         return;
     }
     
@@ -1063,25 +1169,65 @@ $(document).ready(function() {
                 data: JSON.stringify({ dataset_ids: selectedIds }),
                 success: function(data) {
                     if (data.success) {
-                        let message = data.message;
-                        if (data.errors && data.errors.length > 0) {
-                            message += `\n\nError pada beberapa dataset:\n${data.errors.join('\n')}`;
+                            let message = data.message;
+                            if (data.errors && data.errors.length > 0) {
+                                message += `\n\nError pada beberapa dataset:\n${data.errors.join('\n')}`;
+                            }
+                            
+                            // Tentukan jenis notifikasi berdasarkan status
+                            let icon = 'success';
+                            if (data.already_classified > 0 && data.processed === 0) {
+                                icon = 'info';
+                            }
+                            
+                            Swal.fire({
+                                icon: icon,
+                                title: icon === 'success' ? 'Berhasil' : 'Info',
+                                text: message,
+                                customClass: {
+                                    popup: 'swal2-popup',
+                                    title: 'swal2-title',
+                                    htmlContainer: 'swal2-html-container',
+                                    actions: 'swal2-actions',
+                                    confirmButton: 'swal2-confirm'
+                                }
+                            }).then(() => location.reload());
+                        } else {
+                            if (typeof swalError === 'function') {
+                                swalError('Error', data.message);
+                            } else {
+                                Swal.fire({
+                                    icon: 'error',
+                                    title: 'Error',
+                                    text: data.message,
+                                    customClass: {
+                                        popup: 'swal2-popup',
+                                        title: 'swal2-title',
+                                        htmlContainer: 'swal2-html-container',
+                                        actions: 'swal2-actions',
+                                        confirmButton: 'swal2-confirm'
+                                    }
+                                });
+                            }
                         }
-                        
-                        // Tentukan jenis notifikasi berdasarkan status
-                        let icon = 'success';
-                        if (data.already_classified > 0 && data.processed === 0) {
-                            icon = 'info';
-                        }
-                        
-                        Swal.fire('Berhasil', message, icon)
-                            .then(() => location.reload());
-                    } else {
-                        Swal.fire('Error', data.message, 'error');
-                    }
                 },
                 error: function() {
-                    Swal.fire('Error', 'Gagal mengklasifikasi dataset', 'error');
+                    if (typeof swalError === 'function') {
+                        swalError('Error', 'Gagal mengklasifikasi dataset');
+                    } else {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Error',
+                            text: 'Gagal mengklasifikasi dataset',
+                            customClass: {
+                                popup: 'swal2-popup',
+                                title: 'swal2-title',
+                                htmlContainer: 'swal2-html-container',
+                                actions: 'swal2-actions',
+                                confirmButton: 'swal2-confirm'
+                            }
+                        });
+                    }
                 }
             });
         }
@@ -1094,7 +1240,22 @@ $(document).ready(function() {
         }).get();
         
         if (selectedIds.length === 0) {
-            Swal.fire('Peringatan', 'Pilih dataset terlebih dahulu', 'warning');
+            if (typeof swalWarning === 'function') {
+                swalWarning('Peringatan', 'Pilih dataset terlebih dahulu');
+            } else {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Peringatan',
+                    text: 'Pilih dataset terlebih dahulu',
+                    customClass: {
+                        popup: 'swal2-popup',
+                        title: 'swal2-title',
+                        htmlContainer: 'swal2-html-container',
+                        actions: 'swal2-actions',
+                        confirmButton: 'swal2-confirm'
+                    }
+                });
+            }
             return;
         }
         
@@ -1122,19 +1283,88 @@ $(document).ready(function() {
                             if (data.errors && data.errors.length > 0) {
                                 message += `\n\nError pada beberapa dataset:\n${data.errors.join('\n')}`;
                             }
-                            Swal.fire('Berhasil', message, 'success')
-                                .then(() => location.reload());
+                            if (typeof swalSuccess === 'function') {
+                                swalSuccess('Berhasil', message).then(() => {
+                                    location.reload();
+                                    updateDashboardStatsAfterDeletion();
+                                });
+                            } else {
+                                Swal.fire({
+                                    icon: 'success',
+                                    title: 'Berhasil',
+                                    text: message,
+                                    customClass: {
+                                        popup: 'swal2-popup',
+                                        title: 'swal2-title',
+                                        htmlContainer: 'swal2-html-container',
+                                        actions: 'swal2-actions',
+                                        confirmButton: 'swal2-confirm'
+                                    }
+                                }).then(() => {
+                                    location.reload();
+                                    updateDashboardStatsAfterDeletion();
+                                });
+                            }
                         } else {
-                            Swal.fire('Error', data.message, 'error');
+                            if (typeof swalError === 'function') {
+                                swalError('Error', data.message);
+                            } else {
+                                Swal.fire({
+                                    icon: 'error',
+                                    title: 'Error',
+                                    text: data.message,
+                                    customClass: {
+                                        popup: 'swal2-popup',
+                                        title: 'swal2-title',
+                                        htmlContainer: 'swal2-html-container',
+                                        actions: 'swal2-actions',
+                                        confirmButton: 'swal2-confirm'
+                                    }
+                                });
+                            }
                         }
                     },
                     error: function() {
-                        Swal.fire('Error', 'Gagal menghapus dataset', 'error');
+                        if (typeof swalError === 'function') {
+                            swalError('Error', 'Gagal menghapus dataset');
+                        } else {
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'Error',
+                                text: 'Gagal menghapus dataset',
+                                customClass: {
+                                    popup: 'swal2-popup',
+                                    title: 'swal2-title',
+                                    htmlContainer: 'swal2-html-container',
+                                    actions: 'swal2-actions',
+                                    confirmButton: 'swal2-confirm'
+                                }
+                            });
+                        }
                     }
                 });
             }
         });
     };
+    
+    // Function to update dashboard stats after deletion
+    function updateDashboardStatsAfterDeletion() {
+        fetch('/dashboard/stats')
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
+            .then(data => {
+                
+                // We don't need to update UI here since we're reloading the page
+                // This is just to trigger the statistics update on the server side
+            })
+            .catch(error => {
+                console.error('Error updating dashboard stats after deletion:', error);
+            });
+    }
     
     // All bulk operation functions are now defined
 });

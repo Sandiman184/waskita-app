@@ -97,12 +97,13 @@ class OTPEmailLog(db.Model):
     __tablename__ = 'otp_email_logs'
     
     id = db.Column(db.Integer, primary_key=True)
-    registration_request_id = db.Column(db.Integer, db.ForeignKey('registration_requests.id'), nullable=False)
+    registration_request_id = db.Column(db.Integer, db.ForeignKey('registration_requests.id'), nullable=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     
     # Email Fields
     recipient_email = db.Column(db.String(120), nullable=False)
     subject = db.Column(db.String(200), nullable=False)
-    email_type = db.Column(db.String(50), nullable=False)  # otp_notification, approval_notification
+    email_type = db.Column(db.String(50), nullable=False)  # otp_notification, approval_notification, first_login_otp
     
     # Status Fields
     is_sent = db.Column(db.Boolean, default=False)
@@ -114,3 +115,4 @@ class OTPEmailLog(db.Model):
     
     # Relationships
     registration_request = relationship('RegistrationRequest', backref='email_logs')
+    user = relationship('User', backref='otp_email_logs')

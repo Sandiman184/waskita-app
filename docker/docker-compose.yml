@@ -2,11 +2,11 @@ services:
   # PostgreSQL Database
   db:
     image: postgres:15-alpine
-    container_name: waskita_postgres
+    container_name: waskita-app-postgres
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-waskita_db}
-      POSTGRES_USER: ${POSTGRES_USER:-waskita_user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-waskita_password123}
+      POSTGRES_DB: ${DATABASE_NAME:-waskita_db}
+      POSTGRES_USER: ${DATABASE_USER:-postgres}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:-Sandiman184}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
@@ -14,6 +14,15 @@ services:
     networks:
       - waskita_network
     restart: unless-stopped
+    # Resource limits for database
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '2'
+        reservations:
+          memory: 512M
+          cpus: '1'
     # Security improvements
     security_opt:
       - no-new-privileges:true
@@ -25,12 +34,21 @@ services:
   # Redis for caching
   redis:
     image: redis:7-alpine
-    container_name: waskita_redis
+    container_name: waskita-app-redis
     ports:
       - "${REDIS_PORT:-6379}:6379"
     networks:
       - waskita_network
     restart: unless-stopped
+    # Resource limits for Redis
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
+        reservations:
+          memory: 128M
+          cpus: '0.25'
     # Security improvements
     security_opt:
       - no-new-privileges:true
@@ -41,38 +59,56 @@ services:
   # Waskita Application
   web:
     build:
-      context: .
+      context: ..
       dockerfile: Dockerfile
-    container_name: waskita_web
-    env_file:
-      - .env
+    container_name: waskita-app-web
     environment:
       - FLASK_ENV=${FLASK_ENV:-production}
       - FLASK_DEBUG=${FLASK_DEBUG:-0}
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-waskita_user}:${POSTGRES_PASSWORD:-waskita_password123}@db:5432/${POSTGRES_DB:-waskita_db}
+      - DATABASE_URL=postgresql://${DATABASE_USER:-postgres}:${DATABASE_PASSWORD:-Sandiman184}@waskita-app-postgres:5432/${DATABASE_NAME:-waskita_db}
       - SECRET_KEY=${SECRET_KEY:-your-super-secret-key-change-this-in-production}
-      - REDIS_URL=redis://redis:6379/0
+      - REDIS_URL=redis://waskita-app-redis:6379/0
       - CREATE_SAMPLE_DATA=${CREATE_SAMPLE_DATA:-false}
+      # Email configuration
+      - MAIL_SERVER=${MAIL_SERVER:-smtp.gmail.com}
+      - MAIL_PORT=${MAIL_PORT:-587}
+      - MAIL_USE_TLS=${MAIL_USE_TLS:-true}
+      - MAIL_USE_SSL=${MAIL_USE_SSL:-false}
+      - MAIL_USERNAME=${MAIL_USERNAME:-}
+      - MAIL_PASSWORD=${MAIL_PASSWORD:-}
+      - MAIL_DEFAULT_SENDER=${MAIL_DEFAULT_SENDER:-}
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-}
+      - ADMIN_EMAILS=${ADMIN_EMAILS:-}
+      - SEND_EMAIL_NOTIFICATIONS=${SEND_EMAIL_NOTIFICATIONS:-true}
+      - OTP_LENGTH=${OTP_LENGTH:-6}
+      - OTP_EXPIRY_MINUTES=${OTP_EXPIRY_MINUTES:-30}
+      - BASE_URL=${BASE_URL:-http://localhost:5000}
       # Model paths for container
       - WORD2VEC_MODEL_PATH=/app/models/embeddings/wiki_word2vec_csv_updated.model
       - NAIVE_BAYES_MODEL1_PATH=/app/models/navesbayes/naive_bayes_model1.pkl
       - NAIVE_BAYES_MODEL2_PATH=/app/models/navesbayes/naive_bayes_model2.pkl
       - NAIVE_BAYES_MODEL3_PATH=/app/models/navesbayes/naive_bayes_model3.pkl
     volumes:
+      # Only mount necessary volumes for Docker environment
       - ./uploads:/app/uploads
-      - ./logs:/app/logs
-      - ./static/uploads:/app/static/uploads
     ports:
       - "${WEB_PORT:-5000}:5000"
     depends_on:
       - db
       - redis
-    # Initialize admin user on first run
-    command: >
-      sh -c "python /app/create_admin.py && python app.py"
+    # Use entrypoint script for automatic database initialization
     networks:
       - waskita_network
     restart: unless-stopped
+    # Resource limits to prevent memory overload - increased for Word2Vec model
+    deploy:
+      resources:
+        limits:
+          memory: 6G
+          cpus: '4'
+        reservations:
+          memory: 4G
+          cpus: '2'
     # Security improvements
     security_opt:
       - no-new-privileges:true
@@ -92,7 +128,7 @@ services:
   # Nginx Reverse Proxy
   nginx:
     image: nginx:alpine
-    container_name: waskita_nginx
+    container_name: waskita-app-nginx
     ports:
       - "${NGINX_HTTP_PORT:-80}:80"
       - "${NGINX_HTTPS_PORT:-443}:443"

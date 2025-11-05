@@ -5,7 +5,7 @@
 
 // Initialize when DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('Waskita Application - JavaScript Loaded');
+    
     
     // Initialize all components
     initializeFlashMessages();

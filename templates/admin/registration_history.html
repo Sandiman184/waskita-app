@@ -292,6 +292,9 @@
                             <a href="{{ url_for('otp.pending_registrations') }}" class="btn btn-warning btn-sm">
                                 <i class="fas fa-clock mr-1"></i> Pending Registrations
                             </a>
+                            <button type="button" class="btn btn-danger btn-sm" onclick="showDeleteAllModal()">
+                                <i class="fas fa-trash mr-1"></i> Hapus Semua
+                            </button>
                         </div>
                     </div>
                     <div class="card-body">
@@ -308,7 +311,6 @@
                                         <th style="width: 100px;">Status</th>
                                         <th style="width: 120px;">Diproses Oleh</th>
                                         <th style="width: 140px;">Waktu Diproses</th>
-                                        <th style="width: 200px;">Catatan Admin</th>
                                         <th style="width: 100px;">Actions</th>
                                     </tr>
                                 </thead>
@@ -389,16 +391,7 @@
                                                 <span class="text-muted">-</span>
                                             {% endif %}
                                         </td>
-                                        <td>
-                                            {% if request.admin_notes %}
-                                                <div class="notes-cell" title="{{ request.admin_notes }}">
-                                                    <i class="fas fa-sticky-note text-warning mr-1"></i>
-                                                    {{ request.admin_notes[:50] }}{% if request.admin_notes|length > 50 %}...{% endif %}
-                                                </div>
-                                            {% else %}
-                                                <span class="text-muted">-</span>
-                                            {% endif %}
-                                        </td>
+
                                         <td>
                                             {% if request.status != 'pending' %}
                                                 <div class="action-buttons">
@@ -490,6 +483,51 @@
 {% endblock %}
 
 {% block extra_js %}
+<!-- Modal untuk Hapus Semua Riwayat -->
+<div class="modal fade" id="deleteAllModal" tabindex="-1" role="dialog" aria-labelledby="deleteAllModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="deleteAllModalLabel">
+                    <i class="fas fa-exclamation-triangle mr-2"></i>
+                    Konfirmasi Hapus Semua Riwayat
+                </h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle mr-2"></i>
+                    <strong>Hapus Semua Riwayat?</strong>
+                </div>
+                
+                <p class="mb-3">Tindakan ini akan menghapus semua riwayat registrasi yang sudah diproses (disetujui/ditolak/expired).</p>
+                
+                <div class="alert alert-danger">
+                    <i class="fas fa-ban mr-2"></i>
+                    <strong>Tidak dapat dibatalkan!</strong> Data yang dihapus tidak dapat dikembalikan.
+                </div>
+                
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" id="confirmDeleteAll">
+                    <label class="form-check-label text-danger" for="confirmDeleteAll">
+                        Saya mengerti dan ingin melanjutkan
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">
+                    <i class="fas fa-times mr-1"></i> Batal
+                </button>
+                <button type="button" class="btn btn-danger" id="deleteAllBtn" disabled>
+                    <i class="fas fa-trash mr-1"></i> Ya, Hapus Semua
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 $(document).ready(function() {
     // Load statistics on page load
@@ -509,7 +547,7 @@ function loadStatistics() {
             $('#pendingCount').text(data.pending || 0);
         },
         error: function() {
-            console.log('Failed to load statistics');
+            
         }
     });
 }
@@ -537,6 +575,98 @@ function refreshStats() {
     }, 1500);
 }
 
+function showDeleteAllModal() {
+    $('#deleteAllModal').modal('show');
+}
+
+// Enable/disable delete button based on checkbox
+$('#confirmDeleteAll').change(function() {
+    $('#deleteAllBtn').prop('disabled', !$(this).is(':checked'));
+});
+
+// Handle delete all action
+$('#deleteAllBtn').click(function() {
+    const csrfToken = $('meta[name=csrf-token]').attr('content');
+    
+    // Show loading state
+    $(this).prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i> Menghapus...');
+    
+    $.ajax({
+        url: '{{ url_for("otp.delete_all_registration_history") }}',
+        type: 'POST',
+        headers: {
+            'X-CSRFToken': csrfToken
+        },
+        success: function(response) {
+            $('#deleteAllModal').modal('hide');
+            
+            if (response.success) {
+                if (typeof swalSuccess === 'function') {
+                    swalSuccess('Berhasil!', response.message).then(() => {
+                        location.reload();
+                    });
+                } else {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Berhasil!',
+                        text: response.message,
+                        customClass: {
+                            popup: 'swal2-popup',
+                            title: 'swal2-title',
+                            htmlContainer: 'swal2-html-container',
+                            actions: 'swal2-actions',
+                            confirmButton: 'swal2-confirm'
+                        }
+                    }).then(() => {
+                        location.reload();
+                    });
+                }
+            } else {
+                if (typeof swalError === 'function') {
+                    swalError('Error!', 'Gagal menghapus semua riwayat: ' + response.message);
+                } else {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error!',
+                        text: 'Gagal menghapus semua riwayat: ' + response.message,
+                        customClass: {
+                            popup: 'swal2-popup',
+                            title: 'swal2-title',
+                            htmlContainer: 'swal2-html-container',
+                            actions: 'swal2-actions',
+                            confirmButton: 'swal2-confirm'
+                        }
+                    });
+                }
+            }
+        },
+        error: function() {
+            $('#deleteAllModal').modal('hide');
+            if (typeof swalError === 'function') {
+                swalError('Error!', 'Terjadi kesalahan sistem');
+            } else {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error!',
+                    text: 'Terjadi kesalahan sistem',
+                    customClass: {
+                        popup: 'swal2-popup',
+                        title: 'swal2-title',
+                        htmlContainer: 'swal2-html-container',
+                        actions: 'swal2-actions',
+                        confirmButton: 'swal2-confirm'
+                    }
+                });
+            }
+        },
+        complete: function() {
+            // Reset modal state
+            $('#confirmDeleteAll').prop('checked', false);
+            $('#deleteAllBtn').prop('disabled', true).html('<i class="fas fa-trash mr-1"></i> Ya, Hapus Semua');
+        }
+    });
+});
+
 function deleteHistory(requestId) {
     Swal.fire({
         title: 'Konfirmasi Hapus Riwayat',
@@ -558,15 +688,62 @@ function deleteHistory(requestId) {
                 },
                 success: function(response) {
                     if (response.success) {
-                        Swal.fire('Berhasil!', response.message, 'success').then(() => {
-                            location.reload();
-                        });
+                        if (typeof swalSuccess === 'function') {
+                            swalSuccess('Berhasil!', response.message).then(() => {
+                                location.reload();
+                            });
+                        } else {
+                            Swal.fire({
+                                icon: 'success',
+                                title: 'Berhasil!',
+                                text: response.message,
+                                customClass: {
+                                    popup: 'swal2-popup',
+                                    title: 'swal2-title',
+                                    htmlContainer: 'swal2-html-container',
+                                    actions: 'swal2-actions',
+                                    confirmButton: 'swal2-confirm'
+                                }
+                            }).then(() => {
+                                location.reload();
+                            });
+                        }
                     } else {
-                        Swal.fire('Error!', 'Gagal menghapus riwayat: ' + response.message, 'error');
+                        if (typeof swalError === 'function') {
+                            swalError('Error!', 'Gagal menghapus riwayat: ' + response.message);
+                        } else {
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'Error!',
+                                text: 'Gagal menghapus riwayat: ' + response.message,
+                                customClass: {
+                                    popup: 'swal2-popup',
+                                    title: 'swal2-title',
+                                    htmlContainer: 'swal2-html-container',
+                                    actions: 'swal2-actions',
+                                    confirmButton: 'swal2-confirm'
+                                }
+                            });
+                        }
                     }
                 },
                 error: function() {
-                    Swal.fire('Error!', 'Terjadi kesalahan sistem', 'error');
+                    if (typeof swalError === 'function') {
+                        swalError('Error!', 'Terjadi kesalahan sistem');
+                    } else {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Error!',
+                            text: 'Terjadi kesalahan sistem',
+                            customClass: {
+                                popup: 'swal2-popup',
+                                title: 'swal2-title',
+                                htmlContainer: 'swal2-html-container',
+                                actions: 'swal2-actions',
+                                confirmButton: 'swal2-confirm'
+                            }
+                        });
+                    }
                 }
             });
         }

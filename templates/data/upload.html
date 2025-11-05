@@ -24,7 +24,7 @@
                             Upload File Data Media Sosial
                         </h3>
                     </div>
-                    <form id="uploadForm" enctype="multipart/form-data">
+                    <form id="uploadForm" enctype="multipart/form-data" method="post" action="/upload_data">
                         <div class="card-body">
                             <div class="row">
 
@@ -239,8 +239,112 @@
 
 {% block extra_js %}
 <script>
+// Fallback helpers to keep UX working without jQuery/SweetAlert
+function safeSwalError(title, message) {
+    if (typeof window.swalError === 'function') {
+        window.swalError(title, message);
+    } else {
+        alert((title ? title + ': ' : '') + (message || 'Terjadi kesalahan'));
+    }
+}
+function safeSwalSuccess(title, message) {
+    if (typeof window.swalSuccess === 'function') {
+        window.swalSuccess(title, message);
+    }
+}
+function showLoadingSafe() { if (typeof window.showLoading === 'function') window.showLoading(); }
+function hideLoadingSafe() { if (typeof window.hideLoading === 'function') window.hideLoading(); }
+
+// Vanilla JS fallback when jQuery is unavailable
+if (typeof $ === 'undefined') {
+    document.addEventListener('DOMContentLoaded', function() {
+        var uploadForm = document.getElementById('uploadForm');
+        var fileInput = document.getElementById('file');
+        var fileLabel = document.querySelector('label.custom-file-label[for="file"]') || document.querySelector('.custom-file-label');
+
+        if (fileInput) {
+            fileInput.addEventListener('change', function() {
+                var fname = '';
+                if (this.files && this.files.length > 0) {
+                    fname = this.files[0].name;
+                } else if (this.value) {
+                    fname = this.value.split('\\').pop();
+                }
+                if (fileLabel && fname) {
+                    fileLabel.textContent = fname;
+                    fileLabel.classList.add('selected');
+                }
+            });
+        }
+
+        if (uploadForm) {
+            uploadForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+
+                if (!fileInput || !fileInput.files || !fileInput.files.length) {
+                    safeSwalError('Error', 'Silakan pilih file untuk diupload');
+                    return;
+                }
+
+                var fileName = fileInput.files[0].name || '';
+                var ext = (fileName.split('.').pop() || '').toLowerCase();
+                if (['csv', 'xlsx', 'xls'].indexOf(ext) === -1) {
+                    safeSwalError('Error', 'Format file tidak didukung. Gunakan CSV atau Excel.');
+                    return;
+                }
+
+                showLoadingSafe();
+
+                var formData = new FormData(uploadForm);
+                var csrfMeta = document.querySelector('meta[name=csrf-token]');
+                var csrfToken = csrfMeta ? csrfMeta.getAttribute('content') : null;
+                if (csrfToken) {
+                    formData.append('csrf_token', csrfToken);
+                }
+
+                fetch('/upload_data', {
+                    method: 'POST',
+                    body: formData,
+                    headers: csrfToken ? { 'X-CSRFToken': csrfToken } : {}
+                }).then(function(res) {
+                    return res.json();
+                }).then(function(response) {
+                    hideLoadingSafe();
+                    if (response && response.success) {
+                        if (response.show_mapping) {
+                            if (typeof window.showColumnMappingModal === 'function') {
+                                window.showColumnMappingModal(response.columns, response.sample_data, response.filename);
+                            } else {
+                                safeSwalSuccess('Berhasil', 'Upload berhasil. Fitur mapping membutuhkan jQuery/Bootstrap.');
+                            }
+                        } else {
+                            // Reset form
+                            uploadForm.reset();
+                            if (fileLabel) {
+                                fileLabel.classList.remove('selected');
+                                fileLabel.textContent = 'Pilih file...';
+                            }
+                            // Try refresh data if functions exist
+                            if (typeof window.loadRecentUploads === 'function') window.loadRecentUploads();
+                            if (typeof window.updateStatistics === 'function') window.updateStatistics();
+                        }
+                    } else {
+                        safeSwalError('Error', (response && response.message) || 'Terjadi kesalahan saat mengupload file');
+                    }
+                }).catch(function(err) {
+                    hideLoadingSafe();
+                    console.error('Upload error (fallback):', err);
+                    safeSwalError('Error', 'Terjadi kesalahan saat mengupload file');
+                });
+            });
+        }
+    });
+}
+
+// jQuery path (preferred)
 $(document).ready(function() {
     if (typeof $ === 'undefined') {
+        // jQuery tidak tersedia, vanilla fallback di atas akan menangani
         return;
     }
     
@@ -264,7 +368,7 @@ $(document).ready(function() {
         let fileInput = $('#file')[0];
         
         if (!fileInput.files.length) {
-            showAlert('error', 'Error', 'Silakan pilih file untuk diupload');
+            swalError('Error', 'Silakan pilih file untuk diupload');
             return;
         }
         
@@ -273,7 +377,7 @@ $(document).ready(function() {
         let fileExtension = fileName.split('.').pop().toLowerCase();
         
         if (!['csv', 'xlsx', 'xls'].includes(fileExtension)) {
-            showAlert('error', 'Error', 'Format file tidak didukung. Gunakan CSV atau Excel.');
+            swalError('Error', 'Format file tidak didukung. Gunakan CSV atau Excel.');
             return;
         }
         
@@ -301,13 +405,14 @@ $(document).ready(function() {
                         // Show column mapping modal
                         showColumnMappingModal(response.columns, response.sample_data, response.filename);
                     } else {
-                        showAlert('success', 'Berhasil', response.message);
+                        // Reset form and update data without showing notification
+                        // Notification will be shown after column mapping process
                         resetForm();
                         loadRecentUploads();
                         updateStatistics();
                     }
                 } else {
-                    showAlert('error', 'Error', response.message);
+                    swalError('Error', response.message);
                 }
             },
             error: function(xhr, status, error) {
@@ -330,7 +435,7 @@ $(document).ready(function() {
                 }
                 
                 // Show error with status code
-                showAlert('error', `Error ${xhr.status || ''}`, errorMessage);
+                swalError(`Error ${xhr.status || ''}`, errorMessage);
                 
                 // Log error to console for debugging
                 console.error('Upload failed:', {
@@ -345,22 +450,28 @@ $(document).ready(function() {
     // Drag and drop functionality
     let dropArea = $('.card-body');
     
-    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-        dropArea[0].addEventListener(eventName, preventDefaults, false);
-    });
+    if (dropArea.length > 0) {
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropArea[0].addEventListener(eventName, preventDefaults, false);
+        });
+    }
     
     function preventDefaults(e) {
         e.preventDefault();
         e.stopPropagation();
     }
     
-    ['dragenter', 'dragover'].forEach(eventName => {
-        dropArea[0].addEventListener(eventName, highlight, false);
-    });
+    if (dropArea.length > 0) {
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropArea[0].addEventListener(eventName, highlight, false);
+        });
+    }
     
-    ['dragleave', 'drop'].forEach(eventName => {
-        dropArea[0].addEventListener(eventName, unhighlight, false);
-    });
+    if (dropArea.length > 0) {
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropArea[0].addEventListener(eventName, unhighlight, false);
+        });
+    }
     
     function highlight(e) {
         dropArea.addClass('drag-over');
@@ -370,7 +481,9 @@ $(document).ready(function() {
         dropArea.removeClass('drag-over');
     }
     
-    dropArea[0].addEventListener('drop', handleDrop, false);
+    if (dropArea.length > 0) {
+        dropArea[0].addEventListener('drop', handleDrop, false);
+    }
     
     function handleDrop(e) {
         let dt = e.dataTransfer;
@@ -393,54 +506,54 @@ function resetForm() {
 }
 
 function initializeDataTable() {
-    // Destroy existing DataTable if it exists
-    if ($.fn.DataTable.isDataTable('#recentUploadsTable')) {
-        $('#recentUploadsTable').DataTable().destroy();
-    }
-    
     // Check if table exists and has proper structure
     const table = $('#recentUploadsTable');
-    const hasHeaders = table.find('thead th').length === 7;
+    const hasHeaders = table.find('thead th').length === 6; // Changed from 7 to 6 columns
     const hasRows = table.find('tbody tr').length > 0;
     
     if (table.length > 0 && hasHeaders && hasRows) {
         try {
-            table.DataTable({
-            "responsive": true,
-            "lengthChange": false,
-            "autoWidth": false,
-            "pageLength": 5,
-            "searching": true,
-            "ordering": true,
-            "info": true,
-            "paging": true,
-            "language": {
-                "decimal": "",
-                "emptyTable": "Tidak ada data yang tersedia pada tabel ini",
-                "info": "Menampilkan _START_ sampai _END_ dari _TOTAL_ entri",
-                "infoEmpty": "Menampilkan 0 sampai 0 dari 0 entri",
-                "infoFiltered": "(disaring dari _MAX_ entri keseluruhan)",
-                "infoPostFix": "",
-                "thousands": ",",
-                "lengthMenu": "Tampilkan _MENU_ entri",
-                "loadingRecords": "Sedang memuat...",
-                "processing": "Sedang memproses...",
-                "search": "Cari:",
-                "zeroRecords": "Tidak ditemukan data yang sesuai",
-                "paginate": {
-                    "first": "Pertama",
-                    "last": "Terakhir",
-                    "next": "Selanjutnya",
-                    "previous": "Sebelumnya"
-                },
-                "aria": {
-                    "sortAscending": ": aktifkan untuk mengurutkan kolom naik",
-                    "sortDescending": ": aktifkan untuk mengurutkan kolom turun"
-                }
+            // First destroy any existing DataTable
+            if ($.fn.DataTable.isDataTable('#recentUploadsTable')) {
+                $('#recentUploadsTable').DataTable().destroy();
             }
-        });
+            
+            table.DataTable({
+                "responsive": true,
+                "lengthChange": false,
+                "autoWidth": false,
+                "pageLength": 5,
+                "searching": true,
+                "ordering": true,
+                "info": true,
+                "paging": true,
+                "language": {
+                    "decimal": "",
+                    "emptyTable": "Tidak ada data yang tersedia pada tabel ini",
+                    "info": "Menampilkan _START_ sampai _END_ dari _TOTAL_ entri",
+                    "infoEmpty": "Menampilkan 0 sampai 0 dari 0 entri",
+                    "infoFiltered": "(disaring dari _MAX_ entri keseluruhan)",
+                    "infoPostFix": "",
+                    "thousands": ",",
+                    "lengthMenu": "Tampilkan _MENU_ entri",
+                    "loadingRecords": "Sedang memuat...",
+                    "processing": "Sedang memproses...",
+                    "search": "Cari:",
+                    "zeroRecords": "Tidak ditemukan data yang sesuai",
+                    "paginate": {
+                        "first": "Pertama",
+                        "last": "Terakhir",
+                        "next": "Selanjutnya",
+                        "previous": "Sebelumnya"
+                    },
+                    "aria": {
+                        "sortAscending": ": aktifkan untuk mengurutkan kolom naik",
+                        "sortDescending": ": aktifkan untuk mengurutkan kolom turun"
+                    }
+                }
+            });
         } catch (error) {
-            // DataTable initialization failed
+            console.error('DataTable initialization failed:', error);
         }
     }
 }
@@ -456,7 +569,9 @@ function loadRecentUploads(page = 1, limit = 10) {
     $('#recentUploadsTable tbody').empty();
     
     // Remove any DataTable wrapper elements that might cause issues
-    $('#recentUploadsTable_wrapper').remove();
+    if ($('#recentUploadsTable_wrapper').length) {
+        $('#recentUploadsTable_wrapper').remove();
+    }
     
     // Remove any DataTable classes that might interfere
     $('#recentUploadsTable').removeClass('dataTable no-footer');
@@ -630,14 +745,15 @@ function populatePreviewTable(columns, sampleData) {
     });
 }
 
-// Handle process mapping button click
+// Handle process mapping button click (guard against missing jQuery)
+if (typeof $ !== 'undefined') {
 $(document).on('click', '#processMappingBtn', function() {
     const contentColumn = $('#contentColumnSelect').val();
     const usernameColumn = $('#usernameColumnSelect').val();
     const urlColumn = $('#urlColumnSelect').val();
     
     if (!contentColumn) {
-        showAlert('error', 'Error', 'Kolom Content harus dipilih');
+        swalError('Error', 'Kolom Content harus dipilih');
         return;
     }
     
@@ -660,26 +776,28 @@ $(document).on('click', '#processMappingBtn', function() {
             $('#columnMappingModal').modal('hide');
             
             if (response.success) {
-                showAlert('success', 'Berhasil', response.message);
+                swalSuccess('Berhasil', response.message);
                 resetForm();
                 loadRecentUploads();
                 updateStatistics();
             } else {
-                showAlert('error', 'Error', response.message);
+                swalError('Error', response.message);
             }
         },
         error: function(xhr, status, error) {
             hideLoading();
-            showAlert('error', 'Error', 'Terjadi kesalahan saat memproses data');
+            swalError('Error', 'Terjadi kesalahan saat memproses data');
         }
     });
+});
 
 // Handle modal close - clean up session if needed
 $('#columnMappingModal').on('hidden.bs.modal', function() {
-    // Optional: Add cleanup logic here if needed
+    // Optional: Add cleanup logic here jika diperlukan
 });
+}
 
-}); // Close $(document).ready
+// jQuery ready already closed above
 
 
 </script>

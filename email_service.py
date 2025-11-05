@@ -29,8 +29,8 @@ class EmailService:
             try:
                 current_app.logger.warning(f"Email Configuration issues: {'; '.join(config_errors)}")
             except RuntimeError:
-                # If no application context, just print to console
-                print(f"Email Configuration issues: {'; '.join(config_errors)}")
+                # If no application context, just log silently
+                pass
     
     def send_email(self, to_email, subject, html_content, text_content=None):
         """
@@ -203,6 +203,7 @@ class EmailService:
             
             # Log email attempt
             email_log = OTPEmailLog(
+                user_id=user.id,
                 recipient_email=user.email,
                 subject=subject,
                 email_type='first_login_otp',

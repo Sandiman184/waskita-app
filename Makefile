@@ -22,32 +22,32 @@ install-build: ## Install build dengan opsi clean untuk fresh installation
 
 build: ## Normal build dengan data persistent
 	@echo "🛠️  Starting normal build..."
-	docker-compose up --build -d
+	docker-compose -f docker/docker-compose.yml up --build -d
 	@echo ""
 	@echo "✅ Build completed!"
 	@echo "🌐 Access: http://localhost:5000"
 
 clean: ## Hapus semua container dan volume
 	@echo "🧹 Cleaning up..."
-	docker-compose down --volumes --remove-orphans
+	docker-compose -f docker/docker-compose.yml down --volumes --remove-orphans
 	docker volume rm waskita_postgres_data -f 2>/dev/null || true
 	docker system prune -f
 	@echo "✅ Cleanup completed!"
 
 status: ## Tampilkan status container
 	@echo "📊 Container Status:"
-	@docker-compose ps
+	@docker-compose -f docker/docker-compose.yml ps
 
 logs: ## Tampilkan logs aplikasi
 	@echo "📋 Application Logs:"
-	@docker-compose logs -f web
+	@docker-compose -f docker/docker-compose.yml logs -f web
 
 restart: ## Restart services
 	@echo "🔄 Restarting services..."
-	docker-compose restart
+	docker-compose -f docker/docker-compose.yml restart
 	@echo "✅ Services restarted!"
 
 stop: ## Stop semua services
 	@echo "⏹️  Stopping all services..."
-	docker-compose down
+	docker-compose -f docker/docker-compose.yml down
 	@echo "✅ All services stopped!"

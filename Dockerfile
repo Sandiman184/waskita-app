@@ -31,12 +31,8 @@ RUN pip install --no-cache-dir --upgrade pip \
 # Copy project files
 COPY . .
 
-# Copy admin initialization script
-COPY create_admin.py .
-COPY init_admin.sh .
-
-# Make shell script executable
-RUN chmod +x init_admin.sh
+# Make initialization scripts executable
+RUN chmod +x init_admin.sh docker-entrypoint.sh
 
 # Create necessary directories with proper permissions
 RUN mkdir -p uploads logs static/uploads data \
@@ -53,6 +49,9 @@ EXPOSE 5000
 # Health check
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:5000/ || exit 1
+
+# Set entrypoint
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
 
 # Run the application
 CMD ["python", "app.py"]

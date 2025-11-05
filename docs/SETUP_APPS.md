@@ -2,6 +2,26 @@
 
 Panduan lengkap untuk menjalankan aplikasi Waskita baik secara lokal maupun dengan Docker.
 
+## 📊 STATUS APLIKASI SAAT INI (JANUARI 2025)
+
+### ✅ APLIKASI BERJALAN DENGAN BAIK
+**Environment**: Development Mode dengan Docker
+**Status**: Semua service berjalan normal
+**Versi**: Production Ready v2.0
+
+### 🐳 DOCKER CONTAINERS YANG TERDEPLOY:
+- **waskita-app-postgres**: PostgreSQL 15 (port 5432)
+- **waskita-app-redis**: Redis 7 (port 6379) 
+- **waskita-app-web**: Flask Application (port 5000)
+- **waskita-app-nginx**: Nginx Reverse Proxy (port 80/443)
+
+### 🔧 KONFIGURASI YANG BERJALAN:
+- **Database**: PostgreSQL dengan user `[POSTGRES_USER]` / `[POSTGRES_PASSWORD]`
+- **Application**: Flask dengan secret key yang aman
+- **Email**: Gmail SMTP aktif dengan OTP system
+- **Models**: Word2Vec dan Naive Bayes terload dengan baik
+- **Security**: CSRF protection, JWT, dan rate limiting aktif
+
 ---
 
 ## 🚀 DOCKER PRODUCTION SETUP
@@ -426,11 +446,19 @@ python setup_postgresql.py
 ```
 
 Script ini akan:
-- ✅ Membuat database `waskita_db`
+- ✅ Membuat database `waskita_db` dan `waskita_test_db`
 - ✅ Membuat user database `waskita_user`
-- ✅ Membuat semua tabel dari schema
-- ✅ Membuat admin user default
-- ✅ Update file `.env` dengan konfigurasi database
+- ✅ Membuat semua tabel dari schema (termasuk sistem OTP terbaru)
+- ✅ Membuat admin user default dengan password yang aman
+- ✅ Update file `.env` dengan konfigurasi database lengkap
+- ✅ Generate secure keys untuk SECRET_KEY, CSRF, dan JWT
+
+**Fitur Database Terbaru:**
+- ✅ **Sistem OTP Lengkap**: Tabel `registration_requests`, `admin_notifications`, dan `otp_email_logs`
+- ✅ **Registrasi Aman**: Verifikasi OTP untuk pendaftaran pengguna baru
+- ✅ **Notifikasi Admin**: Sistem pemberitahuan untuk approval registrasi
+- ✅ **Logging Email**: Tracking pengiriman email OTP untuk audit
+- ✅ **Index Optimized**: Index yang dioptimalkan untuk performa query tinggi
 
 #### Opsi B: Setup Manual PostgreSQL
 ```bash

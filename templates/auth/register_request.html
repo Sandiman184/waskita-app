@@ -843,13 +843,24 @@
                 // Check for validation errors
                 for (let validation of validations) {
                     if (validation.condition) {
-                        Swal.fire({
-                            icon: 'error',
-                            title: 'Validasi Gagal',
-                            text: validation.message,
-                            confirmButtonColor: '#11998e',
-                            confirmButtonText: 'OK'
-                        });
+                        if (typeof swalError === 'function') {
+                            swalError('Validasi Gagal', validation.message);
+                        } else {
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'Validasi Gagal',
+                                text: validation.message,
+                                confirmButtonColor: '#11998e',
+                                confirmButtonText: 'OK',
+                                customClass: {
+                                    popup: 'swal2-popup',
+                                    title: 'swal2-title',
+                                    htmlContainer: 'swal2-html-container',
+                                    actions: 'swal2-actions',
+                                    confirmButton: 'swal2-confirm'
+                                }
+                            });
+                        }
                         return false;
                     }
                 }
@@ -895,15 +906,31 @@
                 $('#agreeTerms').prop('checked', true);
                 $('#termsModal').modal('hide');
                 
-                Swal.fire({
-                    icon: 'success',
-                    title: 'Terima Kasih',
-                    text: 'Anda telah menyetujui syarat dan ketentuan',
-                    timer: 2000,
-                    showConfirmButton: false,
-                    toast: true,
-                    position: 'top-end'
-                });
+                if (typeof swalSuccess === 'function') {
+                    swalSuccess('Terima Kasih', 'Anda telah menyetujui syarat dan ketentuan', {
+                        timer: 2000,
+                        showConfirmButton: false,
+                        toast: true,
+                        position: 'top-end'
+                    });
+                } else {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Terima Kasih',
+                        text: 'Anda telah menyetujui syarat dan ketentuan',
+                        timer: 2000,
+                        showConfirmButton: false,
+                        toast: true,
+                        position: 'top-end',
+                        customClass: {
+                            popup: 'swal2-popup',
+                            title: 'swal2-title',
+                            htmlContainer: 'swal2-html-container',
+                            actions: 'swal2-actions',
+                            confirmButton: 'swal2-confirm'
+                        }
+                    });
+                }
             });
             
             // Auto-focus first input

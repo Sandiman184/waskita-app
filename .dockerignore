@@ -40,6 +40,9 @@ ENV/
 .git/
 .gitignore
 
+# Docker configuration files (moved to docker/ folder)
+docker/
+
 # Documentation (optional, uncomment if you don't want docs in container)
 # docs/
 # *.md
