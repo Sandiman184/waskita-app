@@ -12,7 +12,9 @@ from datetime import datetime
 from dotenv import load_dotenv
 
 # Load environment variables from .env file FIRST, before importing config
-load_dotenv(override=True)  # Always load .env file for development
+# In Docker, set DOTENV_OVERRIDE=False to prefer Compose-provided env.
+override_env = os.getenv('DOTENV_OVERRIDE', 'True').lower() == 'true'
+load_dotenv(override=override_env)
 
 # Routes will be initialized using init_routes function
 from models import db, User
@@ -52,10 +54,12 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 app.config.from_object(Config)
 
-# Initialize CORS for API endpoints
+# Initialize CORS for API endpoints (origins from ENV, comma-separated)
+cors_origins_env = os.getenv('CORS_ORIGINS', 'http://localhost:5000,http://127.0.0.1:5000')
+cors_origins = [o.strip() for o in cors_origins_env.split(',') if o.strip()]
 cors = CORS(app, resources={
     r"/api/*": {
-        "origins": ["http://localhost:5000", "http://127.0.0.1:5000"],
+        "origins": cors_origins,
         "supports_credentials": True,
         "allow_headers": ["Content-Type", "Authorization"],
         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"]

@@ -13,17 +13,29 @@ class Config:
         raise ValueError("DATABASE_URL environment variable is required")
     
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-    UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
-    MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB max file size
+    # File upload directory: prefer ENV, fallback to project uploads/ path
+    UPLOAD_FOLDER = os.environ.get(
+        'UPLOAD_FOLDER',
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
+    )
+    # Max upload size from ENV (bytes), default 16MB
+    MAX_CONTENT_LENGTH = int(os.environ.get('MAX_CONTENT_LENGTH', str(16 * 1024 * 1024)))
     
-    # Session configuration
+    # Session configuration (centralized to ENV with sensible defaults)
     PERMANENT_SESSION_LIFETIME = timedelta(hours=24)
-    SESSION_COOKIE_SECURE = True
-    SESSION_COOKIE_HTTPONLY = True
-    SESSION_COOKIE_SAMESITE = 'Lax'
+    SESSION_COOKIE_SECURE = os.environ.get('SESSION_COOKIE_SECURE', 'True').lower() == 'true'
+    SESSION_COOKIE_HTTPONLY = os.environ.get('SESSION_COOKIE_HTTPONLY', 'True').lower() == 'true'
+    SESSION_COOKIE_SAMESITE = os.environ.get('SESSION_COOKIE_SAMESITE', 'Lax')
+    SESSION_COOKIE_DOMAIN = os.environ.get('SESSION_COOKIE_DOMAIN')
     
     # File upload settings
     ALLOWED_EXTENSIONS = {'csv', 'xlsx', 'xls'}
+
+    # OTP Settings
+    OTP_ENABLED = os.environ.get('OTP_ENABLED', 'True').lower() == 'true'
+    OTP_LENGTH = int(os.environ.get('OTP_LENGTH', '6'))
+    OTP_EXPIRY_MINUTES = int(os.environ.get('OTP_EXPIRY_MINUTES', '30'))
+    MAX_OTP_ATTEMPTS = int(os.environ.get('MAX_OTP_ATTEMPTS', '3'))
     
     # Pagination
     POSTS_PER_PAGE = 20
@@ -58,11 +70,11 @@ class DevelopmentConfig(Config):
     if not SQLALCHEMY_DATABASE_URI:
         raise ValueError("DATABASE_URL environment variable is required")
     
-    # Session configuration for local development
-    SESSION_COOKIE_SECURE = False
-    SESSION_COOKIE_HTTPONLY = True
-    SESSION_COOKIE_SAMESITE = 'Lax'
-    SESSION_COOKIE_DOMAIN = None
+    # Session configuration for local development (can be overridden via ENV)
+    SESSION_COOKIE_SECURE = os.environ.get('SESSION_COOKIE_SECURE', 'False').lower() == 'true'
+    SESSION_COOKIE_HTTPONLY = os.environ.get('SESSION_COOKIE_HTTPONLY', 'True').lower() == 'true'
+    SESSION_COOKIE_SAMESITE = os.environ.get('SESSION_COOKIE_SAMESITE', 'Lax')
+    SESSION_COOKIE_DOMAIN = os.environ.get('SESSION_COOKIE_DOMAIN')
 
 class TestingConfig(Config):
     TESTING = True

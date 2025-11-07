@@ -91,64 +91,70 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                 user = User.query.filter_by(username=username).first()
                 
                 if user and user.check_password(password) and user.is_active:
-                    # Check if this is first login (first_login is True for first login)
-                    if user.first_login:
-                        # This is first login - redirect to OTP verification
+                    # Opsional: kontrol global OTP via ENV config
+                    otp_enabled = str(current_app.config.get('OTP_ENABLED', True)).lower() in ['true', '1', 'yes']
+
+                    # Jika login pertama dan OTP diaktifkan, jalankan alur OTP
+                    if otp_enabled and user.first_login:
+                        # Siapkan sesi untuk alur OTP pertama kali
                         session['first_login_user_id'] = user.id
                         session['first_login_remember'] = remember
                         session['first_login_next'] = request.args.get('next')
-                    
-                    # Generate OTP for first login
-                    from otp_routes import generate_otp
-                    otp_code = generate_otp()
-                    session['first_login_otp'] = otp_code
-                    session['first_login_otp_expires'] = (datetime.utcnow() + timedelta(minutes=2)).isoformat()
-                    
-                    # Send OTP email
-                    from email_service import email_service
-                    success, error_message = email_service.send_first_login_otp(user, otp_code)
-                    
-                    if success:
-                        flash('Ini adalah login pertama Anda. Silakan cek email untuk instruksi lebih lanjut.', 'info')
-                        return redirect(url_for('otp.verify_first_login_otp'))
-                    else:
-                        # Log error and provide alternative
-                        current_app.logger.error(f"Failed to send first login OTP email: {error_message}")
-                        flash('Gagal mengirim email OTP. Silakan hubungi administrator atau coba lagi nanti.', 'error')
-                        # Clear session to allow normal login
-                        session.pop('first_login_user_id', None)
-                        session.pop('first_login_otp', None)
-                        session.pop('first_login_otp_expires', None)
-                        session.pop('first_login_remember', None)
-                        session.pop('first_login_next', None)
-                        return redirect(url_for('login'))
+
+                        # Generate OTP untuk login pertama
+                        from otp_routes import generate_otp
+                        otp_code = generate_otp()
+                        session['first_login_otp'] = otp_code
+                        session['first_login_otp_expires'] = (datetime.utcnow() + timedelta(minutes=2)).isoformat()
+
+                        # Kirim email OTP
+                        from email_service import email_service
+                        success, error_message = email_service.send_first_login_otp(user, otp_code)
+
+                        if success:
+                            flash('Ini adalah login pertama Anda. Silakan cek email untuk instruksi lebih lanjut.', 'info')
+                            return redirect(url_for('otp.verify_first_login_otp'))
+                        else:
+                            # Gagal kirim OTP pada login pertama
+                            current_app.logger.error(f"Failed to send first login OTP email: {error_message}")
+                            flash('Gagal mengirim email OTP. Silakan hubungi administrator atau coba lagi nanti.', 'error')
+                            # Bersihkan sesi OTP
+                            session.pop('first_login_user_id', None)
+                            session.pop('first_login_otp', None)
+                            session.pop('first_login_otp_expires', None)
+                            session.pop('first_login_remember', None)
+                            session.pop('first_login_next', None)
+                            return redirect(url_for('login'))
+
+                    # Bukan login pertama (atau OTP dimatikan) -> lanjutkan login normal
+                    user.last_login = datetime.utcnow()
+                    db.session.commit()
+
+                    login_user(user, remember=remember)
+
+                    # Log successful login
+                    log_security_event(
+                        "LOGIN_SUCCESS", 
+                        f"Successful login for user: {user.username}",
+                        user_id=user.id,
+                        ip_address=request.remote_addr
+                    )
+
+                    # Log activity
+                    generate_activity_log(
+                        action='login',
+                        description=f'Login berhasil untuk pengguna: {user.username}',
+                        user_id=user.id,
+                        icon='fas fa-sign-in-alt',
+                        color='success'
+                    )
+
+                    next_page = request.args.get('next')
+                    flash('Login berhasil!', 'success')
+                    return redirect(next_page) if next_page else redirect(url_for('dashboard'))
                 
-                # Update last_login with UTC timezone (will be converted to WIB in display)
-                user.last_login = datetime.utcnow()
-                db.session.commit()
-                
-                login_user(user, remember=remember)
-                
-                # Log successful login
-                log_security_event(
-                    "LOGIN_SUCCESS", 
-                    f"Successful login for user: {user.username}",
-                    user_id=user.id,
-                    ip_address=request.remote_addr
-                )
-                
-                # Log activity
-                generate_activity_log(
-                    action='login',
-                    description=f'Login berhasil untuk pengguna: {user.username}',
-                    user_id=user.id,
-                    icon='fas fa-sign-in-alt',
-                    color='success'
-                )
-                
-                next_page = request.args.get('next')
-                flash('Login berhasil!', 'success')
-                return redirect(next_page) if next_page else redirect(url_for('dashboard'))
+                # Jika validasi form gagal atau kredensial tidak cocok,
+                # jalankan penanganan gagal di bawah.
             else:
                 # Log failed login attempt
                 log_security_event(

@@ -446,6 +446,10 @@ def update_env_file(db_config):
             'POSTGRES_PASSWORD': db_config['db_password'],
             'POSTGRES_DB': db_config['db_name']
         })
+
+        # Pastikan OTP_ENABLED ditetapkan (pertahankan nilai jika sudah ada, default ke False untuk dev)
+        if 'OTP_ENABLED' not in existing_config:
+            existing_config['OTP_ENABLED'] = 'False'
         
         # Buat konten .env baru
         env_content = """# =============================================================================
@@ -537,6 +541,7 @@ ADMIN_EMAILS=admin@waskita.com,admin2@waskita.com
 # =============================================================================
 # OTP SYSTEM CONFIGURATION
 # =============================================================================
+OTP_ENABLED={OTP_ENABLED}
 OTP_LENGTH=6
 OTP_EXPIRY_MINUTES=30
 MAX_OTP_ATTEMPTS=3
