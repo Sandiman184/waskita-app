@@ -65,7 +65,7 @@ services:
     environment:
       - FLASK_ENV=${FLASK_ENV:-production}
       - FLASK_DEBUG=${FLASK_DEBUG:-0}
-      - DATABASE_URL=postgresql://${DATABASE_USER:-postgres}:${DATABASE_PASSWORD:-Sandiman184}@waskita-app-postgres:5432/${DATABASE_NAME:-waskita_db}
+      - DATABASE_URL=${DATABASE_URL_DOCKER:-${DATABASE_URL}}
       - SECRET_KEY=${SECRET_KEY:-your-super-secret-key-change-this-in-production}
       - REDIS_URL=redis://waskita-app-redis:6379/0
       - CREATE_SAMPLE_DATA=${CREATE_SAMPLE_DATA:-false}
@@ -80,9 +80,21 @@ services:
       - ADMIN_EMAIL=${ADMIN_EMAIL:-}
       - ADMIN_EMAILS=${ADMIN_EMAILS:-}
       - SEND_EMAIL_NOTIFICATIONS=${SEND_EMAIL_NOTIFICATIONS:-true}
+      # Apify scraping configuration
+      - APIFY_API_TOKEN=${APIFY_API_TOKEN:-}
+      - APIFY_BASE_URL=${APIFY_BASE_URL:-https://api.apify.com/v2}
+      - APIFY_TWITTER_ACTOR=${APIFY_TWITTER_ACTOR:-kaitoeasyapi/twitter-x-data-tweet-scraper-pay-per-result-cheapest}
+      - APIFY_FACEBOOK_ACTOR=${APIFY_FACEBOOK_ACTOR:-apify/facebook-scraper}
+      - APIFY_INSTAGRAM_ACTOR=${APIFY_INSTAGRAM_ACTOR:-apify/instagram-scraper}
+      - APIFY_TIKTOK_ACTOR=${APIFY_TIKTOK_ACTOR:-clockworks/free-tiktok-scraper}
+      - APIFY_TIMEOUT=${APIFY_TIMEOUT:-30}
+      - APIFY_MAX_RETRIES=${APIFY_MAX_RETRIES:-3}
+      - APIFY_RETRY_DELAY=${APIFY_RETRY_DELAY:-5}
       - OTP_LENGTH=${OTP_LENGTH:-6}
       - OTP_EXPIRY_MINUTES=${OTP_EXPIRY_MINUTES:-30}
+      - OTP_ENABLED=${OTP_ENABLED:-True}
       - BASE_URL=${BASE_URL:-http://localhost:5000}
+      - DOTENV_OVERRIDE=${DOTENV_OVERRIDE:-False}
       # Model paths for container
       - WORD2VEC_MODEL_PATH=/app/models/embeddings/wiki_word2vec_csv_updated.model
       - NAIVE_BAYES_MODEL1_PATH=/app/models/navesbayes/naive_bayes_model1.pkl
