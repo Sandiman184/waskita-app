@@ -20,6 +20,7 @@ RUN apt-get update \
         python3-dev \
         libpq-dev \
         curl \
+        bash \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
@@ -31,8 +32,10 @@ RUN pip install --no-cache-dir --upgrade pip \
 # Copy project files
 COPY . .
 
-# Make initialization scripts executable
-RUN chmod +x init_admin.sh docker-entrypoint.sh
+# Normalize Windows line-endings and make entrypoint executable
+RUN sed -i 's/\r$//' docker-entrypoint.sh \
+    && chmod +x docker-entrypoint.sh \
+    && chmod +x init_admin.sh
 
 # Create necessary directories with proper permissions
 RUN mkdir -p uploads logs static/uploads data \
