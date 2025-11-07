@@ -1,17 +1,17 @@
-# 🚀 Waskita — Aplikasi Klasifikasi Konten Radikal
+# Waskita — Aplikasi Klasifikasi Konten Radikal
 
 Aplikasi web Flask untuk klasifikasi konten media sosial (Radikal/Non‑Radikal) dengan Naive Bayes dan UI Soft UI Dashboard.
 
-## ✨ Fitur Singkat
+## Fitur Singkat
 - Login/Register dengan role Admin/User dan OTP (opsional)
 - Upload dataset CSV/XLSX, scraping via Apify (opsional)
 - Cleaning teks otomatis (emoji, link, tanda baca)
 - Klasifikasi dan probabilitas hasil
 - Dark/Light mode, notifikasi SweetAlert2
 
-## ⚡ Quick Start
+## Quick Start
 
-### 🖥️ Lokal (Development)
+### Lokal (Development)
 - Buat venv dan install dependencies:
   - `python -m venv venv`
   - `venv\Scripts\activate`
@@ -24,7 +24,7 @@ Aplikasi web Flask untuk klasifikasi konten media sosial (Radikal/Non‑Radikal)
 - Setup DB otomatis (opsional tapi disarankan): `python setup_postgresql.py`
 - Jalankan app: `python app.py` → buka `http://localhost:5000/`
 
-### 🐳 Docker
+### Docker
 - Pastikan `.env` sudah ada. Opsional set:
   - `DATABASE_URL_DOCKER=postgresql://<user>:<pass>@waskita-app-postgres:5432/<db>`
     - atau gunakan `host.docker.internal:5432` jika pakai Postgres lokal dari container
@@ -32,22 +32,22 @@ Aplikasi web Flask untuk klasifikasi konten media sosial (Radikal/Non‑Radikal)
 - Jalankan (Windows): `./install-build.ps1`
 - Akses: `http://localhost:5000/`
 
-## ⚙️ Konfigurasi Penting
+## Konfigurasi Penting
 - `DATABASE_URL` (wajib, untuk lokal)
 - `DATABASE_URL_DOCKER` (opsional, diprioritaskan oleh container)
 - `SECRET_KEY` (wajib)
 - `OTP_ENABLED` (`False` untuk dev, `True` untuk produksi bila OTP diperlukan)
 - Email/Apify (opsional): `MAIL_USERNAME`, `MAIL_PASSWORD`, `APIFY_API_TOKEN`
 
-## ✅ Verifikasi Cepat
+## Verifikasi Cepat
 - Lokal: buka `http://localhost:5000/`
 - Docker:
   - `docker compose -f docker\docker-compose.yml ps`
   - `docker compose -f docker\docker-compose.yml logs -f web`
 
-## 📚 Dokumentasi Lengkap
+## Dokumentasi Lengkap
 - `docs/SETUP_APPS.md` — langkah detail instalasi dan konfigurasi
 - `docs/SECURITY_GUIDE.md` — keamanan, OTP, sesi, CORS
 
-## 📄 Lisensi
+## Lisensi
 Lihat `LICENSE` di repository.
