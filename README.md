@@ -12,24 +12,43 @@ Aplikasi web Flask untuk klasifikasi konten media sosial (Radikal/Non‑Radikal)
 ## Quick Start
 
 ### Lokal (Development)
-- Buat venv dan install dependencies:
-  - `python -m venv venv`
-  - `venv\Scripts\activate`
-  - `pip install -r requirements.txt`
-- Salin env: `copy .env.example .env` (Windows) atau `cp .env.example .env`
+Windows (PowerShell):
+```powershell
+python -m venv venv
+venv\Scripts\activate
+pip install -r requirements.txt
+copy .env.example .env
+python setup_postgresql.py
+python app.py
+```
+
+Linux/Mac (bash):
+```bash
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env
+python setup_postgresql.py
+python app.py
+```
+
 - Minimal `.env`:
   - `DATABASE_URL=postgresql://<user>:<pass>@localhost:5432/<db>`
   - `SECRET_KEY=<random_string>`
   - `OTP_ENABLED=False` (disarankan untuk dev)
-- Setup DB otomatis (opsional tapi disarankan): `python setup_postgresql.py`
-- Jalankan app: `python app.py` → buka `http://localhost:5000/`
+  
 
 ### Docker
 - Pastikan `.env` sudah ada. Opsional set:
   - `DATABASE_URL_DOCKER=postgresql://<user>:<pass>@waskita-app-postgres:5432/<db>`
     - atau gunakan `host.docker.internal:5432` jika pakai Postgres lokal dari container
 - Compose memakai fallback: `DATABASE_URL=${DATABASE_URL_DOCKER:-${DATABASE_URL}}`
-- Jalankan (Windows): `./install-build.ps1`
+
+Windows (PowerShell):
+```powershell
+./install-build.ps1
+```
+
 - Akses: `http://localhost:5000/`
 
 ## Konfigurasi Penting
@@ -50,4 +69,4 @@ Aplikasi web Flask untuk klasifikasi konten media sosial (Radikal/Non‑Radikal)
 - `docs/SECURITY_GUIDE.md` — keamanan, OTP, sesi, CORS
 
 ## Lisensi
-Lihat `LICENSE` di repository.
+Lihat [LICENSE](LICENSE) di repository.
