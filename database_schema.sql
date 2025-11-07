@@ -42,6 +42,7 @@ CREATE TABLE datasets (
     total_records INTEGER DEFAULT 0,
     cleaned_records INTEGER DEFAULT 0,
     classified_records INTEGER DEFAULT 0,
+    status VARCHAR(20) DEFAULT 'Mentah',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -271,10 +272,10 @@ BEGIN
         COUNT(DISTINCT CASE WHEN cr.prediction = 'radikal' THEN cr.id END) as radikal_count,
         COUNT(DISTINCT CASE WHEN cr.prediction = 'non-radikal' THEN cr.id END) as non_radikal_count,
         GREATEST(
-            MAX(rd.upload_date),
+            MAX(rd.created_at),
             MAX(rds.created_at),
-            MAX(cdu.cleaned_at),
-            MAX(cds.cleaned_at),
+            MAX(cdu.created_at),
+            MAX(cds.created_at),
             MAX(cr.created_at)
         ) as last_activity
     FROM users u
@@ -353,6 +354,33 @@ CREATE INDEX idx_otp_email_logs_registration_request_id ON otp_email_logs(regist
 CREATE INDEX idx_otp_email_logs_email_type ON otp_email_logs(email_type);
 CREATE INDEX idx_otp_email_logs_is_sent ON otp_email_logs(is_sent);
 CREATE INDEX idx_otp_email_logs_created_at ON otp_email_logs(created_at);
+
+-- =============================================================================
+-- USER ACTIVITY LOGGING TABLE (digunakan oleh utils.generate_activity_log)
+-- =============================================================================
+
+-- Drop if exists for clean setup
+DROP TABLE IF EXISTS user_activities CASCADE;
+
+-- Create user_activities table
+CREATE TABLE user_activities (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    action VARCHAR(100) NOT NULL,
+    description TEXT NOT NULL,
+    details TEXT,
+    icon VARCHAR(50) DEFAULT 'fa-info-circle',
+    color VARCHAR(20) DEFAULT 'blue',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Indexes for user_activities
+CREATE INDEX idx_user_activities_user_id ON user_activities(user_id);
+CREATE INDEX idx_user_activities_created_at ON user_activities(created_at);
+
+-- Additional indexes for datasets
+CREATE INDEX idx_datasets_name ON datasets(name);
+CREATE INDEX idx_datasets_uploaded_by ON datasets(uploaded_by);
 
 -- Grant permissions (adjust as needed for your setup)
 -- GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO waskita_user;
