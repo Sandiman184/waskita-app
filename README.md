@@ -15,20 +15,40 @@ Aplikasi web Flask untuk klasifikasi konten media sosial (Radikal/Non‑Radikal)
 Windows (PowerShell):
 ```powershell
 python -m venv venv
+```
+```powershell
 venv\Scripts\activate
+```
+```powershell
 pip install -r requirements.txt
+```
+```powershell
 copy .env.example .env
+```
+```powershell
 python setup_postgresql.py
+```
+```powershell
 python app.py
 ```
 
 Linux/Mac (bash):
 ```bash
 python -m venv venv
+```
+```bash
 source venv/bin/activate
+```
+```bash
 pip install -r requirements.txt
+```
+```bash
 cp .env.example .env
+```
+```bash
 python setup_postgresql.py
+```
+```bash
 python app.py
 ```
 
@@ -50,6 +70,18 @@ Windows (PowerShell):
 ```
 
 - Akses: `http://localhost:5000/`
+
+### Opsi B — Satu sumber DATABASE_URL (direkomendasi dengan fallback)
+- Gunakan satu `DATABASE_URL` di `.env` untuk lokal.
+- Untuk Docker, Anda boleh set `DATABASE_URL_DOCKER`; jika tidak ada, container fallback ke `DATABASE_URL`.
+- Compose sudah menerapkan: `DATABASE_URL=${DATABASE_URL_DOCKER:-${DATABASE_URL}}`.
+
+Contoh `.env` minimal:
+```env
+DATABASE_URL=postgresql://user:pass@localhost:5432/db
+# Opsional untuk Docker (diprioritaskan di container jika ada):
+DATABASE_URL_DOCKER=postgresql://user:pass@waskita-app-postgres:5432/db
+```
 
 ## Konfigurasi Penting
 - `DATABASE_URL` (wajib, untuk lokal)
