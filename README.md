@@ -180,6 +180,12 @@ Aplikasi akan berjalan di: `http://localhost:5000`
 4. Setup konfigurasi email di `.env` untuk menerima OTP
 
 ### 🐳 Instalasi dengan Docker (Production Ready)
+#### Ringkas Konfigurasi Lokal ↔ Docker
+ - Lokal: set `DATABASE_URL=postgresql://<user>:<pass>@localhost:5432/<db>` dan `OTP_ENABLED=False` untuk dev.
+ - Docker (opsional): set `DATABASE_URL_DOCKER=postgresql://<user>:<pass>@waskita-app-postgres:5432/<db>` atau `host.docker.internal:5432`.
+ - Compose memakai `DATABASE_URL=${DATABASE_URL_DOCKER:-${DATABASE_URL}}` sehingga tidak perlu ganti-ganti saat pindah konteks.
+ - Jalankan di Windows: `.\install-build.ps1` (build dan start otomatis).
+ - Akses: `http://localhost:5000/`.
 
 #### Persyaratan Sistem
 - **Docker**: 20.10+
