@@ -68,44 +68,35 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
             return redirect(url_for('dashboard'))
         
         # Create form once for CSRF protection
-        form = FlaskForm()
+        from flask_wtf import FlaskForm
+        from wtforms import StringField, PasswordField, BooleanField
+        from wtforms.validators import DataRequired
+        
+        class LoginForm(FlaskForm):
+            username = StringField('Username', validators=[DataRequired()])
+            password = PasswordField('Password', validators=[DataRequired()])
+            remember = BooleanField('Remember Me')
+        
+        form = LoginForm()
         
         if request.method == 'POST':
-            # Sanitize and validate input
-            username = SecurityValidator.sanitize_input(
-                request.form.get('username', ''), max_length=50
-            ).strip()
-            password = request.form.get('password', '')  # Don't sanitize password, just validate
-            remember = bool(request.form.get('remember'))
-            
-            # Validate inputs
-            if not username:
-                log_security_event(
-                    "LOGIN_ATTEMPT_INVALID", 
-                    "Login attempt with empty username",
-                    ip_address=request.remote_addr
-                )
-                flash('Username tidak boleh kosong!', 'error')
-                return render_template('auth/login.html', form=form)
-            
-            if not SecurityValidator.validate_username(username):
-                log_security_event(
-                    "LOGIN_ATTEMPT_INVALID", 
-                    f"Login attempt with invalid username format: {username}",
-                    ip_address=request.remote_addr
-                )
-                flash('Format username tidak valid!', 'error')
-                return render_template('auth/login.html', form=form)
-            
-            user = User.query.filter_by(username=username).first()
-            
-            if user and user.check_password(password) and user.is_active:
-                # Check if this is first login (first_login is True for first login)
-                if user.first_login:
-                    # This is first login - redirect to OTP verification
-                    session['first_login_user_id'] = user.id
-                    session['first_login_remember'] = remember
-                    session['first_login_next'] = request.args.get('next')
+            # Use form validation instead of manual validation
+            if form.validate_on_submit():
+                username = SecurityValidator.sanitize_input(
+                    form.username.data, max_length=50
+                ).strip()
+                password = form.password.data
+                remember = form.remember.data
+                
+                user = User.query.filter_by(username=username).first()
+                
+                if user and user.check_password(password) and user.is_active:
+                    # Check if this is first login (first_login is True for first login)
+                    if user.first_login:
+                        # This is first login - redirect to OTP verification
+                        session['first_login_user_id'] = user.id
+                        session['first_login_remember'] = remember
+                        session['first_login_next'] = request.args.get('next')
                     
                     # Generate OTP for first login
                     from otp_routes import generate_otp
@@ -166,6 +157,11 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                     ip_address=request.remote_addr
                 )
                 flash('Username atau password salah!', 'error')
+        else:
+            # Form validation failed (CSRF token invalid or other validation errors)
+            if form.errors:
+                app.logger.warning(f"Form validation errors: {form.errors}")
+                flash('Terdapat kesalahan dalam form. Silakan coba lagi.', 'error')
         
         return render_template('auth/login.html', form=form)
     

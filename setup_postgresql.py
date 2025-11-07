@@ -40,18 +40,57 @@ def check_prerequisites():
     
     # Cek apakah PostgreSQL terinstall (skip di Docker)
     if not is_docker_env:
+        # Metode 1: Cek service PostgreSQL di Windows
         try:
-            result = subprocess.run(['pg_isready', '--version'], capture_output=True, text=True)
-            if result.returncode == 0:
-                print("✅ PostgreSQL terdeteksi")
-            else:
-                print("❌ PostgreSQL tidak terdeteksi. Pastikan PostgreSQL sudah terinstall dan berjalan")
-                return False
-        except FileNotFoundError:
-            print("❌ PostgreSQL tidak terdeteksi. Pastikan PostgreSQL sudah terinstall dan berjalan")
-            return False
+            result = subprocess.run(['powershell', '-Command', 'Get-Service -Name postgresql* | Where-Object {$_.Status -eq "Running"}'], 
+                                  capture_output=True, text=True, timeout=10)
+            if result.returncode == 0 and 'Running' in result.stdout:
+                print("✅ PostgreSQL service berjalan")
+                # Jika service berjalan, anggap PostgreSQL tersedia
+                return True
+        except (FileNotFoundError, subprocess.SubprocessError, subprocess.TimeoutExpired):
+            pass
+        
+        # Metode 2: Coba koneksi langsung menggunakan psycopg2
+        try:
+            import psycopg2
+            # Coba koneksi ke PostgreSQL dengan berbagai kombinasi password umum
+            test_configs = [
+                {"host": "localhost", "port": 5432, "user": "postgres", "password": ""},
+                {"host": "127.0.0.1", "port": 5432, "user": "postgres", "password": ""},
+                {"host": "localhost", "port": 5432, "user": "postgres", "password": "postgres"},
+                {"host": "localhost", "port": 5432, "user": "postgres", "password": "password"},
+                {"host": "localhost", "port": 5432, "user": "postgres", "password": "admin"},
+                {"host": "localhost", "port": 5432, "user": "postgres", "password": "123456"}
+            ]
+            
+            for config in test_configs:
+                try:
+                    conn = psycopg2.connect(
+                        host=config["host"],
+                        port=config["port"],
+                        user=config["user"],
+                        password=config["password"],
+                        connect_timeout=3
+                    )
+                    conn.close()
+                    password_display = "[kosong]" if config["password"] == "" else config["password"]
+                    print(f"✅ PostgreSQL terdeteksi di {config['host']}:{config['port']} (password: {password_display})")
+                    return True
+                except psycopg2.OperationalError:
+                    continue
+        except ImportError:
+            pass
+            
+        print("❌ PostgreSQL tidak terdeteksi. Pastikan:")
+        print("   1. PostgreSQL sudah terinstall")
+        print("   2. PostgreSQL service berjalan")
+        print("   3. Default user 'postgres' dapat diakses")
+        print("ℹ️  Coba password umum: (kosong), postgres, password, admin, 123456")
+        return False
     else:
         print("✅ PostgreSQL diabaikan (running dalam container Docker)")
+        return True
     
     # Cek dependencies Python
     required_packages = ['psycopg2', 'werkzeug', 'flask']
@@ -109,6 +148,7 @@ def check_database_connection(db_config):
         error_msg = str(e).split('\n')[0]  # Ambil hanya bagian utama error
         if "does not exist" in error_msg:
             print(f"ℹ️  Database '{db_config['db_name']}' belum ada")
+            return False  # Database belum ada, bukan error koneksi
         elif "connection refused" in error_msg.lower():
             print(f"❌ Koneksi ditolak ke {db_config['host']}:{db_config['port']}")
             print(f"   Pastikan PostgreSQL berjalan dan dapat diakses")
@@ -165,6 +205,8 @@ def create_database_and_user():
         if confirm != 'y':
             print("❌ Setup dibatalkan")
             return None
+    else:
+        print(f"ℹ️  Database '{db_name}' belum ada atau tidak dapat diakses, melanjutkan setup...")
     
     try:
         # Koneksi ke PostgreSQL sebagai admin
@@ -186,6 +228,13 @@ def create_database_and_user():
             print(f"✅ User '{db_user}' berhasil dibuat")
         except psycopg2.errors.DuplicateObject:
             print(f"ℹ️ User '{db_user}' sudah ada")
+            # Jika user sudah ada, coba update passwordnya
+            try:
+                cursor.execute(f"ALTER USER {db_user} WITH PASSWORD '{db_password}';")
+                print(f"✅ Password user '{db_user}' berhasil diupdate")
+            except Exception as e:
+                print(f"⚠️  Tidak dapat update password user: {e}")
+                print(f"ℹ️  Pastikan user '{db_user}' memiliki password yang benar")
         
         # Buat database development
         print(f"🗄️ Membuat database '{db_name}'...")
@@ -229,13 +278,21 @@ def create_tables_and_admin(db_config):
     try:
         # Koneksi ke database Waskita
         print(f"\n🔌 Menghubungkan ke database '{db_config['db_name']}'...")
-        conn = psycopg2.connect(
-            host=db_config['host'],
-            port=db_config['port'],
-            user=db_config['db_user'],
-            password=db_config['db_password'],
-            database=db_config['db_name']
-        )
+        try:
+            conn = psycopg2.connect(
+                host=db_config['host'],
+                port=db_config['port'],
+                user=db_config['db_user'],
+                password=db_config['db_password'],
+                database=db_config['db_name'],
+                connect_timeout=10
+            )
+        except psycopg2.OperationalError as e:
+            print(f"❌ Gagal terhubung ke database: {e}")
+            print(f"   Periksa apakah user '{db_config['db_user']}' memiliki akses ke database '{db_config['db_name']}'")
+            print(f"   Pastikan password yang benar untuk user '{db_config['db_user']}'")
+            return False
+            
         cursor = conn.cursor()
         
         # Baca dan eksekusi schema SQL
@@ -252,8 +309,12 @@ def create_tables_and_admin(db_config):
                 print("✅ Schema database berhasil dibuat")
             except psycopg2.errors.DuplicateTable:
                 print("ℹ️ Tabel sudah ada, melanjutkan...")
+                # Rollback untuk membersihkan state transaksi
+                conn.rollback()
             except Exception as e:
                 print(f"⚠️ Warning saat membuat schema: {e}")
+                # Rollback untuk membersihkan state transaksi
+                conn.rollback()
         else:
             print("❌ File database_schema.sql tidak ditemukan")
             return False
