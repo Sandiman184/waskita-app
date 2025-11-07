@@ -14,6 +14,10 @@ class EmailService:
     """
     
     def __init__(self):
+        # Ensure environment variables are loaded
+        from dotenv import load_dotenv
+        load_dotenv()
+        
         # Use environment variables for email configuration
         self.smtp_server = os.getenv('MAIL_SERVER', 'smtp.gmail.com')
         self.smtp_port = int(os.getenv('MAIL_PORT', '587'))
@@ -212,7 +216,15 @@ class EmailService:
                 error_message=error if not success else None
             )
             db.session.add(email_log)
-            db.session.commit()
+            try:
+                db.session.commit()
+            except Exception as db_error:
+                db.session.rollback()
+                # Log database error but don't fail the email sending
+                try:
+                    current_app.logger.error(f"Database error logging OTP email: {db_error}")
+                except RuntimeError:
+                    pass
             
             return success, error
             

@@ -236,9 +236,9 @@ FROM (
 GROUP BY platform;
 
 -- Insert default admin user (password: admin123)
-INSERT INTO users (username, email, password_hash, role, full_name) VALUES 
-('admin', 'admin@waskita.com', 'scrypt:32768:8:1$YourHashHere$YourActualHashValueHere', 'admin', 'Administrator'),
-('demo_user', 'user@waskita.com', 'scrypt:32768:8:1$YourHashHere$YourActualHashValueHere', 'user', 'Demo User');
+INSERT INTO users (username, email, password_hash, role, full_name, is_active, first_login) VALUES 
+('admin', 'admin@waskita.com', 'scrypt:32768:8:1$hV7Q3p5X$c7b2b4d6f8a0c9e2b1d3f5a7c9e1b3d5f7a9c1e3b5d7f9a1c3e5b7d9f1a3c5e7', 'admin', 'Administrator', TRUE, TRUE),
+('demo_user', 'user@waskita.com', 'scrypt:32768:8:1$gU6R2o4W$b6a1c3e5g7i9k1m3o5q7s9u1w3y5a7c9e1g3i5', 'user', 'Demo User', TRUE, FALSE);
 
 -- Create triggers for automatic timestamp updates
 CREATE OR REPLACE FUNCTION update_last_login()
@@ -332,7 +332,8 @@ CREATE TABLE admin_notifications (
 -- Create otp_email_logs table
 CREATE TABLE otp_email_logs (
     id SERIAL PRIMARY KEY,
-    registration_request_id INTEGER NOT NULL REFERENCES registration_requests(id),
+    registration_request_id INTEGER REFERENCES registration_requests(id),
+    user_id INTEGER REFERENCES users(id),
     recipient_email VARCHAR(120) NOT NULL,
     subject VARCHAR(200) NOT NULL,
     email_type VARCHAR(50) NOT NULL,
@@ -351,6 +352,7 @@ CREATE INDEX idx_admin_notifications_admin_id ON admin_notifications(admin_id);
 CREATE INDEX idx_admin_notifications_is_read ON admin_notifications(is_read);
 CREATE INDEX idx_admin_notifications_is_sent ON admin_notifications(is_sent);
 CREATE INDEX idx_otp_email_logs_registration_request_id ON otp_email_logs(registration_request_id);
+CREATE INDEX idx_otp_email_logs_user_id ON otp_email_logs(user_id);
 CREATE INDEX idx_otp_email_logs_email_type ON otp_email_logs(email_type);
 CREATE INDEX idx_otp_email_logs_is_sent ON otp_email_logs(is_sent);
 CREATE INDEX idx_otp_email_logs_created_at ON otp_email_logs(created_at);

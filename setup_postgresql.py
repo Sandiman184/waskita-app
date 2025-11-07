@@ -315,6 +315,25 @@ def create_tables_and_admin(db_config):
                 print(f"⚠️ Warning saat membuat schema: {e}")
                 # Rollback untuk membersihkan state transaksi
                 conn.rollback()
+            
+            # Pastikan kolom user_id ada di tabel otp_email_logs (fix untuk OTP system)
+            try:
+                cursor.execute("SELECT column_name FROM information_schema.columns WHERE table_name = 'otp_email_logs' AND column_name = 'user_id'")
+                user_id_exists = cursor.fetchone()
+                
+                if not user_id_exists:
+                    print("🔧 Menambahkan kolom user_id ke tabel otp_email_logs...")
+                    alter_sql = """
+                    ALTER TABLE otp_email_logs 
+                    ADD COLUMN user_id INTEGER REFERENCES users(id);
+                    """
+                    cursor.execute(alter_sql)
+                    print("✅ Kolom user_id berhasil ditambahkan ke otp_email_logs")
+                else:
+                    print("ℹ️ Kolom user_id sudah ada di otp_email_logs")
+            except Exception as e:
+                print(f"⚠️ Warning saat memeriksa/menambahkan kolom user_id: {e}")
+                conn.rollback()
         else:
             print("❌ File database_schema.sql tidak ditemukan")
             return False
@@ -336,7 +355,7 @@ def create_tables_and_admin(db_config):
                 return True
         
         # Buat/update user admin default
-        admin_email = "admin@waskita.com"
+        admin_email = input("Masukkan email untuk admin (default: admin@waskita.com): ").strip() or "admin@waskita.com"
         admin_password = input("Masukkan password untuk admin (default: admin123): ") or "admin123"
         admin_fullname = "Administrator Waskita"
         
@@ -362,6 +381,51 @@ def create_tables_and_admin(db_config):
         
         # Commit perubahan
         conn.commit()
+        
+        # Perbaiki schema OTP jika diperlukan
+        print("\n🔧 Memeriksa dan memperbaiki schema OTP...")
+        try:
+            # Periksa apakah kolom user_id sudah ada di otp_email_logs
+            cursor.execute("""
+            SELECT column_name 
+            FROM information_schema.columns 
+            WHERE table_name = 'otp_email_logs' AND column_name = 'user_id'
+            """)
+            user_id_exists = cursor.fetchone()
+            
+            if not user_id_exists:
+                print("📋 Menambahkan kolom user_id ke tabel otp_email_logs...")
+                cursor.execute("""
+                ALTER TABLE otp_email_logs 
+                ADD COLUMN user_id INTEGER REFERENCES users(id);
+                """)
+                conn.commit()
+                print("✅ Kolom user_id berhasil ditambahkan ke otp_email_logs")
+            else:
+                print("ℹ️ Kolom user_id sudah ada di otp_email_logs")
+                
+            # Periksa dan perbaiki NOT NULL constraint pada registration_request_id
+            cursor.execute("""
+            SELECT is_nullable 
+            FROM information_schema.columns 
+            WHERE table_name = 'otp_email_logs' AND column_name = 'registration_request_id'
+            """)
+            result = cursor.fetchone()
+            
+            if result and result[0] == 'NO':
+                print("🔧 Menghapus NOT NULL constraint dari registration_request_id...")
+                cursor.execute("""
+                ALTER TABLE otp_email_logs 
+                ALTER COLUMN registration_request_id DROP NOT NULL;
+                """)
+                conn.commit()
+                print("✅ NOT NULL constraint berhasil dihapus dari registration_request_id")
+            else:
+                print("ℹ️ Kolom registration_request_id sudah mengizinkan NULL")
+                
+        except Exception as e:
+            print(f"⚠️  Peringatan saat memperbaiki schema OTP: {e}")
+        
         cursor.close()
         conn.close()
         
@@ -447,9 +511,9 @@ def update_env_file(db_config):
             'POSTGRES_DB': db_config['db_name']
         })
 
-        # Pastikan OTP_ENABLED ditetapkan (pertahankan nilai jika sudah ada, default ke False untuk dev)
+        # Pastikan OTP_ENABLED ditetapkan (pertahankan nilai jika sudah ada, default ke True untuk keamanan)
         if 'OTP_ENABLED' not in existing_config:
-            existing_config['OTP_ENABLED'] = 'False'
+            existing_config['OTP_ENABLED'] = 'True'
         
         # Buat konten .env baru
         env_content = """# =============================================================================
@@ -461,7 +525,8 @@ def update_env_file(db_config):
 # DEFAULT ADMIN CREDENTIALS (setelah setup):
 # Username: admin
 # Password: [password yang dimasukkan saat setup]
-# Email: admin@waskita.com
+# Email: [email yang dimasukkan saat setup]
+# OTP_ENABLED: True (default untuk keamanan)
 
 # =============================================================================
 # DATABASE CONFIGURATION

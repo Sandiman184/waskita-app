@@ -155,14 +155,14 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                 
                 # Jika validasi form gagal atau kredensial tidak cocok,
                 # jalankan penanganan gagal di bawah.
-            else:
-                # Log failed login attempt
-                log_security_event(
-                    "LOGIN_FAILED", 
-                    f"Failed login attempt for username: {username}",
-                    ip_address=request.remote_addr
-                )
-                flash('Username atau password salah!', 'error')
+                else:
+                    # Log failed login attempt
+                    log_security_event(
+                        "LOGIN_FAILED", 
+                        f"Failed login attempt for username: {form.username.data if form.username.data else 'unknown'}",
+                        ip_address=request.remote_addr
+                    )
+                    flash('Username atau password salah!', 'error')
         else:
             # Form validation failed (CSRF token invalid or other validation errors)
             if form.errors:
