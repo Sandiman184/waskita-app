@@ -546,7 +546,7 @@
                                         <p>Hasil Klasifikasi</p>
                                     </a>
                                 </li>
-                                {% if current_user.is_admin() %}
+                                {% if current_user.is_admin %}
                                     <li class="nav-item {{ 'menu-open' if request.endpoint in ['admin_panel', 'otp.pending_registrations', 'otp.registration_history'] }}" role="none">
                                         <a href="#"
                                            class="nav-link {{ 'active' if request.endpoint in ['admin_panel', 'otp.pending_registrations', 'otp.registration_history'] }}"

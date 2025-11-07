@@ -64,7 +64,7 @@ def admin_required(f):
             flash('Silakan login terlebih dahulu.', 'error')
             return redirect(url_for('login'))
         
-        if not current_user.is_admin():
+        if not current_user.is_admin:
             flash('Akses ditolak! Hanya admin yang dapat mengakses halaman ini.', 'error')
             return redirect(url_for('dashboard'))
         
@@ -1437,3 +1437,101 @@ def log_user_activity(user_id, action, description, details=None, icon='fa-info-
     Wrapper function untuk generate_activity_log dengan nama yang lebih sederhana
     """
     return generate_activity_log(action, description, user_id, details, icon, color)
+
+
+def get_role_based_feedback(user, action_type, resource_owner_id=None, resource_name=None):
+    """
+    Fungsi helper untuk memberikan feedback yang konsisten berdasarkan role user
+    
+    Args:
+        user: User object (current_user)
+        action_type: Jenis aksi yang dilakukan (view, edit, delete, create, access)
+        resource_owner_id: ID pemilik resource (opsional)
+        resource_name: Nama resource yang diakses (opsional)
+    
+    Returns:
+        Tuple (message, category, http_status)
+    """
+    
+    # Mapping action types to feedback messages
+    action_messages = {
+        'view': 'melihat',
+        'edit': 'mengedit',
+        'delete': 'menghapus',
+        'create': 'membuat',
+        'access': 'mengakses'
+    }
+    
+    action_text = action_messages.get(action_type, 'mengakses')
+    
+    if resource_name:
+        resource_text = f' {resource_name}'
+    else:
+        resource_text = ''
+    
+    if user.is_admin():
+        # Admin feedback messages
+        if action_type == 'access':
+            return ('Akses diberikan sebagai administrator', 'info', 200)
+        else:
+            return (f'Berhasil {action_text}{resource_text}', 'success', 200)
+    
+    elif resource_owner_id and user.id != resource_owner_id:
+        # User mencoba mengakses resource milik orang lain
+        if action_type == 'view':
+            message = f'Anda tidak memiliki izin untuk {action_text} data ini. Hanya admin atau pemilik data yang dapat {action_text} data.'
+        else:
+            message = f'Akses ditolak! Anda tidak memiliki izin untuk {action_text} data ini. Hanya admin atau pemilik data yang dapat {action_text} data.'
+        
+        return (message, 'error', 403)
+    
+    else:
+        # Regular user mengakses resource milik sendiri
+        if action_type == 'access':
+            return ('Akses diberikan', 'info', 200)
+        else:
+            return (f'Berhasil {action_text}{resource_text}', 'success', 200)
+
+
+def api_role_based_response(user, action_type, resource_owner_id=None, resource_name=None):
+    """
+    Fungsi helper untuk memberikan response API yang konsisten berdasarkan role user
+    
+    Args:
+        user: User object (current_user)
+        action_type: Jenis aksi yang dilakukan
+        resource_owner_id: ID pemilik resource
+        resource_name: Nama resource yang diakses
+    
+    Returns:
+        Tuple (success, message, http_status)
+    """
+    
+    message, category, http_status = get_role_based_feedback(user, action_type, resource_owner_id, resource_name)
+    
+    if category == 'error':
+        return False, message, http_status
+    else:
+        return True, message, http_status
+
+
+def check_permission_with_feedback(user, resource_owner_id, action_type, resource_name=None):
+    """
+    Fungsi untuk mengecek permission dan memberikan feedback yang sesuai
+    
+    Returns:
+        Tuple (has_permission, message, http_status)
+    """
+    
+    if user.is_admin():
+        # Admin memiliki akses penuh
+        return True, None, 200
+    
+    elif user.id == resource_owner_id:
+        # User adalah pemilik resource
+        return True, None, 200
+    
+    else:
+        # User tidak memiliki akses
+        message, category, http_status = get_role_based_feedback(user, action_type, resource_owner_id, resource_name)
+        return False, message, http_status
