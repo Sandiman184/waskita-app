@@ -26,7 +26,8 @@ class Config:
     SESSION_COOKIE_SECURE = os.environ.get('SESSION_COOKIE_SECURE', 'True').lower() == 'true'
     SESSION_COOKIE_HTTPONLY = os.environ.get('SESSION_COOKIE_HTTPONLY', 'True').lower() == 'true'
     SESSION_COOKIE_SAMESITE = os.environ.get('SESSION_COOKIE_SAMESITE', 'Lax')
-    SESSION_COOKIE_DOMAIN = os.environ.get('SESSION_COOKIE_DOMAIN')
+    _session_domain = os.environ.get('SESSION_COOKIE_DOMAIN', '').strip()
+    SESSION_COOKIE_DOMAIN = None if _session_domain.lower() in {'', 'none', 'null'} else _session_domain
     
     # File upload settings
     ALLOWED_EXTENSIONS = {'csv', 'xlsx', 'xls'}
@@ -74,7 +75,8 @@ class DevelopmentConfig(Config):
     SESSION_COOKIE_SECURE = os.environ.get('SESSION_COOKIE_SECURE', 'False').lower() == 'true'
     SESSION_COOKIE_HTTPONLY = os.environ.get('SESSION_COOKIE_HTTPONLY', 'True').lower() == 'true'
     SESSION_COOKIE_SAMESITE = os.environ.get('SESSION_COOKIE_SAMESITE', 'Lax')
-    SESSION_COOKIE_DOMAIN = os.environ.get('SESSION_COOKIE_DOMAIN')
+    _dev_session_domain = os.environ.get('SESSION_COOKIE_DOMAIN', '').strip()
+    SESSION_COOKIE_DOMAIN = None if _dev_session_domain.lower() in {'', 'none', 'null'} else _dev_session_domain
 
 class TestingConfig(Config):
     TESTING = True

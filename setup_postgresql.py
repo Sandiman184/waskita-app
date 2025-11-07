@@ -502,7 +502,8 @@ WASKITA_API_KEY={WASKITA_API_KEY}
 SESSION_COOKIE_SECURE=False
 SESSION_COOKIE_HTTPONLY=True
 SESSION_COOKIE_SAMESITE=Lax
-SESSION_COOKIE_DOMAIN=None
+# SESSION_COOKIE_DOMAIN optional. Biarkan kosong untuk host-only cookie (disarankan di lokal)
+SESSION_COOKIE_DOMAIN=
 
 # =============================================================================
 # FILE UPLOAD CONFIGURATION
