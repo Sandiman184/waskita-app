@@ -16,6 +16,14 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 /**
+ * CSRF Token Helper
+ */
+function getCsrfToken() {
+    const meta = document.querySelector('meta[name="csrf-token"]');
+    return meta ? meta.getAttribute('content') : '';
+}
+
+/**
  * Flash Messages Handler
  */
 function initializeFlashMessages() {
@@ -182,11 +190,17 @@ function makeAjaxRequest(url, options = {}) {
         method: 'GET',
         headers: {
             'Content-Type': 'application/json',
-            'X-Requested-With': 'XMLHttpRequest'
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-CSRFToken': getCsrfToken()
         }
     };
     
     const finalOptions = { ...defaultOptions, ...options };
+    // Ensure CSRF header is present even if headers are overridden
+    finalOptions.headers = {
+        ...(options.headers || defaultOptions.headers),
+        'X-CSRFToken': (options.headers && options.headers['X-CSRFToken']) ? options.headers['X-CSRFToken'] : getCsrfToken()
+    };
     
     return fetch(url, finalOptions)
         .then(response => {
@@ -287,6 +301,9 @@ function submitRegistrationRequest() {
     
     fetch('/otp/register-request', {
         method: 'POST',
+        headers: {
+            'X-CSRFToken': getCsrfToken()
+        },
         body: formData
     })
     .then(response => response.json())

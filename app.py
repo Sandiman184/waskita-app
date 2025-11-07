@@ -20,7 +20,7 @@ load_dotenv(override=override_env)
 from models import db, User
 from models_otp import RegistrationRequest, AdminNotification, OTPEmailLog
 from otp_routes import otp_bp
-from config import Config
+from config import config as config_map
 
 # Setup logging
 import os
@@ -52,7 +52,20 @@ logging.getLogger().addHandler(file_handler)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-app.config.from_object(Config)
+
+# Load environment-specific config class (development/testing/production/default)
+# Fallback to 'default' which maps to DevelopmentConfig in config.py
+config_name = os.getenv('FLASK_CONFIG', 'default')
+try:
+    app.config.from_object(config_map[config_name])
+    # Call init_app if provided by the config class
+    config_map[config_name].init_app(app)
+    logger.info(f"Loaded configuration: {config_name}")
+except KeyError:
+    # If unknown config, fallback to default and log a warning
+    app.config.from_object(config_map['default'])
+    config_map['default'].init_app(app)
+    logger.warning(f"Unknown FLASK_CONFIG '{config_name}', falling back to 'default'")
 
 # Initialize CORS for API endpoints (origins from ENV, comma-separated)
 cors_origins_env = os.getenv('CORS_ORIGINS', 'http://localhost:5000,http://127.0.0.1:5000')
