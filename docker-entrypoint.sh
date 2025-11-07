@@ -10,9 +10,16 @@ echo "🚀 Starting Waskita Docker Entrypoint"
 auto_setup_env() {
     echo "🔧 Auto-setting up environment configuration..."
     
-    # If .env doesn't exist, create minimal .env file for Docker
+    # If .env doesn't exist, create minimal .env file for Docker using environment variables from Docker Compose
     if [ ! -f "/app/.env" ]; then
         echo "📝 Creating minimal .env file for Docker environment"
+        
+        # Get database configuration from Docker environment variables
+        DB_USER=${DATABASE_USER:-postgres}
+        DB_PASSWORD=${DATABASE_PASSWORD:-Sandiman184}
+        DB_NAME=${DATABASE_NAME:-waskita_db}
+        DB_HOST=${DATABASE_HOST:-db}
+        DB_PORT=${DATABASE_PORT:-5432}
         
         # Create minimal .env file with only essential variables
         cat > /app/.env << EOF
@@ -30,7 +37,7 @@ FLASK_ENV=production
 FLASK_DEBUG=0
 
 # File upload configuration
-UPLOAD_FOLDER=uploads
+UPLOAD_FOLDER=/app/uploads
 MAX_CONTENT_LENGTH=16777216
 
 # Model paths
@@ -42,9 +49,13 @@ NAIVE_BAYES_MODEL3_PATH=/app/models/navesbayes/naive_bayes_model3.pkl
 # Other settings
 CREATE_SAMPLE_DATA=false
 BASE_URL=http://localhost:5000
+
+# Database configuration from Docker environment variables
+DATABASE_URL=postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}
+DATABASE_URL_DOCKER=postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}
 EOF
         
-        echo "✅ Minimal .env file created successfully for Docker"
+        echo "✅ Minimal .env file created successfully for Docker using environment variables"
     else
         echo "✅ .env file already exists"
         
@@ -64,10 +75,26 @@ wait_for_database() {
         if python -c "
 import os, psycopg2, sys
 try:
-    conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
+    # Use DATABASE_URL_DOCKER if available, fallback to DATABASE_URL
+    db_url = os.environ.get('DATABASE_URL_DOCKER') or os.environ.get('DATABASE_URL')
+    if not db_url:
+        print('❌ No database URL found in environment variables')
+        sys.exit(1)
+    
+    # Try to connect to database with timeout
+    conn = psycopg2.connect(db_url, connect_timeout=5)
     conn.close()
+    print('✅ Database connection successful')
     sys.exit(0)
+except psycopg2.OperationalError as e:
+    if 'connection timeout' in str(e) or 'Connection refused' in str(e):
+        # Database not ready yet, continue waiting
+        sys.exit(1)
+    else:
+        print(f'❌ Database operational error: {e}')
+        sys.exit(1)
 except Exception as e:
+    print(f'❌ Unexpected error: {e}')
     sys.exit(1)
         "; then
             echo "✅ Database is ready!"

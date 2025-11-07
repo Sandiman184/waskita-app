@@ -190,6 +190,25 @@ def create_database_and_user():
     db_user = input("Username database (default: admin): ").strip() or "admin"
     db_password = getpass.getpass("Password database (default: admin12345): ") or "admin12345"
     
+    # Input konfigurasi email admin
+    print("\n📧 Konfigurasi Email Admin:")
+    admin_email = input("Email admin (untuk login & notifikasi): ").strip()
+    while not admin_email or '@' not in admin_email:
+        print("❌ Email tidak valid. Harap masukkan email yang benar.")
+        admin_email = input("Email admin (untuk login & notifikasi): ").strip()
+    
+    # Input konfigurasi SMTP
+    print("\n📨 Konfigurasi SMTP Email:")
+    print("ℹ️  Untuk Gmail: Aktifkan 2FA dan buat App Password")
+    mail_username = input("Email SMTP (username): ").strip() or admin_email
+    mail_password = getpass.getpass("Password/App Password SMTP: ")
+    mail_default_sender = input("Email pengirim default (default sama dengan username): ").strip() or mail_username
+    
+    # Input konfigurasi API Apify (opsional)
+    print("\n🤖 Konfigurasi API Apify (Opsional):")
+    print("ℹ️  Dapatkan token dari https://console.apify.com/account/integrations")
+    apify_api_token = input("API Token Apify (kosongkan jika belum ada): ").strip()
+    
     # Cek apakah database sudah ada
     db_config_check = {
         'host': db_host,
@@ -511,6 +530,20 @@ def update_env_file(db_config):
             'POSTGRES_DB': db_config['db_name']
         })
 
+        # Update konfigurasi email dan API
+        if 'admin_email' in db_config:
+            existing_config.update({
+                'ADMIN_EMAIL': db_config['admin_email'],
+                'ADMIN_EMAILS': db_config['admin_email'],
+                'MAIL_USERNAME': db_config.get('mail_username', db_config['admin_email']),
+                'MAIL_PASSWORD': db_config.get('mail_password', ''),
+                'MAIL_DEFAULT_SENDER': db_config.get('mail_default_sender', db_config['admin_email'])
+            })
+        
+        # Update konfigurasi API Apify jika ada
+        if 'apify_api_token' in db_config and db_config['apify_api_token']:
+            existing_config['APIFY_API_TOKEN'] = db_config['apify_api_token']
+
         # Pastikan OTP_ENABLED ditetapkan (pertahankan nilai jika sudah ada, default ke True untuk keamanan)
         if 'OTP_ENABLED' not in existing_config:
             existing_config['OTP_ENABLED'] = 'True'
@@ -763,8 +796,150 @@ def check_existing_config():
         print("   Setup akan menggunakan konfigurasi baru")
         return None
     else:
-        print("ℹ️  Tidak ada konfigurasi database yang ditemukan di .env")
+        print(f"ℹ️  Tidak ada konfigurasi database yang ditemukan di .env")
         return None
+
+def create_docker_env_file(db_config):
+    """Membuat file environment khusus untuk Docker"""
+    try:
+        print("\n🐳 Membuat file environment khusus Docker...")
+        
+        # Path untuk file environment Docker
+        docker_env_path = os.path.join('docker', '.env.docker')
+        
+        # Buat direktori docker jika belum ada
+        os.makedirs('docker', exist_ok=True)
+        
+        # Konfigurasi khusus Docker
+        docker_config = {
+            'DATABASE_URL': f"postgresql://postgres:{db_config['db_password']}@db:5432/waskita_db",
+            'TEST_DATABASE_URL': f"postgresql://postgres:{db_config['db_password']}@db:5432/testwaskita_db",
+            'DATABASE_HOST': 'db',
+            'DATABASE_PORT': '5432',
+            'DATABASE_NAME': 'waskita_db',
+            'DATABASE_USER': 'postgres',
+            'DATABASE_PASSWORD': db_config['db_password'],
+            'POSTGRES_USER': 'postgres',
+            'POSTGRES_PASSWORD': db_config['db_password'],
+            'POSTGRES_DB': 'waskita_db',
+            'ADMIN_EMAIL': db_config.get('admin_email', 'admin@waskita.com'),
+            'ADMIN_EMAILS': db_config.get('admin_email', 'admin@waskita.com'),
+            'MAIL_USERNAME': db_config.get('mail_username', db_config.get('admin_email', 'admin@waskita.com')),
+            'MAIL_PASSWORD': db_config.get('mail_password', ''),
+            'MAIL_DEFAULT_SENDER': db_config.get('mail_default_sender', db_config.get('admin_email', 'admin@waskita.com')),
+            'APIFY_API_TOKEN': db_config.get('apify_api_token', 'your-apify-api-token'),
+            'OTP_ENABLED': 'True'
+        }
+        
+        # Generate secure keys untuk Docker
+        import secrets
+        docker_config.update({
+            'SECRET_KEY': secrets.token_hex(32),
+            'WTF_CSRF_SECRET_KEY': secrets.token_hex(16),
+            'JWT_SECRET_KEY': secrets.token_hex(16),
+            'WASKITA_API_KEY': secrets.token_hex(16)
+        })
+        
+        # Template untuk file environment Docker
+        docker_env_content = """# =============================================================================
+# WASKITA DOCKER ENVIRONMENT CONFIGURATION
+# =============================================================================
+# File ini dibuat otomatis oleh setup_postgresql.py untuk environment Docker
+# SECURITY WARNING: Jangan pernah commit file ini ke version control!
+
+# =============================================================================
+# DATABASE CONFIGURATION - DOCKER
+# =============================================================================
+DATABASE_URL={DATABASE_URL}
+TEST_DATABASE_URL={TEST_DATABASE_URL}
+DATABASE_HOST={DATABASE_HOST}
+DATABASE_PORT={DATABASE_PORT}
+DATABASE_NAME={DATABASE_NAME}
+DATABASE_USER={DATABASE_USER}
+DATABASE_PASSWORD={DATABASE_PASSWORD}
+
+# PostgreSQL Database Settings (for Docker)
+POSTGRES_USER={POSTGRES_USER}
+POSTGRES_PASSWORD={POSTGRES_PASSWORD}
+POSTGRES_DB={POSTGRES_DB}
+
+# =============================================================================
+# FLASK CONFIGURATION
+# =============================================================================
+SECRET_KEY={SECRET_KEY}
+FLASK_ENV=production
+FLASK_DEBUG=False
+
+# =============================================================================
+# SECURITY CONFIGURATION
+# =============================================================================
+WTF_CSRF_ENABLED=True
+WTF_CSRF_TIME_LIMIT=3600
+WTF_CSRF_SECRET_KEY={WTF_CSRF_SECRET_KEY}
+JWT_SECRET_KEY={JWT_SECRET_KEY}
+WASKITA_API_KEY={WASKITA_API_KEY}
+
+# =============================================================================
+# EMAIL CONFIGURATION
+# =============================================================================
+MAIL_SERVER=smtp.gmail.com
+MAIL_PORT=587
+MAIL_USE_TLS=True
+MAIL_USE_SSL=False
+MAIL_USERNAME={MAIL_USERNAME}
+MAIL_PASSWORD={MAIL_PASSWORD}
+MAIL_DEFAULT_SENDER={MAIL_DEFAULT_SENDER}
+
+# =============================================================================
+# ADMIN CONFIGURATION
+# =============================================================================
+ADMIN_EMAIL={ADMIN_EMAIL}
+ADMIN_EMAILS={ADMIN_EMAILS}
+
+# =============================================================================
+# OTP SYSTEM CONFIGURATION
+# =============================================================================
+OTP_ENABLED={OTP_ENABLED}
+OTP_LENGTH=6
+OTP_EXPIRY_MINUTES=30
+MAX_OTP_ATTEMPTS=3
+LOCKOUT_DURATION_MINUTES=15
+
+# =============================================================================
+# APIFY API CONFIGURATION
+# =============================================================================
+APIFY_API_TOKEN={APIFY_API_TOKEN}
+APIFY_BASE_URL=https://api.apify.com/v2
+APIFY_TWITTER_ACTOR=kaitoeasyapi/twitter-x-data-tweet-scraper-pay-per-result-cheapest
+APIFY_FACEBOOK_ACTOR=apify/facebook-scraper
+APIFY_INSTAGRAM_ACTOR=apify/instagram-scraper
+APIFY_TIKTOK_ACTOR=clockworks/free-tiktok-scraper
+APIFY_TIMEOUT=30
+APIFY_MAX_RETRIES=3
+APIFY_RETRY_DELAY=5
+
+# =============================================================================
+# DOCKER PORT CONFIGURATION
+# =============================================================================
+DB_PORT=5432
+WEB_PORT=5000
+REDIS_PORT=6379
+NGINX_HTTP_PORT=80
+NGINX_HTTPS_PORT=443
+CREATE_SAMPLE_DATA=false
+""".format(**docker_config)
+        
+        # Tulis file environment Docker
+        with open(docker_env_path, 'w', encoding='utf-8') as f:
+            f.write(docker_env_content)
+        
+        print(f"✅ File environment Docker berhasil dibuat: {docker_env_path}")
+        print("ℹ️  Gunakan perintah: docker-compose -f docker/docker-compose.yml --env-file docker/.env.docker up --build")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Error saat membuat file environment Docker: {e}")
+        return False
 
 def main():
     """
@@ -852,6 +1027,9 @@ def main():
         if not update_env_file(db_config):
             print("❌ Update .env gagal")
             return 1
+        
+        # Step 4: Buat file environment Docker
+        create_docker_env_file(db_config)
         
         print("\n" + "=" * 60)
         print("🎉 SETUP BERHASIL! WASKITA SIAP DIGUNAKAN!")

@@ -65,7 +65,8 @@ services:
     environment:
       - FLASK_ENV=${FLASK_ENV:-production}
       - FLASK_DEBUG=${FLASK_DEBUG:-0}
-      - DATABASE_URL=${DATABASE_URL_DOCKER:-${DATABASE_URL}}
+      - DATABASE_URL=postgresql://${DATABASE_USER:-postgres}:${DATABASE_PASSWORD:-Sandiman184}@db:5432/${DATABASE_NAME:-waskita_db}
+      - DATABASE_URL_DOCKER=postgresql://${DATABASE_USER:-postgres}:${DATABASE_PASSWORD:-Sandiman184}@db:5432/${DATABASE_NAME:-waskita_db}
       - SECRET_KEY=${SECRET_KEY:-your-super-secret-key-change-this-in-production}
       - REDIS_URL=redis://waskita-app-redis:6379/0
       - CREATE_SAMPLE_DATA=${CREATE_SAMPLE_DATA:-false}

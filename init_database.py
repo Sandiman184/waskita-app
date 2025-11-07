@@ -18,20 +18,32 @@ def wait_for_database():
     
     while attempt < max_attempts:
         try:
-            # Get database connection from environment variables
-            db_url = os.getenv('DATABASE_URL')
+            # Get database connection from environment variables - prefer DATABASE_URL_DOCKER for Docker
+            db_url = os.getenv('DATABASE_URL_DOCKER') or os.getenv('DATABASE_URL')
             if not db_url:
+                print("❌ No database URL found in environment variables")
                 return False
             
-            # Try to connect to database
-            conn = psycopg2.connect(db_url)
+            # Try to connect to database with timeout
+            conn = psycopg2.connect(db_url, connect_timeout=5)
             conn.close()
+            print("✅ Database connection successful")
             return True
             
+        except psycopg2.OperationalError as e:
+            if 'connection timeout' in str(e) or 'Connection refused' in str(e):
+                # Database not ready yet, continue waiting
+                attempt += 1
+                time.sleep(2)
+            else:
+                print(f"❌ Database operational error: {e}")
+                return False
         except Exception as e:
+            print(f"❌ Unexpected error: {e}")
             attempt += 1
             time.sleep(2)
     
+    print("❌ Database connection failed after maximum attempts")
     return False
 
 def check_table_exists(conn, table_name):
@@ -163,8 +175,12 @@ def main():
         sys.exit(1)
     
     try:
-        # Connect to database
-        db_url = os.getenv('DATABASE_URL')
+        # Connect to database - prefer DATABASE_URL_DOCKER for Docker
+        db_url = os.getenv('DATABASE_URL_DOCKER') or os.getenv('DATABASE_URL')
+        if not db_url:
+            print("❌ No database URL found in environment variables")
+            sys.exit(1)
+            
         conn = psycopg2.connect(db_url)
         
         # Create database schema if needed
@@ -182,9 +198,14 @@ def main():
         
         conn.close()
         
+        print("✅ Database initialization completed successfully")
         sys.exit(0)
         
+    except psycopg2.OperationalError as e:
+        print(f"❌ Database operational error: {e}")
+        sys.exit(1)
     except Exception as e:
+        print(f"❌ Unexpected error during database initialization: {e}")
         sys.exit(1)
 
 if __name__ == "__main__":

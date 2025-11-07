@@ -170,33 +170,94 @@ def update_admin_otp_setting(conn):
 def main():
     """Main initialization function"""
     
+    # Prioritize DATABASE_URL_DOCKER for Docker environment, fallback to DATABASE_URL
+    # If neither is set, construct from individual environment variables
+    database_url = os.environ.get('DATABASE_URL_DOCKER') or os.environ.get('DATABASE_URL')
+    
+    if not database_url:
+        # Construct database URL from individual environment variables
+        db_user = os.environ.get('DATABASE_USER', 'postgres')
+        db_password = os.environ.get('DATABASE_PASSWORD', 'Sandiman184')
+        db_host = os.environ.get('DATABASE_HOST', 'db')
+        db_port = os.environ.get('DATABASE_PORT', '5432')
+        db_name = os.environ.get('DATABASE_NAME', 'waskita_db')
+        
+        database_url = f"postgresql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}"
+        print(f"ℹ️  Constructed database URL from environment variables: {database_url}")
+    
+    print(f"🔗 Using database URL: {database_url}")
+    
     # Wait for database to be ready
     if not wait_for_database():
+        print("❌ Database connection failed after multiple attempts")
         sys.exit(1)
     
+    # Database is ready, proceed with initialization
     try:
-        # Connect to database
-        db_url = os.getenv('DATABASE_URL')
-        conn = psycopg2.connect(db_url)
+        # Parse database URL to get connection parameters
+        from urllib.parse import urlparse
+        parsed_url = urlparse(database_url)
+        dbname = parsed_url.path[1:]  # Remove leading slash
         
-        # Create database schema if needed
-        if not create_database_schema(conn):
-            conn.close()
-            sys.exit(1)
+        # Connect to PostgreSQL server
+        conn = psycopg2.connect(
+            host=parsed_url.hostname,
+            port=parsed_url.port,
+            user=parsed_url.username,
+            password=parsed_url.password,
+            dbname='postgres'  # Connect to default database first
+        )
+        conn.autocommit = True
+        cursor = conn.cursor()
         
-        # Create admin user
-        if not create_admin_user(conn):
-            conn.close()
-            sys.exit(1)
+        # Check if database exists
+        cursor.execute("SELECT 1 FROM pg_database WHERE datname = %s", (dbname,))
+        if cursor.fetchone():
+            print(f"✅ Database '{dbname}' already exists")
+        else:
+            # Create database
+            cursor.execute(f"CREATE DATABASE {dbname}")
+            print(f"✅ Database '{dbname}' created successfully")
         
-        # Update admin user to disable first login OTP requirement (Docker mode)
-        update_admin_otp_setting(conn)
-        
+        cursor.close()
         conn.close()
         
+        # Now connect to the specific database to create tables
+        conn = psycopg2.connect(database_url)
+        conn.autocommit = True
+        cursor = conn.cursor()
+        
+        # Read and execute schema SQL
+        with open('/app/database_schema.sql', 'r') as f:
+            schema_sql = f.read()
+        
+        cursor.execute(schema_sql)
+        print("✅ Database schema created successfully")
+        
+        # Check if admin user already exists
+        cursor.execute("SELECT 1 FROM users WHERE username = 'admin'")
+        if cursor.fetchone():
+            print("✅ Admin user already exists")
+        else:
+            # Create admin user with hashed password
+            hashed_password = generate_password_hash('admin123', method='scrypt')
+            cursor.execute(
+                "INSERT INTO users (username, password_hash, role, email, first_name, last_name, is_active, otp_required) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+                ('admin', hashed_password, 'admin', 'admin@example.com', 'System', 'Administrator', True, False)
+            )
+            print("✅ Admin user created with username: 'admin', password: 'admin123'")
+        
+        cursor.close()
+        conn.close()
+        
+        print("🎉 Database initialization completed successfully!")
         sys.exit(0)
         
+    except psycopg2.Error as e:
+        print(f"❌ Database error: {e}")
+        sys.exit(1)
     except Exception as e:
+        print(f"❌ Unexpected error: {e}")
         sys.exit(1)
 
 if __name__ == "__main__":
