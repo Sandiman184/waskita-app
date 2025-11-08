@@ -557,9 +557,7 @@
                                 <button type="button" class="btn btn-success mr-2 btn-bulk-action" onclick="bulkCleanDatasets()">
                                     <i class="fas fa-broom"></i> Bersihkan
                                 </button>
-                                <button type="button" class="btn btn-info mr-2 btn-bulk-action" onclick="bulkClassifyDatasets()">
-                                    <i class="fas fa-tags"></i> Klasifikasi
-                                </button>
+                                <!-- Klasifikasi bulk dinonaktifkan: gunakan klasifikasi per dataset -->
                                 <button type="button" class="btn btn-danger mr-2 btn-bulk-action" onclick="bulkDeleteDatasets()">
                                     <i class="fas fa-trash"></i> Hapus
                                 </button>
@@ -1130,15 +1128,10 @@ $(document).ready(function() {
     };
 
     window.bulkClassifyDatasets = function() {
-    const selectedIds = $('.dataset-checkbox:checked').map(function() {
-        return $(this).val();
-    }).get();
-    
-    if (selectedIds.length === 0) {
         Swal.fire({
-            icon: 'warning',
-            title: 'Peringatan',
-            text: 'Pilih dataset terlebih dahulu',
+            icon: 'info',
+            title: 'Fitur Dinonaktifkan',
+            text: 'Klasifikasi bulk telah dihapus. Gunakan klasifikasi per dataset.',
             customClass: {
                 popup: 'swal2-popup',
                 title: 'swal2-title',
@@ -1147,91 +1140,6 @@ $(document).ready(function() {
                 confirmButton: 'swal2-confirm'
             }
         });
-        return;
-    }
-    
-    Swal.fire({
-        title: 'Konfirmasi Bulk Classification',
-        text: `Apakah Anda yakin ingin mengklasifikasi ${selectedIds.length} dataset?`,
-        icon: 'question',
-        showCancelButton: true,
-        confirmButtonText: 'Ya, Klasifikasi Semua',
-        cancelButtonText: 'Batal'
-    }).then((result) => {
-        if (result.isConfirmed) {
-            $.ajax({
-                url: '/dataset/bulk/classify',
-                type: 'POST',
-                contentType: 'application/json',
-                headers: {
-                    'X-CSRFToken': $('meta[name=csrf-token]').attr('content')
-                },
-                data: JSON.stringify({ dataset_ids: selectedIds }),
-                success: function(data) {
-                    if (data.success) {
-                            let message = data.message;
-                            if (data.errors && data.errors.length > 0) {
-                                message += `\n\nError pada beberapa dataset:\n${data.errors.join('\n')}`;
-                            }
-                            
-                            // Tentukan jenis notifikasi berdasarkan status
-                            let icon = 'success';
-                            if (data.already_classified > 0 && data.processed === 0) {
-                                icon = 'info';
-                            }
-                            
-                            Swal.fire({
-                                icon: icon,
-                                title: icon === 'success' ? 'Berhasil' : 'Info',
-                                text: message,
-                                customClass: {
-                                    popup: 'swal2-popup',
-                                    title: 'swal2-title',
-                                    htmlContainer: 'swal2-html-container',
-                                    actions: 'swal2-actions',
-                                    confirmButton: 'swal2-confirm'
-                                }
-                            }).then(() => location.reload());
-                        } else {
-                            if (typeof swalError === 'function') {
-                                swalError('Error', data.message);
-                            } else {
-                                Swal.fire({
-                                    icon: 'error',
-                                    title: 'Error',
-                                    text: data.message,
-                                    customClass: {
-                                        popup: 'swal2-popup',
-                                        title: 'swal2-title',
-                                        htmlContainer: 'swal2-html-container',
-                                        actions: 'swal2-actions',
-                                        confirmButton: 'swal2-confirm'
-                                    }
-                                });
-                            }
-                        }
-                },
-                error: function() {
-                    if (typeof swalError === 'function') {
-                        swalError('Error', 'Gagal mengklasifikasi dataset');
-                    } else {
-                        Swal.fire({
-                            icon: 'error',
-                            title: 'Error',
-                            text: 'Gagal mengklasifikasi dataset',
-                            customClass: {
-                                popup: 'swal2-popup',
-                                title: 'swal2-title',
-                                htmlContainer: 'swal2-html-container',
-                                actions: 'swal2-actions',
-                                confirmButton: 'swal2-confirm'
-                            }
-                        });
-                    }
-                }
-            });
-        }
-    });
     };
 
     window.bulkDeleteDatasets = function() {

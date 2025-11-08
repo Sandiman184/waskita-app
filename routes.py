@@ -2795,25 +2795,32 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
             
             # Read and process file with proper encoding handling
             if file_info['mime_type'] in ['text/csv', 'text/plain', 'application/csv'] or file_info.get('detected_format') == 'csv':
+                # Simpan delimiter & encoding yang digunakan agar konsisten saat baca ulang
+                used_delimiter = file_info.get('delimiter')
+                used_encoding = None
+
                 # Gunakan chardet untuk deteksi encoding otomatis
                 try:
                     import chardet
-                    
+
                     # Baca sampel dari file untuk deteksi encoding
                     file.seek(0)
                     raw_data = file.read(min(file_size, 100000))  # Baca maksimal 100KB untuk deteksi
                     file.seek(0)  # Reset ke awal file
-                    
+
                     # Deteksi encoding
                     result = chardet.detect(raw_data)
                     encoding = result['encoding']
                     confidence = result['confidence']
-                    
+
                     # Gunakan encoding yang terdeteksi jika confidence cukup tinggi
                     if encoding and confidence > 0.7:
                         try:
-                            df = pd.read_csv(filepath, encoding=encoding)
-                            # Berhasil membaca file, tidak perlu fallback
+                            if used_delimiter:
+                                df = pd.read_csv(filepath, encoding=encoding, sep=used_delimiter)
+                            else:
+                                df = pd.read_csv(filepath, encoding=encoding)
+                            used_encoding = encoding
                         except Exception:
                             # Lanjutkan ke fallback encodings
                             pass
@@ -2823,21 +2830,21 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                 except Exception:
                     # Fallback ke metode encoding yang ada
                     pass
-                
+
                 # Fallback ke metode encoding yang ada jika auto-detection gagal
                 encodings_to_try = ['utf-8', 'utf-8-sig', 'latin1', 'cp1252', 'iso-8859-1']
-                df = None
+                df = df if 'df' in locals() else None
                 last_error = None
-                
-                # Jika delimiter terdeteksi, gunakan
-                delimiter = file_info.get('delimiter')
-                
+
                 for encoding in encodings_to_try:
+                    if df is not None:
+                        break
                     try:
-                        if delimiter:
-                            df = pd.read_csv(filepath, encoding=encoding, sep=delimiter)
+                        if used_delimiter:
+                            df = pd.read_csv(filepath, encoding=encoding, sep=used_delimiter)
                         else:
                             df = pd.read_csv(filepath, encoding=encoding)
+                        used_encoding = encoding
                         break
                     except (UnicodeDecodeError, UnicodeError) as e:
                         last_error = e
@@ -2845,15 +2852,16 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                     except Exception as e:
                         # For other errors (like parsing errors), try with error handling
                         try:
-                            if delimiter:
-                                df = pd.read_csv(filepath, encoding=encoding, sep=delimiter, on_bad_lines='skip')
+                            if used_delimiter:
+                                df = pd.read_csv(filepath, encoding=encoding, sep=used_delimiter, on_bad_lines='skip')
                             else:
                                 df = pd.read_csv(filepath, encoding=encoding, on_bad_lines='skip')
+                            used_encoding = encoding
                             break
                         except Exception as e2:
                             last_error = e2
                             continue
-                
+
                 if df is None:
                     # Clean up the file if we can't process it
                     if os.path.exists(filepath):
@@ -2928,6 +2936,13 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                 session['upload_file_size'] = file_size
                 session['upload_columns'] = list(df.columns)
                 session['upload_sample_data'] = sample_data
+                # Simpan parameter pembacaan agar konsisten saat proses mapping
+                try:
+                    session['upload_used_encoding'] = used_encoding
+                    session['upload_used_delimiter'] = used_delimiter
+                except Exception:
+                    # Abaikan jika bukan CSV
+                    pass
                 
                 # Sanitize form inputs
                 session['upload_description'] = SecurityValidator.sanitize_input(
@@ -3027,12 +3042,24 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                     'message': 'File upload tidak ditemukan. Silakan upload ulang file.'
                 }), 400
             
-            # Read the file again
-            if filename.endswith('.csv'):
-                df = pd.read_csv(filepath)
+            # Read the file again using the same encoding & delimiter as upload
+            used_encoding = session.get('upload_used_encoding')
+            used_delimiter = session.get('upload_used_delimiter')
+            if str(filename).lower().endswith('.csv'):
+                try:
+                    if used_delimiter:
+                        df = pd.read_csv(filepath, encoding=used_encoding or 'utf-8', sep=used_delimiter, on_bad_lines='skip')
+                    else:
+                        df = pd.read_csv(filepath, encoding=used_encoding or 'utf-8', on_bad_lines='skip')
+                except Exception:
+                    # Fallback minimal jika parameter gagal
+                    df = pd.read_csv(filepath, on_bad_lines='skip')
             else:
                 df = pd.read_excel(filepath)
-            
+
+            # Samakan sanitasi nama kolom dengan yang ditampilkan ke UI saat upload
+            df.columns = [SecurityValidator.sanitize_input(str(c), max_length=100) for c in df.columns]
+
             # Validate selected columns exist
             if content_column not in df.columns:
                 return jsonify({
@@ -4039,13 +4066,14 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
             message = ' dan '.join(message_parts) if message_parts else 'Tidak ada dataset yang perlu dibersihkan'
             
             if errors:
+                status_code = 400 if processed_count == 0 else 200
                 return jsonify({
-                    'success': True, 
+                    'success': processed_count > 0,
                     'processed': processed_count,
                     'already_cleaned': already_cleaned_count,
                     'message': message,
                     'errors': errors
-                })
+                }), status_code
             
             return jsonify({
                 'success': True, 
@@ -4058,18 +4086,7 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
             db.session.rollback()
             return jsonify({'success': False, 'message': f'Error: {str(e)}'}), 500
     
-    @app.route('/dataset/bulk/classify', methods=['POST'])
-    @login_required
-    @active_user_required
-    def bulk_classify_datasets():
-        """Classify multiple datasets"""
-        try:
-            data = request.get_json()
-            dataset_ids = data.get('dataset_ids', [])
-            
-            if not dataset_ids:
-                return jsonify({'success': False, 'message': 'Tidak ada dataset yang dipilih'}), 400
-            
+    # Bulk classification route intentionally removed: gunakan klasifikasi per-dataset
             if not SKLEARN_AVAILABLE or not GENSIM_AVAILABLE:
                 return jsonify({'success': False, 'message': 'Library ML tidak tersedia'}), 500
             
@@ -4316,12 +4333,13 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
             )
             
             if errors:
+                status_code = 400 if processed_count == 0 else 200
                 return jsonify({
-                    'success': True, 
+                    'success': processed_count > 0,
                     'processed': processed_count,
                     'message': f'{processed_count} dataset berhasil dihapus',
                     'errors': errors
-                })
+                }), status_code
             
             return jsonify({
                 'success': True, 
