@@ -65,6 +65,7 @@ services:
     env_file:
       - ../.env.docker
     environment:
+      - TZ=Asia/Jakarta
       - FLASK_ENV=${FLASK_ENV:-production}
       - FLASK_DEBUG=${FLASK_DEBUG:-0}
       - DATABASE_URL=postgresql://${DATABASE_USER:-postgres}:${DATABASE_PASSWORD:-Sandiman184}@db:5432/${DATABASE_NAME:-waskita_db}
@@ -72,16 +73,7 @@ services:
       - SECRET_KEY=${SECRET_KEY:-your-super-secret-key-change-this-in-production}
       - REDIS_URL=redis://waskita-app-redis:6379/0
       - CREATE_SAMPLE_DATA=${CREATE_SAMPLE_DATA:-false}
-      # Email configuration
-      - MAIL_SERVER=${MAIL_SERVER:-smtp.gmail.com}
-      - MAIL_PORT=${MAIL_PORT:-587}
-      - MAIL_USE_TLS=${MAIL_USE_TLS:-true}
-      - MAIL_USE_SSL=${MAIL_USE_SSL:-false}
-      - MAIL_USERNAME=${MAIL_USERNAME:-}
-      - MAIL_PASSWORD=${MAIL_PASSWORD:-}
-      - MAIL_DEFAULT_SENDER=${MAIL_DEFAULT_SENDER:-}
-      - ADMIN_EMAIL=${ADMIN_EMAIL:-}
-      - ADMIN_EMAILS=${ADMIN_EMAILS:-}
+      # Email configuration - diambil dari .env.docker
       - SEND_EMAIL_NOTIFICATIONS=${SEND_EMAIL_NOTIFICATIONS:-true}
       # Apify scraping configuration
       - APIFY_API_TOKEN=${APIFY_API_TOKEN:-}
