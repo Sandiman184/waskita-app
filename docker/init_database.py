@@ -128,11 +128,11 @@ def create_admin_user(conn):
         # Insert admin user with ON CONFLICT to update password if user already exists
         insert_admin_sql = """
         INSERT INTO users (username, email, password_hash, role, full_name, is_active, theme_preference, first_login) 
-        VALUES (%s, %s, %s, 'admin', %s, TRUE, 'dark', FALSE)
+        VALUES (%s, %s, %s, 'admin', %s, TRUE, 'dark', TRUE)
         ON CONFLICT (username) DO UPDATE SET
             password_hash = EXCLUDED.password_hash,
             updated_at = CURRENT_TIMESTAMP,
-            first_login = FALSE;
+            first_login = TRUE;
         """
         
         cursor = conn.cursor()
@@ -146,16 +146,16 @@ def create_admin_user(conn):
         return False
 
 def update_admin_otp_setting(conn):
-    """Update admin user to disable first login OTP requirement for Docker"""
+    """Enforce admin to require OTP on first login in Docker"""
     try:
         cursor = conn.cursor()
         
-        # Update admin user to disable first login OTP requirement
+        # Ensure admin requires OTP on first login
         update_sql = """
         UPDATE users 
-        SET first_login = FALSE, 
+        SET first_login = TRUE, 
             updated_at = CURRENT_TIMESTAMP
-        WHERE username = 'admin' AND first_login = TRUE;
+        WHERE username = 'admin' AND first_login = FALSE;
         """
         
         cursor.execute(update_sql)
@@ -234,18 +234,20 @@ def main():
         cursor.execute(schema_sql)
         print("✅ Database schema created successfully")
         
-        # Check if admin user already exists
-        cursor.execute("SELECT 1 FROM users WHERE username = 'admin'")
-        if cursor.fetchone():
-            print("✅ Admin user already exists")
-        else:
-            # Create admin user with hashed password
-            hashed_password = generate_password_hash('admin123', method='scrypt')
-            cursor.execute(
-                "INSERT INTO users (username, password_hash, role, email, first_name, last_name, is_active, otp_required) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
-                ('admin', hashed_password, 'admin', 'admin@example.com', 'System', 'Administrator', True, False)
-            )
-            print("✅ Admin user created with username: 'admin', password: 'admin123'")
+        # Create or update admin user with consistent schema and OTP requirement
+        hashed_password = generate_password_hash('admin123', method='scrypt')
+        cursor.execute(
+            """
+            INSERT INTO users (username, email, password_hash, role, full_name, is_active, theme_preference, first_login)
+            VALUES (%s, %s, %s, 'admin', %s, TRUE, 'dark', TRUE)
+            ON CONFLICT (username) DO UPDATE SET
+                password_hash = EXCLUDED.password_hash,
+                updated_at = CURRENT_TIMESTAMP,
+                first_login = TRUE
+            """,
+            ('admin', 'admin@waskita.com', hashed_password, 'Administrator Waskita')
+        )
+        print("✅ Admin user ensured with first_login=TRUE (OTP required)")
         
         cursor.close()
         conn.close()

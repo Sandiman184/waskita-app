@@ -77,7 +77,7 @@ def check_column_exists(conn, table_name, column_name):
 def add_missing_columns(conn):
     """Add missing columns to existing tables"""
     try:
-        # Check if first_login column exists in users table
+        # Ensure first_login column exists in users table (required for OTP)
         if not check_column_exists(conn, 'users', 'first_login'):
             cursor = conn.cursor()
             cursor.execute("ALTER TABLE users ADD COLUMN first_login BOOLEAN DEFAULT TRUE")
@@ -128,11 +128,11 @@ def create_admin_user(conn):
         # Insert admin user with ON CONFLICT to update password if user already exists
         insert_admin_sql = """
         INSERT INTO users (username, email, password_hash, role, full_name, is_active, theme_preference, first_login) 
-        VALUES (%s, %s, %s, 'admin', %s, TRUE, 'dark', FALSE)
+        VALUES (%s, %s, %s, 'admin', %s, TRUE, 'dark', TRUE)
         ON CONFLICT (username) DO UPDATE SET
             password_hash = EXCLUDED.password_hash,
             updated_at = CURRENT_TIMESTAMP,
-            first_login = FALSE;
+            first_login = TRUE;
         """
         
         cursor = conn.cursor()
@@ -146,16 +146,16 @@ def create_admin_user(conn):
         return False
 
 def update_admin_otp_setting(conn):
-    """Update admin user to disable first login OTP requirement for Docker"""
+    """Enforce admin to require OTP on first login in Docker"""
     try:
         cursor = conn.cursor()
         
-        # Update admin user to disable first login OTP requirement
+        # Ensure admin requires OTP on first login
         update_sql = """
         UPDATE users 
-        SET first_login = FALSE, 
+        SET first_login = TRUE, 
             updated_at = CURRENT_TIMESTAMP
-        WHERE username = 'admin' AND first_login = TRUE;
+        WHERE username = 'admin' AND first_login = FALSE;
         """
         
         cursor.execute(update_sql)

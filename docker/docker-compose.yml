@@ -62,6 +62,8 @@ services:
       context: ..
       dockerfile: Dockerfile
     container_name: waskita-app-web
+    env_file:
+      - ../.env.docker
     environment:
       - FLASK_ENV=${FLASK_ENV:-production}
       - FLASK_DEBUG=${FLASK_DEBUG:-0}

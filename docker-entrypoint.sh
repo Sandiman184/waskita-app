@@ -137,13 +137,22 @@ check_database_initialized() {
     if python -c "
 import os, psycopg2, sys
 try:
-    conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
+    db_url = os.environ.get('DATABASE_URL_DOCKER') or os.environ.get('DATABASE_URL')
+    if not db_url:
+        sys.exit(1)
+    conn = psycopg2.connect(db_url)
     cursor = conn.cursor()
+    # Check core and OTP tables
     cursor.execute(\"SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'users');\")
     users_table_exists = cursor.fetchone()[0]
+    cursor.execute(\"SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'registration_requests');\")
+    rr_exists = cursor.fetchone()[0]
+    cursor.execute(\"SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'otp_email_logs');\")
+    otp_logs_exists = cursor.fetchone()[0]
     cursor.close()
     conn.close()
-    sys.exit(0 if users_table_exists else 1)
+    # Initialized only if users and OTP tables exist
+    sys.exit(0 if (users_table_exists and rr_exists and otp_logs_exists) else 1)
 except Exception as e:
     sys.exit(1)
     "; then
