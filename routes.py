@@ -1580,14 +1580,14 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
             upload_results = db.session.execute(
                 text("""
                     SELECT cr.id, cr.data_type, cr.data_id, cr.model_name, cr.prediction, 
-                           cr.probability_radikal, cr.probability_non_radikal, cr.created_at,
-                           cdu.cleaned_content as content, cdu.username, cdu.url,
+                           cr.probability_radikal, cr.probability_non_radikal, cr.classified_at,
+                           cdu.cleaned_content as content, cdu.username, cdu.url, cdu.created_at,
                            d.name as dataset_name, d.id as dataset_id
                     FROM classification_results cr 
                     JOIN clean_data_upload cdu ON cr.data_type = 'upload' AND cr.data_id = cdu.id
                     JOIN raw_data rd ON cdu.raw_data_id = rd.id
                     JOIN datasets d ON rd.dataset_id = d.id
-                    ORDER BY cr.created_at DESC
+                    ORDER BY cr.classified_at DESC
                 """)
             ).fetchall()
             
@@ -1595,14 +1595,14 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
             scraper_results = db.session.execute(
                 text("""
                     SELECT cr.id, cr.data_type, cr.data_id, cr.model_name, cr.prediction, 
-                           cr.probability_radikal, cr.probability_non_radikal, cr.created_at,
-                           cds.cleaned_content as content, cds.username, cds.url,
+                           cr.probability_radikal, cr.probability_non_radikal, cr.classified_at,
+                           cds.cleaned_content as content, cds.username, cds.url, cds.created_at,
                            d.name as dataset_name, d.id as dataset_id
                     FROM classification_results cr 
                     JOIN clean_data_scraper cds ON cr.data_type = 'scraper' AND cr.data_id = cds.id
                     JOIN raw_data_scraper rds ON cds.raw_data_scraper_id = rds.id
                     JOIN datasets d ON rds.dataset_id = d.id
-                    ORDER BY cr.created_at DESC
+                    ORDER BY cr.classified_at DESC
                 """)
             ).fetchall()
             
@@ -3945,7 +3945,7 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                     
                     # Check permission dengan feedback yang jelas
                     has_permission, message, http_status = check_permission_with_feedback(
-                        current_user, dataset.created_by, 'clean', 'dataset'
+                        current_user, dataset.uploaded_by, 'clean', 'dataset'
                     )
                     if not has_permission:
                         errors.append(message)
@@ -4087,7 +4087,7 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                     
                     # Check permission dengan feedback yang jelas
                     has_permission, message, http_status = check_permission_with_feedback(
-                        current_user, dataset.created_by, 'classify', 'dataset'
+                        current_user, dataset.uploaded_by, 'classify', 'dataset'
                     )
                     if not has_permission:
                         errors.append(message)
@@ -4144,7 +4144,7 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                                 data_id=clean_data.id,
                                 prediction=prediction,
                                 probability=probability,
-                                classified_at=datetime.utcnow(),
+                                classified_at=datetime.now(),
                                 classified_by=current_user.id
                             )
                             db.session.add(classification)
@@ -4172,7 +4172,7 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                                 data_id=clean_scraper.id,
                                 prediction=prediction,
                                 probability=probability,
-                                classified_at=datetime.utcnow(),
+                                classified_at=datetime.now(),
                                 classified_by=current_user.id
                             )
                             db.session.add(classification)
@@ -4250,7 +4250,7 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                     
                     # Check permission dengan feedback yang jelas
                     has_permission, message, http_status = check_permission_with_feedback(
-                        current_user, dataset.created_by, 'delete', 'dataset'
+                        current_user, dataset.uploaded_by, 'delete', 'dataset'
                     )
                     if not has_permission:
                         errors.append(message)
@@ -4561,13 +4561,13 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                 # Get all classification results for upload data with role-based filtering
                 if current_user.is_admin:
                     upload_results = db.session.execute(
-                        text("SELECT cr.id, cr.data_type, cr.data_id, cr.model_name, cr.prediction, cr.probability_radikal, cr.probability_non_radikal, cr.created_at, cdu.cleaned_content as content, cdu.username, cdu.url FROM classification_results cr JOIN clean_data_upload cdu ON cr.data_type = 'upload' AND cr.data_id = cdu.id JOIN raw_data rd ON cdu.raw_data_id = rd.id WHERE rd.dataset_id = :dataset_id ORDER BY cdu.id, cr.model_name"),
+                        text("SELECT cr.id, cr.data_type, cr.data_id, cr.model_name, cr.prediction, cr.probability_radikal, cr.probability_non_radikal, cr.classified_at, cdu.cleaned_content as content, cdu.username, cdu.url, cdu.created_at FROM classification_results cr JOIN clean_data_upload cdu ON cr.data_type = 'upload' AND cr.data_id = cdu.id JOIN raw_data rd ON cdu.raw_data_id = rd.id WHERE rd.dataset_id = :dataset_id ORDER BY cdu.id, cr.model_name"),
                         {'dataset_id': dataset_id}
                     ).mappings().fetchall()
                 else:
                     # For regular users, only show their own data
                     upload_results = db.session.execute(
-                        text("SELECT cr.id, cr.data_type, cr.data_id, cr.model_name, cr.prediction, cr.probability_radikal, cr.probability_non_radikal, cr.created_at, cdu.cleaned_content as content, cdu.username, cdu.url FROM classification_results cr JOIN clean_data_upload cdu ON cr.data_type = 'upload' AND cr.data_id = cdu.id JOIN raw_data rd ON cdu.raw_data_id = rd.id WHERE rd.dataset_id = :dataset_id AND rd.uploaded_by = :user_id ORDER BY cdu.id, cr.model_name"),
+                        text("SELECT cr.id, cr.data_type, cr.data_id, cr.model_name, cr.prediction, cr.probability_radikal, cr.probability_non_radikal, cr.classified_at, cdu.cleaned_content as content, cdu.username, cdu.url, cdu.created_at FROM classification_results cr JOIN clean_data_upload cdu ON cr.data_type = 'upload' AND cr.data_id = cdu.id JOIN raw_data rd ON cdu.raw_data_id = rd.id WHERE rd.dataset_id = :dataset_id AND rd.uploaded_by = :user_id ORDER BY cdu.id, cr.model_name"),
                         {'dataset_id': dataset_id, 'user_id': current_user.id}
                     ).mappings().fetchall()
                 
@@ -4600,13 +4600,13 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                 # Get all classification results for scraper data with role-based filtering
                 if current_user.is_admin:
                     scraper_results = db.session.execute(
-                        text("SELECT cr.id, cr.data_type, cr.data_id, cr.model_name, cr.prediction, cr.probability_radikal, cr.probability_non_radikal, cr.created_at, cds.cleaned_content as content, cds.username, cds.url FROM classification_results cr JOIN clean_data_scraper cds ON cr.data_type = 'scraper' AND cr.data_id = cds.id JOIN raw_data_scraper rds ON cds.raw_data_scraper_id = rds.id WHERE rds.dataset_id = :dataset_id ORDER BY cds.id, cr.model_name"),
+                        text("SELECT cr.id, cr.data_type, cr.data_id, cr.model_name, cr.prediction, cr.probability_radikal, cr.probability_non_radikal, cr.classified_at, cds.cleaned_content as content, cds.username, cds.url, cds.created_at FROM classification_results cr JOIN clean_data_scraper cds ON cr.data_type = 'scraper' AND cr.data_id = cds.id JOIN raw_data_scraper rds ON cds.raw_data_scraper_id = rds.id WHERE rds.dataset_id = :dataset_id ORDER BY cds.id, cr.model_name"),
                         {'dataset_id': dataset_id}
                     ).mappings().fetchall()
                 else:
                     # For regular users, only show their own data
                     scraper_results = db.session.execute(
-                        text("SELECT cr.id, cr.data_type, cr.data_id, cr.model_name, cr.prediction, cr.probability_radikal, cr.probability_non_radikal, cr.created_at, cds.cleaned_content as content, cds.username, cds.url FROM classification_results cr JOIN clean_data_scraper cds ON cr.data_type = 'scraper' AND cr.data_id = cds.id JOIN raw_data_scraper rds ON cds.raw_data_scraper_id = rds.id WHERE rds.dataset_id = :dataset_id AND rds.scraped_by = :user_id ORDER BY cds.id, cr.model_name"),
+                        text("SELECT cr.id, cr.data_type, cr.data_id, cr.model_name, cr.prediction, cr.probability_radikal, cr.probability_non_radikal, cr.classified_at, cds.cleaned_content as content, cds.username, cds.url, cds.created_at FROM classification_results cr JOIN clean_data_scraper cds ON cr.data_type = 'scraper' AND cr.data_id = cds.id JOIN raw_data_scraper rds ON cds.raw_data_scraper_id = rds.id WHERE rds.dataset_id = :dataset_id AND rds.scraped_by = :user_id ORDER BY cds.id, cr.model_name"),
                         {'dataset_id': dataset_id, 'user_id': current_user.id}
                     ).mappings().fetchall()
                 
@@ -6221,7 +6221,7 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                             'content': clean_data.cleaned_content[:100] + '...' if len(clean_data.cleaned_content) > 100 else clean_data.cleaned_content,
                             'platform': clean_data.platform,
                             'username': clean_data.username,
-                            'created_at': result.created_at.isoformat()
+                            'created_at': format_datetime(result.created_at, 'default')
                         }
                         classification_data.append(data_info)
             

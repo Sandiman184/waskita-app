@@ -285,7 +285,12 @@ def create_database_and_user():
             'db_name': db_name,
             'db_test_name': db_test_name,
             'db_user': db_user,
-            'db_password': db_password
+            'db_password': db_password,
+            'admin_email': admin_email,
+            'mail_username': mail_username,
+            'mail_password': mail_password,
+            'mail_default_sender': mail_default_sender,
+            'apify_api_token': apify_api_token
         }
         
     except Exception as e:
@@ -524,10 +529,7 @@ def update_env_file(db_config):
             'DATABASE_PORT': db_config['port'],
             'DATABASE_NAME': db_config['db_name'],
             'DATABASE_USER': db_config['db_user'],
-            'DATABASE_PASSWORD': db_config['db_password'],
-            'POSTGRES_USER': db_config['db_user'],
-            'POSTGRES_PASSWORD': db_config['db_password'],
-            'POSTGRES_DB': db_config['db_name']
+            'DATABASE_PASSWORD': db_config['db_password']
         })
 
         # Update konfigurasi email dan API
@@ -548,8 +550,8 @@ def update_env_file(db_config):
         if 'OTP_ENABLED' not in existing_config:
             existing_config['OTP_ENABLED'] = 'True'
         
-        # Buat konten .env baru
-        env_content = """# =============================================================================
+        # Buat konten .env baru dengan menggunakan nilai dari existing_config
+        env_content = f"""# =============================================================================
 # WASKITA APPLICATION CONFIGURATION
 # =============================================================================
 # File ini dibuat/diupdate otomatis oleh setup_postgresql.py
@@ -558,7 +560,7 @@ def update_env_file(db_config):
 # DEFAULT ADMIN CREDENTIALS (setelah setup):
 # Username: admin
 # Password: [password yang dimasukkan saat setup]
-# Email: [email yang dimasukkan saat setup]
+# Email: {existing_config.get('ADMIN_EMAIL', '[email yang dimasukkan saat setup]')}
 # OTP_ENABLED: True (default untuk keamanan)
 
 # =============================================================================
@@ -566,24 +568,21 @@ def update_env_file(db_config):
 # =============================================================================
 # Development Database (PostgreSQL)
 # Format: postgresql://username:password@host:port/database_name
-DATABASE_URL={DATABASE_URL}
-TEST_DATABASE_URL={TEST_DATABASE_URL}
-DATABASE_HOST={DATABASE_HOST}
-DATABASE_PORT={DATABASE_PORT}
-DATABASE_NAME={DATABASE_NAME}
-DATABASE_USER={DATABASE_USER}
-DATABASE_PASSWORD={DATABASE_PASSWORD}
+DATABASE_URL={existing_config.get('DATABASE_URL')}
+TEST_DATABASE_URL={existing_config.get('TEST_DATABASE_URL')}
+DATABASE_HOST={existing_config.get('DATABASE_HOST')}
+DATABASE_PORT={existing_config.get('DATABASE_PORT')}
+DATABASE_NAME={existing_config.get('DATABASE_NAME')}
+DATABASE_USER={existing_config.get('DATABASE_USER')}
+DATABASE_PASSWORD={existing_config.get('DATABASE_PASSWORD')}
 
-# PostgreSQL Database Settings (for Docker)
-POSTGRES_USER={POSTGRES_USER}
-POSTGRES_PASSWORD={POSTGRES_PASSWORD}
-POSTGRES_DB={POSTGRES_DB}
+
 
 # =============================================================================
 # FLASK CONFIGURATION
 # =============================================================================
 # Secure key yang digenerate otomatis
-SECRET_KEY={SECRET_KEY}
+SECRET_KEY={existing_config.get('SECRET_KEY')}
 FLASK_ENV=development
 FLASK_DEBUG=True
 
@@ -592,9 +591,9 @@ FLASK_DEBUG=True
 # =============================================================================
 WTF_CSRF_ENABLED=True
 WTF_CSRF_TIME_LIMIT=3600
-WTF_CSRF_SECRET_KEY={WTF_CSRF_SECRET_KEY}
-JWT_SECRET_KEY={JWT_SECRET_KEY}
-WASKITA_API_KEY={WASKITA_API_KEY}
+WTF_CSRF_SECRET_KEY={existing_config.get('WTF_CSRF_SECRET_KEY')}
+JWT_SECRET_KEY={existing_config.get('JWT_SECRET_KEY')}
+WASKITA_API_KEY={existing_config.get('WASKITA_API_KEY')}
 
 # Session Configuration for Local Network Development
 SESSION_COOKIE_SECURE=False
@@ -627,20 +626,20 @@ MAIL_SERVER=smtp.gmail.com
 MAIL_PORT=587
 MAIL_USE_TLS=True
 MAIL_USE_SSL=False
-MAIL_USERNAME=your-email@gmail.com
-MAIL_PASSWORD=your-16-digit-app-password
-MAIL_DEFAULT_SENDER=your-email@gmail.com
+MAIL_USERNAME={existing_config.get('MAIL_USERNAME', 'your-email@gmail.com')}
+MAIL_PASSWORD={existing_config.get('MAIL_PASSWORD', 'your-16-digit-app-password')}
+MAIL_DEFAULT_SENDER={existing_config.get('MAIL_DEFAULT_SENDER', 'your-email@gmail.com')}
 
 # =============================================================================
 # ADMIN CONFIGURATION
 # =============================================================================
-ADMIN_EMAIL=admin@waskita.com
-ADMIN_EMAILS=admin@waskita.com,admin2@waskita.com
+ADMIN_EMAIL={existing_config.get('ADMIN_EMAIL', 'admin@waskita.com')}
+ADMIN_EMAILS={existing_config.get('ADMIN_EMAILS', 'admin@waskita.com,admin2@waskita.com')}
 
 # =============================================================================
 # OTP SYSTEM CONFIGURATION
 # =============================================================================
-OTP_ENABLED={OTP_ENABLED}
+OTP_ENABLED={existing_config.get('OTP_ENABLED', 'True')}
 OTP_LENGTH=6
 OTP_EXPIRY_MINUTES=30
 MAX_OTP_ATTEMPTS=3
@@ -667,7 +666,7 @@ EMAIL_RETRY_DELAY_SECONDS=5
 # =============================================================================
 # APIFY API CONFIGURATION
 # =============================================================================
-APIFY_API_TOKEN=your-apify-api-token
+APIFY_API_TOKEN={existing_config.get('APIFY_API_TOKEN', 'your-apify-api-token')}
 APIFY_BASE_URL=https://api.apify.com/v2
 APIFY_TWITTER_ACTOR=kaitoeasyapi/twitter-x-data-tweet-scraper-pay-per-result-cheapest
 APIFY_FACEBOOK_ACTOR=apify/facebook-scraper
@@ -711,7 +710,7 @@ CREATE_SAMPLE_DATA=false
 # =============================================================================
 CLEANUP_EXPIRED_REQUESTS_HOURS=24
 KEEP_COMPLETED_REQUESTS_DAYS=30
-""".format(**existing_config)
+"""
         
         # Tambahkan baris komentar lainnya yang tidak berisi konfigurasi
         env_content += '\n'.join(other_lines)
@@ -804,11 +803,8 @@ def create_docker_env_file(db_config):
     try:
         print("\n🐳 Membuat file environment khusus Docker...")
         
-        # Path untuk file environment Docker
-        docker_env_path = os.path.join('docker', '.env.docker')
-        
-        # Buat direktori docker jika belum ada
-        os.makedirs('docker', exist_ok=True)
+        # Path untuk file environment Docker - sekarang di root folder
+        docker_env_path = '.env.docker'
         
         # Konfigurasi khusus Docker
         docker_config = {
@@ -840,8 +836,8 @@ def create_docker_env_file(db_config):
             'WASKITA_API_KEY': secrets.token_hex(16)
         })
         
-        # Template untuk file environment Docker
-        docker_env_content = """# =============================================================================
+        # Template untuk file environment Docker dengan menggunakan nilai dari docker_config
+        docker_env_content = f"""# =============================================================================
 # WASKITA DOCKER ENVIRONMENT CONFIGURATION
 # =============================================================================
 # File ini dibuat otomatis oleh setup_postgresql.py untuk environment Docker
@@ -850,23 +846,23 @@ def create_docker_env_file(db_config):
 # =============================================================================
 # DATABASE CONFIGURATION - DOCKER
 # =============================================================================
-DATABASE_URL={DATABASE_URL}
-TEST_DATABASE_URL={TEST_DATABASE_URL}
-DATABASE_HOST={DATABASE_HOST}
-DATABASE_PORT={DATABASE_PORT}
-DATABASE_NAME={DATABASE_NAME}
-DATABASE_USER={DATABASE_USER}
-DATABASE_PASSWORD={DATABASE_PASSWORD}
+DATABASE_URL={docker_config.get('DATABASE_URL')}
+TEST_DATABASE_URL={docker_config.get('TEST_DATABASE_URL')}
+DATABASE_HOST={docker_config.get('DATABASE_HOST')}
+DATABASE_PORT={docker_config.get('DATABASE_PORT')}
+DATABASE_NAME={docker_config.get('DATABASE_NAME')}
+DATABASE_USER={docker_config.get('DATABASE_USER')}
+DATABASE_PASSWORD={docker_config.get('DATABASE_PASSWORD')}
 
 # PostgreSQL Database Settings (for Docker)
-POSTGRES_USER={POSTGRES_USER}
-POSTGRES_PASSWORD={POSTGRES_PASSWORD}
-POSTGRES_DB={POSTGRES_DB}
+POSTGRES_USER={docker_config.get('POSTGRES_USER')}
+POSTGRES_PASSWORD={docker_config.get('POSTGRES_PASSWORD')}
+POSTGRES_DB={docker_config.get('POSTGRES_DB')}
 
 # =============================================================================
 # FLASK CONFIGURATION
 # =============================================================================
-SECRET_KEY={SECRET_KEY}
+SECRET_KEY={docker_config.get('SECRET_KEY')}
 FLASK_ENV=production
 FLASK_DEBUG=False
 
@@ -875,9 +871,9 @@ FLASK_DEBUG=False
 # =============================================================================
 WTF_CSRF_ENABLED=True
 WTF_CSRF_TIME_LIMIT=3600
-WTF_CSRF_SECRET_KEY={WTF_CSRF_SECRET_KEY}
-JWT_SECRET_KEY={JWT_SECRET_KEY}
-WASKITA_API_KEY={WASKITA_API_KEY}
+WTF_CSRF_SECRET_KEY={docker_config.get('WTF_CSRF_SECRET_KEY')}
+JWT_SECRET_KEY={docker_config.get('JWT_SECRET_KEY')}
+WASKITA_API_KEY={docker_config.get('WASKITA_API_KEY')}
 
 # =============================================================================
 # EMAIL CONFIGURATION
@@ -886,20 +882,20 @@ MAIL_SERVER=smtp.gmail.com
 MAIL_PORT=587
 MAIL_USE_TLS=True
 MAIL_USE_SSL=False
-MAIL_USERNAME={MAIL_USERNAME}
-MAIL_PASSWORD={MAIL_PASSWORD}
-MAIL_DEFAULT_SENDER={MAIL_DEFAULT_SENDER}
+MAIL_USERNAME={docker_config.get('MAIL_USERNAME', 'your-email@gmail.com')}
+MAIL_PASSWORD={docker_config.get('MAIL_PASSWORD', 'your-16-digit-app-password')}
+MAIL_DEFAULT_SENDER={docker_config.get('MAIL_DEFAULT_SENDER', 'your-email@gmail.com')}
 
 # =============================================================================
 # ADMIN CONFIGURATION
 # =============================================================================
-ADMIN_EMAIL={ADMIN_EMAIL}
-ADMIN_EMAILS={ADMIN_EMAILS}
+ADMIN_EMAIL={docker_config.get('ADMIN_EMAIL', 'admin@waskita.com')}
+ADMIN_EMAILS={docker_config.get('ADMIN_EMAILS', 'admin@waskita.com,admin2@waskita.com')}
 
 # =============================================================================
 # OTP SYSTEM CONFIGURATION
 # =============================================================================
-OTP_ENABLED={OTP_ENABLED}
+OTP_ENABLED={docker_config.get('OTP_ENABLED', 'True')}
 OTP_LENGTH=6
 OTP_EXPIRY_MINUTES=30
 MAX_OTP_ATTEMPTS=3
@@ -908,7 +904,7 @@ LOCKOUT_DURATION_MINUTES=15
 # =============================================================================
 # APIFY API CONFIGURATION
 # =============================================================================
-APIFY_API_TOKEN={APIFY_API_TOKEN}
+APIFY_API_TOKEN={docker_config.get('APIFY_API_TOKEN', 'your-apify-api-token')}
 APIFY_BASE_URL=https://api.apify.com/v2
 APIFY_TWITTER_ACTOR=kaitoeasyapi/twitter-x-data-tweet-scraper-pay-per-result-cheapest
 APIFY_FACEBOOK_ACTOR=apify/facebook-scraper
@@ -927,14 +923,14 @@ REDIS_PORT=6379
 NGINX_HTTP_PORT=80
 NGINX_HTTPS_PORT=443
 CREATE_SAMPLE_DATA=false
-""".format(**docker_config)
+"""
         
         # Tulis file environment Docker
         with open(docker_env_path, 'w', encoding='utf-8') as f:
             f.write(docker_env_content)
         
         print(f"✅ File environment Docker berhasil dibuat: {docker_env_path}")
-        print("ℹ️  Gunakan perintah: docker-compose -f docker/docker-compose.yml --env-file docker/.env.docker up --build")
+        print("ℹ️  Gunakan perintah: docker-compose -f docker/docker-compose.yml --env-file .env.docker up --build")
         return True
         
     except Exception as e:

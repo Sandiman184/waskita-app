@@ -24,6 +24,7 @@ CREATE TABLE users (
     last_login TIMESTAMP,
     first_login BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    classified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     profile_picture VARCHAR(255),
     phone_number VARCHAR(20),
@@ -141,6 +142,7 @@ CREATE TABLE classification_results (
     probability_non_radikal FLOAT NOT NULL,
     classified_by INTEGER NOT NULL REFERENCES users(id),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    classified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     is_corrected BOOLEAN DEFAULT FALSE, -- Whether the result has been manually corrected
     corrected_prediction VARCHAR(20), -- Manual correction: radikal, non-radikal
@@ -179,7 +181,7 @@ CREATE INDEX idx_clean_data_scraper_created_at ON clean_data_scraper(created_at)
 
 CREATE INDEX idx_classification_results_classified_by ON classification_results(classified_by);
 CREATE INDEX idx_classification_results_prediction ON classification_results(prediction);
-CREATE INDEX idx_classification_results_created_at ON classification_results(created_at);
+CREATE INDEX idx_classification_results_classified_at ON classification_results(classified_at);
 CREATE INDEX idx_classification_results_data_type ON classification_results(data_type);
 CREATE INDEX idx_classification_results_data_id ON classification_results(data_id);
 CREATE INDEX idx_classification_results_model_name ON classification_results(model_name);
@@ -215,13 +217,13 @@ GROUP BY u.id, u.username, u.email, u.role, u.created_at, u.last_login;
 
 CREATE VIEW v_classification_summary AS
 SELECT 
-    DATE(created_at) as classification_date,
+    DATE(classified_at) as classification_date,
     prediction,
     COUNT(*) as count,
     AVG(probability_radikal) as avg_probability_radikal,
     AVG(probability_non_radikal) as avg_probability_non_radikal
 FROM classification_results
-GROUP BY DATE(created_at), prediction
+GROUP BY DATE(classified_at), prediction
 ORDER BY classification_date DESC;
 
 CREATE VIEW v_platform_statistics AS
