@@ -84,9 +84,29 @@ def add_missing_columns(conn):
             conn.commit()
             cursor.close()
         
+        # Fix OTP email logs schema - remove NOT NULL constraint if it exists
+        cursor = conn.cursor()
+        cursor.execute("""
+        SELECT is_nullable 
+        FROM information_schema.columns 
+        WHERE table_name = 'otp_email_logs' AND column_name = 'registration_request_id'
+        """)
+        result = cursor.fetchone()
+        
+        if result and result[0] == 'NO':
+            print("🔧 Removing NOT NULL constraint from registration_request_id...")
+            cursor.execute("""
+            ALTER TABLE otp_email_logs 
+            ALTER COLUMN registration_request_id DROP NOT NULL;
+            """)
+            conn.commit()
+            print("✅ NOT NULL constraint removed from registration_request_id")
+        
+        cursor.close()
         return True
         
     except Exception as e:
+        print(f"⚠️ Warning while fixing schema: {e}")
         return False
 
 def create_database_schema(conn):
@@ -116,21 +136,22 @@ def create_database_schema(conn):
 def create_admin_user(conn):
     """Create default admin user in the database"""
     try:
-        # Default admin credentials
+        # Default admin credentials - use environment variable or fallback to placeholder
         admin_username = "admin"
-        admin_email = "admin@waskita.com"
+        admin_email = os.environ.get('ADMIN_EMAIL', 'admin@waskita.com')
         admin_password = "admin123"  # Default password, should be changed in production
         admin_fullname = "Administrator Waskita"
         
         # Hash password
         password_hash = generate_password_hash(admin_password)
         
-        # Insert admin user with ON CONFLICT to update password if user already exists
+        # Insert admin user with ON CONFLICT to update password and email if user already exists
         insert_admin_sql = """
         INSERT INTO users (username, email, password_hash, role, full_name, is_active, theme_preference, first_login) 
         VALUES (%s, %s, %s, 'admin', %s, TRUE, 'dark', TRUE)
         ON CONFLICT (username) DO UPDATE SET
             password_hash = EXCLUDED.password_hash,
+            email = EXCLUDED.email,
             updated_at = CURRENT_TIMESTAMP,
             first_login = TRUE;
         """

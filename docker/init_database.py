@@ -116,21 +116,22 @@ def create_database_schema(conn):
 def create_admin_user(conn):
     """Create default admin user in the database"""
     try:
-        # Default admin credentials
+        # Default admin credentials - use environment variable or fallback to placeholder
         admin_username = "admin"
-        admin_email = "admin@waskita.com"
+        admin_email = os.environ.get('ADMIN_EMAIL', 'admin@waskita.com')
         admin_password = "admin123"  # Default password, should be changed in production
         admin_fullname = "Administrator Waskita"
         
         # Hash password
         password_hash = generate_password_hash(admin_password)
         
-        # Insert admin user with ON CONFLICT to update password if user already exists
+        # Insert admin user with ON CONFLICT to update password and email if user already exists
         insert_admin_sql = """
         INSERT INTO users (username, email, password_hash, role, full_name, is_active, theme_preference, first_login) 
         VALUES (%s, %s, %s, 'admin', %s, TRUE, 'dark', TRUE)
         ON CONFLICT (username) DO UPDATE SET
             password_hash = EXCLUDED.password_hash,
+            email = EXCLUDED.email,
             updated_at = CURRENT_TIMESTAMP,
             first_login = TRUE;
         """

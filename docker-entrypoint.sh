@@ -32,6 +32,17 @@ auto_setup_env() {
         ADMIN_EMAIL=${ADMIN_EMAIL:-}
         ADMIN_EMAILS=${ADMIN_EMAILS:-}
         
+        # Get Apify configuration from Docker environment variables
+        APIFY_API_TOKEN=${APIFY_API_TOKEN:-}
+        APIFY_BASE_URL=${APIFY_BASE_URL:-https://api.apify.com/v2}
+        APIFY_TWITTER_ACTOR=${APIFY_TWITTER_ACTOR:-kaitoeasyapi/twitter-x-data-tweet-scraper-pay-per-result-cheapest}
+        APIFY_FACEBOOK_ACTOR=${APIFY_FACEBOOK_ACTOR:-apify/facebook-scraper}
+        APIFY_INSTAGRAM_ACTOR=${APIFY_INSTAGRAM_ACTOR:-apify/instagram-scraper}
+        APIFY_TIKTOK_ACTOR=${APIFY_TIKTOK_ACTOR:-clockworks/free-tiktok-scraper}
+        APIFY_TIMEOUT=${APIFY_TIMEOUT:-30}
+        APIFY_MAX_RETRIES=${APIFY_MAX_RETRIES:-3}
+        APIFY_RETRY_DELAY=${APIFY_RETRY_DELAY:-5}
+        
         # Create complete .env file with all essential variables including email
         cat > /app/.env << EOF
 # Complete .env file for Docker environment
@@ -71,6 +82,17 @@ ADMIN_EMAILS=${ADMIN_EMAILS}
 # Other settings
 CREATE_SAMPLE_DATA=false
 BASE_URL=http://localhost:5000
+
+# Apify API Configuration from Docker environment variables
+APIFY_API_TOKEN=${APIFY_API_TOKEN}
+APIFY_BASE_URL=${APIFY_BASE_URL}
+APIFY_TWITTER_ACTOR=${APIFY_TWITTER_ACTOR}
+APIFY_FACEBOOK_ACTOR=${APIFY_FACEBOOK_ACTOR}
+APIFY_INSTAGRAM_ACTOR=${APIFY_INSTAGRAM_ACTOR}
+APIFY_TIKTOK_ACTOR=${APIFY_TIKTOK_ACTOR}
+APIFY_TIMEOUT=${APIFY_TIMEOUT}
+APIFY_MAX_RETRIES=${APIFY_MAX_RETRIES}
+APIFY_RETRY_DELAY=${APIFY_RETRY_DELAY}
 
 # Database configuration from Docker environment variables
 DATABASE_URL=postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}
