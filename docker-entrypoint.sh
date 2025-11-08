@@ -10,9 +10,9 @@ echo "🚀 Starting Waskita Docker Entrypoint"
 auto_setup_env() {
     echo "🔧 Auto-setting up environment configuration..."
     
-    # If .env doesn't exist, create minimal .env file for Docker using environment variables from Docker Compose
+    # If .env doesn't exist, create complete .env file for Docker using environment variables from Docker Compose
     if [ ! -f "/app/.env" ]; then
-        echo "📝 Creating minimal .env file for Docker environment"
+        echo "📝 Creating complete .env file for Docker environment"
         
         # Get database configuration from Docker environment variables
         DB_USER=${DATABASE_USER:-postgres}
@@ -21,10 +21,21 @@ auto_setup_env() {
         DB_HOST=${DATABASE_HOST:-db}
         DB_PORT=${DATABASE_PORT:-5432}
         
-        # Create minimal .env file with only essential variables
+        # Get email configuration from Docker environment variables
+        MAIL_SERVER=${MAIL_SERVER:-smtp.gmail.com}
+        MAIL_PORT=${MAIL_PORT:-587}
+        MAIL_USE_TLS=${MAIL_USE_TLS:-true}
+        MAIL_USE_SSL=${MAIL_USE_SSL:-false}
+        MAIL_USERNAME=${MAIL_USERNAME:-}
+        MAIL_PASSWORD=${MAIL_PASSWORD:-}
+        MAIL_DEFAULT_SENDER=${MAIL_DEFAULT_SENDER:-}
+        ADMIN_EMAIL=${ADMIN_EMAIL:-}
+        ADMIN_EMAILS=${ADMIN_EMAILS:-}
+        
+        # Create complete .env file with all essential variables including email
         cat > /app/.env << EOF
-# Minimal .env file for Docker environment
-# Database configuration is handled by Docker Compose environment variables
+# Complete .env file for Docker environment
+# Configuration is handled by Docker Compose environment variables
 
 # Security keys (auto-generated)
 SECRET_KEY=$(python -c "import secrets; print(secrets.token_hex(32))")
@@ -46,6 +57,17 @@ NAIVE_BAYES_MODEL1_PATH=/app/models/navesbayes/naive_bayes_model1.pkl
 NAIVE_BAYES_MODEL2_PATH=/app/models/navesbayes/naive_bayes_model2.pkl
 NAIVE_BAYES_MODEL3_PATH=/app/models/navesbayes/naive_bayes_model3.pkl
 
+# Email configuration from Docker environment variables
+MAIL_SERVER=${MAIL_SERVER}
+MAIL_PORT=${MAIL_PORT}
+MAIL_USE_TLS=${MAIL_USE_TLS}
+MAIL_USE_SSL=${MAIL_USE_SSL}
+MAIL_USERNAME=${MAIL_USERNAME}
+MAIL_PASSWORD=${MAIL_PASSWORD}
+MAIL_DEFAULT_SENDER=${MAIL_DEFAULT_SENDER}
+ADMIN_EMAIL=${ADMIN_EMAIL}
+ADMIN_EMAILS=${ADMIN_EMAILS}
+
 # Other settings
 CREATE_SAMPLE_DATA=false
 BASE_URL=http://localhost:5000
@@ -55,7 +77,8 @@ DATABASE_URL=postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_N
 DATABASE_URL_DOCKER=postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}
 EOF
         
-        echo "✅ Minimal .env file created successfully for Docker using environment variables"
+        echo "✅ Complete .env file created successfully for Docker using environment variables"
+        echo "📧 Email configuration included: MAIL_USERNAME=${MAIL_USERNAME}"
     else
         echo "✅ .env file already exists"
         
