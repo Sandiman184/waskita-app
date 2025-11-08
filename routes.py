@@ -3338,8 +3338,11 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                     shares = data.get('shareCount', 0) or data.get('shares', 0) or 0
                     views = data.get('playCount', 0) or data.get('views', 0) or 0
                 
+                # Truncate username to 255 characters to prevent database errors
+                truncated_username = str(username_value).strip()[:255]
+                
                 raw_data_scraper = RawDataScraper(
-                    username=str(username_value).strip(),
+                    username=truncated_username,
                     content=content_to_check,
                     url=str(url_value) if url_value else '',
                     platform=platform,
@@ -4000,8 +4003,8 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                         if not CleanDataUpload.query.filter_by(raw_data_id=raw_data.id).first():
                             cleaned_content = clean_text(raw_data.content)
                             
-                            # Check for duplicate content
-                            is_duplicate = check_cleaned_content_duplicate(cleaned_content)
+                            # Check for duplicate content within the same dataset
+                            is_duplicate = check_cleaned_content_duplicate_by_dataset(cleaned_content, raw_scraper.dataset_id)
                             
                             if not is_duplicate:
                                 clean_data = CleanDataUpload(
@@ -4024,8 +4027,8 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                         if not CleanDataScraper.query.filter_by(raw_data_scraper_id=raw_scraper.id).first():
                             cleaned_content = clean_text(raw_scraper.content)
                             
-                            # Check for duplicate content
-                            is_duplicate = check_cleaned_content_duplicate(cleaned_content)
+                            # Check for duplicate content within the same dataset
+                            is_duplicate = check_cleaned_content_duplicate_by_dataset(cleaned_content, raw_scraper.dataset_id)
                             
                             if not is_duplicate:
                                 clean_scraper = CleanDataScraper(
@@ -5516,6 +5519,14 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                     dataset = Dataset.query.get(job.dataset_id)
                     if dataset and dataset.status:
                         status = dataset.status
+                
+                # Check individual scraper data status for more accurate status
+                # If any data in this scraping job has been cleaned, mark as 'Bersih'
+                if cleaned_count > 0:
+                    status = 'Bersih'
+                # If any data in this scraping job has been classified, mark as 'Terklasifikasi'
+                if classified_count > 0:
+                    status = 'Terklasifikasi'
                 
                 # Get dataset information
                 dataset = Dataset.query.get(job.dataset_id) if job.dataset_id else None

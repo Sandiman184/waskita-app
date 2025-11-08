@@ -1117,7 +1117,7 @@ function loadScrapingHistory(searchQuery = '') {
                         <td>${job.dataset_name || 'Dataset ' + platformName + ' - ' + job.keywords}</td>
                         <td><span class="badge bg-primary">${job.results_count}</span></td>
                         <td>
-                            <span class="badge ${job.status === 'Mentah' ? 'bg-gradient-secondary' : job.status === 'Dibersihkan' ? 'bg-gradient-success' : 'bg-gradient-primary'}">${job.status}</span>
+                            <span class="status-badge ${job.status === 'Mentah' ? 'raw' : job.status === 'Dibersihkan' ? 'cleaned' : 'classified'}">${job.status}</span>
                         </td>
                         <td>${job.scraped_by || 'Unknown'}</td>
                         <td>${scrapingDate}</td>
@@ -1203,7 +1203,7 @@ function loadScrapingHistoryWithoutReinit(searchQuery = '') {
                         <td>${job.dataset_name || 'Dataset ' + platformName + ' - ' + job.keywords}</td>
                         <td><span class="badge bg-primary">${job.results_count}</span></td>
                         <td>
-                            <span class="badge ${job.status === 'Mentah' ? 'bg-gradient-secondary' : job.status === 'Dibersihkan' ? 'bg-gradient-success' : 'bg-gradient-primary'}">${job.status}</span>
+                            <span class="status-badge ${job.status === 'Mentah' ? 'raw' : job.status === 'Dibersihkan' ? 'cleaned' : 'classified'}">${job.status}</span>
                         </td>
                         <td>${job.scraped_by || 'Unknown'}</td>
                         <td>${scrapingDate}</td>
@@ -1805,6 +1805,41 @@ label[for="platform"] {
 
 .badge {
     font-size: 0.875em;
+}
+
+/* Status badge styling consistent with management_table.html */
+.status-badge {
+    padding: 0.35rem 0.8rem;
+    border-radius: 0.375rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    display: inline-block;
+    text-align: center;
+    min-width: 85px;
+    border: 1.5px solid transparent;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.status-badge.raw {
+    background-color: #f8f9fa;
+    color: #6c757d;
+    border-color: #dee2e6;
+    box-shadow: 0 1px 3px rgba(108, 117, 125, 0.1);
+}
+
+.status-badge.cleaned {
+    background-color: #d4edda;
+    color: #155724;
+    border-color: #c3e6cb;
+    box-shadow: 0 1px 3px rgba(40, 167, 69, 0.15);
+}
+
+.status-badge.classified {
+    background-color: #cce5ff;
+    color: #004085;
+    border-color: #b8daff;
+    box-shadow: 0 1px 3px rgba(0, 123, 255, 0.15);
 }
 
 .btn-tool {

@@ -656,30 +656,51 @@ def prepare_actor_input(platform, keyword, date_from=None, date_to=None, max_res
     
     if platform.lower() == 'twitter':
         # Format input untuk kaitoeasyapi/twitter-x-data-tweet-scraper-pay-per-result-cheapest
-        # Berdasarkan dokumentasi resmi Apify, gunakan searchTerms dengan format yang benar
-        search_query = keyword
+        # Berdasarkan template default yang diharapkan oleh actor
+        search_terms = []
         
-        # Tambahkan filter tanggal ke dalam search query jika disediakan
+        # Format searchTerms dengan since/until sesuai template default
+        search_term = f"{keyword}"
         if date_from and date_to:
-            # Format: "keyword since:YYYY-MM-DD until:YYYY-MM-DD"
-            search_query = f"{keyword} since:{date_from} until:{date_to}"
-        elif date_from:
-            search_query = f"{keyword} since:{date_from}"
-        elif date_to:
-            search_query = f"{keyword} until:{date_to}"
-            
+            # Konversi format tanggal dari UI (YYYY-MM-DD) ke format yang diharapkan actor
+            search_term += f" since:{date_from}_00:00:00_UTC until:{date_to}_23:59:59_UTC"
+        
+        search_terms.append(search_term)
+        
+        # Format tanggal untuk since dan until parameters
+        since_date = date_from + "_00:00:00_UTC" if date_from else "2021-12-31_23:59:59_UTC"
+        until_date = date_to + "_23:59:59_UTC" if date_to else "2024-12-31_23:59:59_UTC"
+        
         input_data = {
-            "searchTerms": [search_query],
-            "lang": "in",  # Bahasa Indonesia (sesuai dengan nilai yang diizinkan Apify)
-            "sort": "Latest",  # Urutkan berdasarkan terbaru
+            # Parameter filter lengkap sesuai template default
+            "filter:blue_verified": False,
+            "filter:consumer_video": False,
+            "filter:has_engagement": False,
+            "filter:hashtags": False,
+            "filter:images": False,
+            "filter:links": False,
+            "filter:media": False,
+            "filter:mentions": False,
+            "filter:native_video": False,
+            "filter:nativeretweets": False,
+            "filter:news": False,
+            "filter:pro_video": False,
+            "filter:quote": False,
+            "filter:replies": False,
+            "filter:safe": False,
+            "filter:spaces": False,
+            "filter:twimg": False,
+            "filter:videos": False,
+            "filter:vine": False,
+            # Parameter utama
+            "lang": "in",  # Bahasa Indonesia
+            "searchTerms": search_terms,
+            "since": since_date,
+            "until": until_date,
             "maxItems": max_results,  # Sesuaikan dengan input Maksimal Hasil dari UI
-            "includeSearchTerms": False,  # Jangan sertakan search terms dalam hasil
-            "onlyImage": False,  # Tidak hanya gambar
-            "onlyQuote": False,  # Tidak hanya quote tweets
-            "onlyTwitterBlue": False,  # Tidak hanya Twitter Blue users
-            "onlyVerifiedUsers": False,  # Tidak hanya verified users
-            "onlyVideo": False,  # Tidak hanya video
-            "tweetLanguage": "in"  # Bahasa Indonesia untuk tweet
+            # Parameter tambahan untuk kompatibilitas
+            "include:nativeretweets": False,
+            "tweetLanguage": "in"
         }
         
         # CATATAN PENTING: Actor ini memiliki batasan untuk akun gratis
