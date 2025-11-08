@@ -641,7 +641,6 @@ function trackRealTimeProgress(runId, jobId, responseData, startTime) {
                     
                     // Prevent duplicate mapping modal - check if already shown
                     if (window.mappingModalShown) {
-                        console.log('Mapping modal already shown, skipping duplicate');
                         return;
                     }
                     
@@ -673,10 +672,8 @@ function trackRealTimeProgress(runId, jobId, responseData, startTime) {
                 }
             },
             error: function(xhr, status, error) {
-                console.warn('Real-time progress API error:', error);
                 // Only fallback to simulation if this is the first error and mapping modal not shown
                 if (!window.progressFallbackUsed && !window.mappingModalShown) {
-                    console.log('Falling back to simulated progress');
                     window.progressFallbackUsed = true;
                     clearInterval(scrapingInterval);
                     scrapingInterval = null;
@@ -727,7 +724,6 @@ function trackSimulatedProgress(jobId, responseData, startTime) {
             
             // Prevent duplicate mapping modal - check if already shown
             if (window.mappingModalShown) {
-                console.log('Mapping modal already shown in simulation, skipping duplicate');
                 return;
             }
             

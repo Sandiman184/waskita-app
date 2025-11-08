@@ -268,8 +268,7 @@ def load_user(user_id):
     from models import User
     return User.query.get(int(user_id))
 
-# Load models on application startup
-load_models()
+# Load models on application startup - moved to __main__ to prevent reloading
 
 # Initialize routes
 from routes import init_routes
@@ -281,6 +280,9 @@ app.register_blueprint(otp_bp, url_prefix='/otp')
 logger.info("OTP authentication blueprint registered with rate limiting")
 
 if __name__ == '__main__':
+    
+    # Load models only once when application starts (not during reloads)
+    load_models()
     
     # Start automatic cleanup scheduler
     cleanup_scheduler.start_scheduler()
