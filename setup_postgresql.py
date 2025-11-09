@@ -173,41 +173,54 @@ def create_database_and_user():
     print("🔧 Setup Database PostgreSQL untuk Waskita")
     print("=" * 50)
     
+    # Fungsi helper untuk input dengan default value dan handling non-interactive
+    def get_input(prompt, default):
+        try:
+            value = input(f"{prompt}").strip()
+            return value or default
+        except EOFError:
+            print(f"ℹ️  Menggunakan nilai default: {default}")
+            return default
+    
     # Input konfigurasi database
     print("\n📋 Konfigurasi Database:")
-    db_host = input("Host PostgreSQL (default: localhost): ").strip() or "localhost"
-    db_port = input("Port PostgreSQL (default: 5432): ").strip() or "5432"
+    db_host = get_input("Host PostgreSQL (default: localhost): ", "localhost")
+    db_port = get_input("Port PostgreSQL (default: 5432): ", "5432")
     
     # Kredensial admin PostgreSQL
     print("\n🔐 Kredensial Admin PostgreSQL:")
-    admin_user = input("Username admin PostgreSQL (default: postgres): ").strip() or "postgres"
-    admin_password = getpass.getpass("Password admin PostgreSQL: ")
+    admin_user = get_input("Username admin PostgreSQL (default: postgres): ", "postgres")
+    admin_password = getpass.getpass("Password admin PostgreSQL: ") or ""
     
     # Kredensial database Waskita
     print("\n🏗️ Konfigurasi Database Waskita:")
-    db_name = input("Nama database (default: db_waskita): ").strip() or "db_waskita"
-    db_test_name = input("Nama database test (default: db_waskitatest): ").strip() or "db_waskitatest"
-    db_user = input("Username database (default: admin): ").strip() or "admin"
+    db_name = get_input("Nama database (default: db_waskita): ", "db_waskita")
+    db_test_name = get_input("Nama database test (default: db_waskitatest): ", "db_waskitatest")
+    db_user = get_input("Username database (default: admin): ", "admin")
     db_password = getpass.getpass("Password database (default: admin12345): ") or "admin12345"
     
     # Input konfigurasi email admin
     print("\n📧 Konfigurasi Email Admin:")
-    admin_email = input("Email admin (untuk login & notifikasi): ").strip()
+    admin_email = get_input("Email admin (untuk login & notifikasi): ", "admin@waskita.com")
     while not admin_email or '@' not in admin_email:
         print("❌ Email tidak valid. Harap masukkan email yang benar.")
-        admin_email = input("Email admin (untuk login & notifikasi): ").strip()
+        try:
+            admin_email = input("Email admin (untuk login & notifikasi): ").strip()
+        except EOFError:
+            print("ℹ️  Menggunakan nilai default: admin@waskita.com")
+            admin_email = "admin@waskita.com"
     
     # Input konfigurasi SMTP
     print("\n📨 Konfigurasi SMTP Email:")
     print("ℹ️  Untuk Gmail: Aktifkan 2FA dan buat App Password")
-    mail_username = input("Email SMTP (username): ").strip() or admin_email
-    mail_password = getpass.getpass("Password/App Password SMTP: ")
-    mail_default_sender = input("Email pengirim default (default sama dengan username): ").strip() or mail_username
+    mail_username = get_input("Email SMTP (username): ", admin_email)
+    mail_password = getpass.getpass("Password/App Password SMTP: ") or ""
+    mail_default_sender = get_input("Email pengirim default (default sama dengan username): ", mail_username)
     
     # Input konfigurasi API Apify (opsional)
     print("\n🤖 Konfigurasi API Apify (Opsional):")
     print("ℹ️  Dapatkan token dari https://console.apify.com/account/integrations")
-    apify_api_token = input("API Token Apify (kosongkan jika belum ada): ").strip()
+    apify_api_token = get_input("API Token Apify (kosongkan jika belum ada): ", "")
     
     # Cek apakah database sudah ada
     db_config_check = {
@@ -220,7 +233,11 @@ def create_database_and_user():
     
     if check_database_connection(db_config_check):
         print(f"ℹ️  Database '{db_name}' sudah ada")
-        confirm = input("Apakah Anda ingin melanjutkan setup? Database yang ada mungkin akan diupdate (y/N): ").strip().lower()
+        try:
+            confirm = input("Apakah Anda ingin melanjutkan setup? Database yang ada mungkin akan diupdate (y/N): ").strip().lower()
+        except EOFError:
+            print("ℹ️  Mode non-interaktif terdeteksi, melanjutkan setup...")
+            confirm = 'y'
         if confirm != 'y':
             print("❌ Setup dibatalkan")
             return None
@@ -372,15 +389,19 @@ def create_tables_and_admin(db_config):
         if existing_admin:
             print(f"ℹ️  User admin '{admin_username}' sudah ada")
             print(f"   Email: {existing_admin[1]}")
-            confirm = input("Apakah Anda ingin memperbarui password admin? (y/N): ").strip().lower()
+            try:
+                confirm = input("Apakah Anda ingin memperbarui password admin? (y/N): ").strip().lower()
+            except EOFError:
+                print("ℹ️  Mode non-interaktif terdeteksi, melanjutkan tanpa perubahan password")
+                confirm = 'n'
             
             if confirm != 'y':
                 print("✅ User admin sudah ada, melanjutkan tanpa perubahan password")
                 return True
         
         # Buat/update user admin default
-        admin_email = input("Masukkan email untuk admin (default: admin@waskita.com): ").strip() or "admin@waskita.com"
-        admin_password = input("Masukkan password untuk admin (default: admin123): ") or "admin123"
+        admin_email = get_input("Masukkan email untuk admin (default: admin@waskita.com): ", "admin@waskita.com")
+        admin_password = get_input("Masukkan password untuk admin (default: admin123): ", "admin123")
         admin_fullname = "Administrator Waskita"
         
         # Hash password dengan benar
@@ -938,6 +959,13 @@ CREATE_SAMPLE_DATA=false
         print(f"❌ Error saat membuat file environment Docker: {e}")
         return False
 
+
+def generate_docker_env_file(db_config):
+    """
+    Alias function untuk create_docker_env_file - digunakan untuk konsistensi
+    """
+    return create_docker_env_file(db_config)
+
 def main():
     """
     Main function untuk setup utama Waskita
@@ -952,104 +980,273 @@ def main():
     Returns:
         int: Exit code (0 untuk sukses, 1 untuk error)
     """
-    try:
-        print("🚀 WASKITA - SETUP UTAMA SETELAH CLONING")
-        print("=" * 60)
-        print("Selamat datang di Waskita!")
-        print("Script ini akan membantu Anda setup aplikasi untuk pertama kali.")
-        print()
-        
-        # Cek prerequisites
-        if not check_prerequisites():
-            print("\n❌ Setup tidak dapat dilanjutkan. Silakan perbaiki issues di atas.")
-            print("\n📋 LANGKAH PERBAIKAN:")
-            print("1. Install PostgreSQL: https://www.postgresql.org/download/")
-            print("2. Jalankan: pip install -r requirements.txt")
-            print("3. Pastikan PostgreSQL service berjalan")
+    import sys
+    
+    # Handle command line arguments
+    setup_mode = None
+    mode_from_cli = False
+    
+    if len(sys.argv) > 1:
+        if sys.argv[1] in ['--help', '-h']:
+            print("🚀 WASKITA SETUP SCRIPT - HELP")
+            print("=" * 50)
+            print("Usage: python setup_postgresql.py [OPTIONS]")
+            print()
+            print("Options:")
+            print("  --help, -h     Show this help message")
+            print("  --mode MODE    Set setup mode (1, 2, or 3)")
+            print("                1: Local database + environment files")
+            print("                2: Environment files only (Docker)")
+            print("                3: Both local + Docker")
+            print()
+            print("Examples:")
+            print("  python setup_postgresql.py              # Interactive mode")
+            print("  python setup_postgresql.py --mode 2    # Docker-only mode")
+            return 0
+        elif sys.argv[1] == '--mode' and len(sys.argv) > 2:
+            setup_mode = int(sys.argv[2])
+            if setup_mode not in [1, 2, 3]:
+                print("❌ Invalid mode. Use 1, 2, or 3")
+                return 1
+            # Set flag bahwa mode sudah dipilih dari command line
+            mode_from_cli = True
+        else:
+            print(f"❌ Unknown option: {sys.argv[1]}")
+            print("Use --help for usage information")
             return 1
     
+    try:
+        # Inisialisasi variabel mode (jika belum di-set dari command line)
+        if setup_mode is None:
+            mode_from_cli = False
+            setup_mode = None
+        
+        # Jika mode sudah dipilih dari command line, skip interaksi
+        if 'mode_from_cli' in locals() and mode_from_cli:
+            print("🚀 WASKITA - SETUP UTAMA SETELAH CLONING")
+            print("=" * 60)
+            print(f"Mode setup: {setup_mode} (dipilih dari command line)")
+        else:
+            print("🚀 WASKITA - SETUP UTAMA SETELAH CLONING")
+            print("=" * 60)
+            print("Selamat datang di Waskita!")
+            print("Script ini akan membantu Anda setup aplikasi untuk pertama kali.")
+            print()
+            
+            print("📋 PILIH MODE SETUP:")
+            print("1. Setup Database Lokal + Environment Files")
+            print("   - Membuat database PostgreSQL di mesin lokal")
+            print("   - Generate file .env untuk development")
+            print("   - Cocok untuk development di local machine")
+            print()
+            print("2. Hanya Generate Environment Files")
+            print("   - Hanya generate file .env dan .env.docker")
+            print("   - Tidak membuat database lokal")
+            print("   - Cocok untuk setup Docker-only")
+            print()
+            print("3. Keduanya (Lokal + Docker)")
+            print("   - Membuat database lokal untuk development")
+            print("   - Generate file .env dan .env.docker")
+            print("   - Cocok untuk development yang juga akan di-deploy ke Docker")
+            print()
+            
+            while True:
+                choice = input("Pilih mode (1/2/3): ").strip()
+                if choice in ['1', '2', '3']:
+                    break
+                print("❌ Pilihan tidak valid. Silakan pilih 1, 2, atau 3")
+            
+            setup_mode = int(choice)
+        
+        # Cek prerequisites (untuk mode yang memerlukan database lokal)
+        if setup_mode in [1, 3]:
+            if not check_prerequisites():
+                print("\n❌ Setup tidak dapat dilanjutkan. Silakan perbaiki issues di atas.")
+                print("\n📋 LANGKAH PERBAIKAN:")
+                print("1. Install PostgreSQL: https://www.postgresql.org/download/")
+                print("2. Jalankan: pip install -r requirements.txt")
+                print("3. Pastikan PostgreSQL service berjalan")
+                return 1
+        else:
+            print("\n🔧 Mode: Hanya generate environment files")
+            print("   Prerequisites database di-skip (Docker-only mode)")
+        
         print("\n📋 FITUR SETUP YANG AKAN DILAKUKAN:")
-        print("1. ✅ Prerequisites check (selesai)")
-        print("2. Setup database PostgreSQL")
-        print("3. Pembuatan user database")
-        print("4. Pembuatan tabel dari schema")
-        print("5. Pembuatan user admin default")
-        print("6. Update file .env dengan konfigurasi yang benar")
+        if setup_mode == 1:
+            print("1. ✅ Prerequisites check (selesai)")
+            print("2. Setup database PostgreSQL")
+            print("3. Pembuatan user database")
+            print("4. Pembuatan tabel dari schema")
+            print("5. Pembuatan user admin default")
+            print("6. Update file .env dengan konfigurasi yang benar")
+        elif setup_mode == 2:
+            print("1. ✅ Prerequisites check di-skip")
+            print("2. Generate file .env")
+            print("3. Generate file .env.docker")
+        elif setup_mode == 3:
+            print("1. ✅ Prerequisites check (selesai)")
+            print("2. Setup database PostgreSQL")
+            print("3. Pembuatan user database")
+            print("4. Pembuatan tabel dari schema")
+            print("5. Pembuatan user admin default")
+            print("6. Update file .env dengan konfigurasi yang benar")
+            print("7. Generate file .env.docker")
         print()
         
-        # Cek konfigurasi yang sudah ada di .env
-        existing_config = check_existing_config()
-        
-        if existing_config:
-            print(f"\nℹ️  Konfigurasi database terdeteksi di file .env")
-            print(f"   Host: {existing_config.get('host', 'localhost')}")
-            print(f"   Port: {existing_config.get('port', '5432')}")
-            print(f"   Database: {existing_config.get('db_name', 'db_waskita')}")
-            print(f"   User: {existing_config.get('db_user', 'admin')}")
+        # Cek konfigurasi yang sudah ada di .env (hanya untuk mode database)
+        existing_config = None
+        if setup_mode in [1, 3]:
+            existing_config = check_existing_config()
             
-            confirm = input("\nApakah Anda ingin menggunakan konfigurasi yang sudah ada? (y/N): ").strip().lower()
-            
-            if confirm == 'y':
-                print("\n✅ Menggunakan konfigurasi database yang sudah ada")
+            if existing_config:
+                print(f"\nℹ️  Konfigurasi database terdeteksi di file .env")
+                print(f"   Host: {existing_config.get('host', 'localhost')}")
+                print(f"   Port: {existing_config.get('port', '5432')}")
+                print(f"   Database: {existing_config.get('db_name', 'db_waskita')}")
+                print(f"   User: {existing_config.get('db_user', 'admin')}")
                 
-                # Setup tabel dan user admin dengan konfigurasi yang ada
-                if not create_tables_and_admin(existing_config):
-                    return 1
+                confirm = input("\nApakah Anda ingin menggunakan konfigurasi yang sudah ada? (y/N): ").strip().lower()
                 
-                print("\n🎉 Setup database berhasil diselesaikan dengan konfigurasi yang sudah ada!")
-                print("\n📋 Informasi Login Default:")
-                print("   Username: admin")
-                print("   Password: (password yang Anda masukkan atau yang sudah ada)")
-                print("   Email: admin@waskita.com")
-                print("\n🚀 Jalankan aplikasi dengan: python app.py")
-                return 0
+                if confirm == 'y':
+                    print("\n✅ Menggunakan konfigurasi database yang sudah ada")
+                    
+                    # Setup tabel dan user admin dengan konfigurasi yang ada
+                    if not create_tables_and_admin(existing_config):
+                        return 1
+                    
+                    print("\n🎉 Setup database berhasil diselesaikan dengan konfigurasi yang sudah ada!")
+                    print("\n📋 Informasi Login Default:")
+                    print("   Username: admin")
+                    print("   Password: (password yang Anda masukkan atau yang sudah ada)")
+                    print("   Email: admin@waskita.com")
+                    print("\n🚀 Jalankan aplikasi dengan: python app.py")
+                    return 0
         
-        confirm = input("Lanjutkan dengan setup baru? (y/N): ").strip().lower()
+        # Handle non-interactive mode (piping input)
+        try:
+            confirm = input("Lanjutkan dengan setup baru? (y/N): ").strip().lower()
+        except EOFError:
+            # Jika input otomatis (piping), default ke 'y'
+            print("ℹ️  Mode non-interaktif terdeteksi, melanjutkan setup...")
+            confirm = 'y'
+        
         if confirm != 'y':
             print("❌ Setup dibatalkan")
             return 0
         
-        # Step 1: Setup database dan user
-        db_config = create_database_and_user()
-        if not db_config:
-            print("❌ Setup database gagal")
-            return 1
+        db_config = None
         
-        # Step 2: Buat tabel dan admin
-        if not create_tables_and_admin(db_config):
-            print("❌ Setup tabel dan admin gagal")
-            return 1
+        # Step 1: Setup database dan user (untuk mode 1 dan 3)
+        if setup_mode in [1, 3]:
+            db_config = create_database_and_user()
+            if not db_config:
+                print("❌ Setup database gagal")
+                # Tetap lanjut untuk generate environment files jika mode 3
+                if setup_mode == 3:
+                    print("ℹ️  Melanjutkan generate environment files untuk Docker")
+                    setup_mode = 2  # Ubah ke mode 2 saja
+                    db_config = None  # Reset db_config karena setup database gagal
+                else:
+                    return 1
+            else:
+                # Step 2: Buat tabel dan admin (hanya jika db_config berhasil)
+                if not create_tables_and_admin(db_config):
+                    print("❌ Setup tabel dan admin gagal")
+                    # Tetap lanjut untuk generate environment files jika mode 3
+                    if setup_mode == 3:
+                        print("ℹ️  Melanjutkan generate environment files untuk Docker")
+                        setup_mode = 2
+                    else:
+                        return 1
+        
+        # Untuk mode 2 (hanya environment files), minta input konfigurasi
+        if setup_mode == 2:
+            print("\n📋 KONFIGURASI UNTUK ENVIRONMENT FILES:")
+            print("=" * 50)
+            
+            # Jika tidak ada db_config dari setup database, minta input
+            if not db_config:
+                db_config = {}
+                
+                # Fungsi helper untuk input dengan default value dan handling non-interactive
+                def get_input(prompt, default):
+                    try:
+                        value = input(f"{prompt}").strip()
+                        return value or default
+                    except EOFError:
+                        print(f"ℹ️  Menggunakan nilai default: {default}")
+                        return default
+                
+                db_config['host'] = get_input("Database Host (default: localhost): ", "localhost")
+                db_config['port'] = get_input("Database Port (default: 5432): ", "5432")
+                db_config['db_name'] = get_input("Database Name (default: db_waskita): ", "db_waskita")
+                db_config['db_user'] = get_input("Database User (default: admin): ", "admin")
+                db_config['db_password'] = get_input("Database Password (default: admin12345): ", "admin12345")
+                db_config['db_test_name'] = get_input("Test Database Name (default: db_waskitatest): ", "db_waskitatest")
+                
+                # Konfigurasi email
+                db_config['admin_email'] = get_input("Admin Email (default: admin@waskita.com): ", "admin@waskita.com")
+                db_config['mail_username'] = get_input("SMTP Username: ", db_config['admin_email'])
+                db_config['mail_password'] = get_input("SMTP Password: ", "")
+                db_config['mail_default_sender'] = get_input("Default Sender Email: ", db_config['admin_email'])
+                
+                # Konfigurasi API Apify (opsional)
+                db_config['apify_api_token'] = get_input("Apify API Token (opsional): ", "")
         
         # Step 3: Update .env
-        if not update_env_file(db_config):
+        if db_config and not update_env_file(db_config):
             print("❌ Update .env gagal")
             return 1
         
-        # Step 4: Buat file environment Docker
-        create_docker_env_file(db_config)
+        # Step 4: Buat file environment Docker (untuk mode 2 dan 3)
+        if setup_mode in [2, 3]:
+            if not create_docker_env_file(db_config):
+                print("❌ Generate .env.docker gagal")
+                return 1
         
         print("\n" + "=" * 60)
         print("🎉 SETUP BERHASIL! WASKITA SIAP DIGUNAKAN!")
         print("=" * 60)
-        print("✅ Semua setup berhasil diselesaikan")
-        print("✅ Database PostgreSQL siap digunakan")
-        print("✅ User admin telah dibuat")
-        print("✅ File .env telah diupdate")
+        
+        if setup_mode == 1:
+            print("✅ Setup Database Lokal Selesai")
+            print("✅ File .env untuk development dibuat")
+        elif setup_mode == 2:
+            print("✅ Environment Files untuk Docker Selesai")
+            print("✅ File .env dan .env.docker dibuat")
+        elif setup_mode == 3:
+            print("✅ Setup Lengkap Selesai")
+            print("✅ Database lokal dibuat")
+            print("✅ File .env dan .env.docker dibuat")
+        
         print()
-        print("📋 LANGKAH SELANJUTNYA:")
-        print("1. Install semua dependencies: pip install -r requirements.txt")
-        print("2. Setup Apify API token di file .env (opsional untuk scraping)")
-        print("3. Setup konfigurasi email di .env (opsional untuk notifikasi)")
-        print("4. Jalankan aplikasi: python app.py")
+        
+        if setup_mode in [1, 3]:
+            print("📋 INFORMASI LOGIN DATABASE LOKAL:")
+            print(f"   Username: admin")
+            print(f"   Email: {db_config.get('admin_email', 'admin@waskita.com')}")
+            print(f"   Password: [password yang Anda masukkan saat setup]")
+            print()
+            print("🚀 LANGKAH SELANJUTNYA UNTUK DEVELOPMENT:")
+            print("1. Install semua dependencies: pip install -r requirements.txt")
+            print("2. Setup Apify API token di file .env (opsional untuk scraping)")
+            print("3. Setup konfigurasi email di .env (opsional untuk notifikasi)")
+            print("4. Jalankan aplikasi: python app.py")
+            print("5. Buka browser: http://localhost:5000")
+            print("6. Login dengan kredensial di atas")
+        
+        if setup_mode in [2, 3]:
+            print("🐳 LANGKAH SELANJUTNYA UNTUK DOCKER:")
+            print("1. Pastikan file .env.docker sudah sesuai")
+            print("2. Jalankan: docker-compose up --build")
+            print("3. Buka browser: http://localhost:8000")
+        
         print()
         print("🔗 AKSES APLIKASI:")
-        print("   URL: http://localhost:5000")
-        print("   Admin: http://localhost:5000/login")
-        print()
-        print("🔐 LOGIN DEFAULT:")
-        print("   Username: admin")
-        print("   Password: (password yang Anda masukkan)")
-        print("   Email: admin@waskita.com")
+        if setup_mode in [1, 3]:
+            print("   Development: http://localhost:5000")
+        if setup_mode in [2, 3]:
+            print("   Docker: http://localhost:8000")
         print()
         print("📚 DOKUMENTASI:")
         print("   - Lihat file README.md untuk panduan lengkap")
