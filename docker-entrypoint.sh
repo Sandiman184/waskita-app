@@ -10,18 +10,28 @@ echo "🚀 Starting Waskita Docker Entrypoint"
 auto_setup_env() {
     echo "🔧 Auto-setting up environment configuration..."
     
-    # If .env doesn't exist, create complete .env file for Docker using environment variables from Docker Compose
+    # Load environment variables from .env.docker file if it exists
+    if [ -f "/app/.env.docker" ]; then
+        echo "📝 Loading environment variables from .env.docker file"
+        # Export all variables from .env.docker file
+        export $(grep -v '^#' /app/.env.docker | xargs)
+        echo "✅ Environment variables loaded from .env.docker"
+    else
+        echo "⚠️  .env.docker file not found, using default environment variables"
+    fi
+    
+    # If .env doesn't exist, create complete .env file for Docker using environment variables
     if [ ! -f "/app/.env" ]; then
         echo "📝 Creating complete .env file for Docker environment"
         
-        # Get database configuration from Docker environment variables
-        DB_USER=${DATABASE_USER:-admin}
-        DB_PASSWORD=${DATABASE_PASSWORD:-admin12345}
-        DB_NAME=${DATABASE_NAME:-db_waskita}
-        DB_HOST=${DATABASE_HOST:-db}
-        DB_PORT=${DATABASE_PORT:-5432}
+        # Get database configuration from environment variables only
+        DB_USER=${DATABASE_USER}
+        DB_PASSWORD=${DATABASE_PASSWORD}
+        DB_NAME=${DATABASE_NAME}
+        DB_HOST=${DATABASE_HOST}
+        DB_PORT=${DATABASE_PORT}
         
-        # Get email configuration from Docker environment variables
+        # Get email configuration from environment variables
         MAIL_SERVER=${MAIL_SERVER:-smtp.gmail.com}
         MAIL_PORT=${MAIL_PORT:-587}
         MAIL_USE_TLS=${MAIL_USE_TLS:-true}
@@ -32,7 +42,7 @@ auto_setup_env() {
         ADMIN_EMAIL=${ADMIN_EMAIL:-}
         ADMIN_EMAILS=${ADMIN_EMAILS:-}
         
-        # Get Apify configuration from Docker environment variables
+        # Get Apify configuration from environment variables
         APIFY_API_TOKEN=${APIFY_API_TOKEN:-}
         APIFY_BASE_URL=${APIFY_BASE_URL:-https://api.apify.com/v2}
         APIFY_TWITTER_ACTOR=${APIFY_TWITTER_ACTOR:-kaitoeasyapi/twitter-x-data-tweet-scraper-pay-per-result-cheapest}
@@ -43,11 +53,10 @@ auto_setup_env() {
         APIFY_MAX_RETRIES=${APIFY_MAX_RETRIES:-3}
         APIFY_RETRY_DELAY=${APIFY_RETRY_DELAY:-5}
         
-        # Create minimal .env file for Docker environment - ONLY non-database settings
-        # Database configuration should come directly from Docker environment variables
+        # Create minimal .env file for Docker environment
         cat > /app/.env << EOF
 # Minimal .env file for Docker environment
-# Database configuration is handled directly by Docker Compose environment variables
+# Database configuration comes from Docker environment variables
 
 # Security keys (auto-generated)
 SECRET_KEY=$(python -c "import secrets; print(secrets.token_hex(32))")
@@ -69,7 +78,7 @@ NAIVE_BAYES_MODEL1_PATH=/app/models/navesbayes/naive_bayes_model1.pkl
 NAIVE_BAYES_MODEL2_PATH=/app/models/navesbayes/naive_bayes_model2.pkl
 NAIVE_BAYES_MODEL3_PATH=/app/models/navesbayes/naive_bayes_model3.pkl
 
-# Email configuration from Docker environment variables
+# Email configuration from environment variables
 MAIL_SERVER=${MAIL_SERVER}
 MAIL_PORT=${MAIL_PORT}
 MAIL_USE_TLS=${MAIL_USE_TLS}
@@ -84,7 +93,7 @@ ADMIN_EMAILS=${ADMIN_EMAILS}
 CREATE_SAMPLE_DATA=false
 BASE_URL=http://localhost:5000
 
-# Apify API Configuration from Docker environment variables
+# Apify API Configuration from environment variables
 APIFY_API_TOKEN=${APIFY_API_TOKEN}
 APIFY_BASE_URL=${APIFY_BASE_URL}
 APIFY_TWITTER_ACTOR=${APIFY_TWITTER_ACTOR}
@@ -95,8 +104,7 @@ APIFY_TIMEOUT=${APIFY_TIMEOUT}
 APIFY_MAX_RETRIES=${APIFY_MAX_RETRIES}
 APIFY_RETRY_DELAY=${APIFY_RETRY_DELAY}
 
-# NOTE: Database configuration is intentionally NOT included here
-# Database connection should use environment variables directly:
+# NOTE: Database configuration comes from Docker environment variables
 # DATABASE_URL, DATABASE_USER, DATABASE_PASSWORD, etc. from Docker Compose
 EOF
         
@@ -105,8 +113,12 @@ EOF
     else
         echo "✅ .env file already exists"
         
-        # Ensure database configuration is not overridden from .env file
-        echo "⚠️  Note: Database configuration should come from Docker environment variables"
+        # Ensure we have the latest environment variables from .env.docker
+        if [ -f "/app/.env.docker" ]; then
+            echo "📝 Updating environment variables from .env.docker"
+            export $(grep -v '^#' /app/.env.docker | xargs)
+            echo "✅ Environment variables updated from .env.docker"
+        fi
     fi
 }
 
@@ -121,11 +133,16 @@ wait_for_database() {
         if python -c "
 import os, psycopg2, sys
 try:
-    # Use DATABASE_URL_DOCKER if available, fallback to DATABASE_URL
-    db_url = os.environ.get('DATABASE_URL_DOCKER') or os.environ.get('DATABASE_URL')
-    if not db_url:
-        print('❌ No database URL found in environment variables')
-        sys.exit(1)
+    # Get database connection parameters from environment variables
+    # Use POSTGRES_* variables for database connection (as set in docker-compose)
+    db_user = os.environ.get('POSTGRES_USER') or os.environ.get('DATABASE_USER')
+    db_password = os.environ.get('POSTGRES_PASSWORD') or os.environ.get('DATABASE_PASSWORD')
+    db_host = os.environ.get('DATABASE_HOST')
+    db_port = os.environ.get('DATABASE_PORT')
+    db_name = os.environ.get('POSTGRES_DB') or os.environ.get('DATABASE_NAME')
+    
+    # Construct database URL
+    db_url = 'postgresql://{}:{}@{}:{}/{}'.format(db_user, db_password, db_host, db_port, db_name)
     
     # Try to connect to database with timeout
     conn = psycopg2.connect(db_url, connect_timeout=5)
@@ -137,10 +154,10 @@ except psycopg2.OperationalError as e:
         # Database not ready yet, continue waiting
         sys.exit(1)
     else:
-        print(f'❌ Database operational error: {e}')
+        print('❌ Database operational error: ' + str(e))
         sys.exit(1)
 except Exception as e:
-    print(f'❌ Unexpected error: {e}')
+    print('❌ Unexpected error: ' + str(e))
     sys.exit(1)
         "; then
             echo "✅ Database is ready!"

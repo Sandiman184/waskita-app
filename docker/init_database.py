@@ -19,11 +19,11 @@ def wait_for_database():
     while attempt < max_attempts:
         try:
             # Get database connection parameters from environment variables
-            db_user = os.environ.get('DATABASE_USER', 'postgres')
-            db_password = os.environ.get('DATABASE_PASSWORD', 'admin12345')
-            db_host = os.environ.get('DATABASE_HOST', 'db')
-            db_port = os.environ.get('DATABASE_PORT', '5432')
-            db_name = os.environ.get('DATABASE_NAME', 'postgres')  # Connect to default database
+            db_user = os.environ.get('DATABASE_USER')
+            db_password = os.environ.get('DATABASE_PASSWORD')
+            db_host = os.environ.get('DATABASE_HOST')
+            db_port = os.environ.get('DATABASE_PORT')
+            db_name = os.environ.get('DATABASE_NAME')  # Connect to default database
             
             # Try to connect to database with explicit parameters
             conn = psycopg2.connect(
@@ -125,11 +125,11 @@ def create_database_schema(conn):
 def create_admin_user(conn):
     """Create default admin user in the database"""
     try:
-        # Default admin credentials - use environment variable or fallback to placeholder
-        admin_username = "admin"
-        admin_email = os.environ.get('ADMIN_EMAIL', 'admin@waskita.com')
-        admin_password = os.environ.get('ADMIN_PASSWORD', os.environ.get('DATABASE_PASSWORD', 'admin12345'))  # Use ADMIN_PASSWORD or fallback to DATABASE_PASSWORD
-        admin_fullname = "Administrator Waskita"
+        # Default admin credentials - use environment variables only
+        admin_username = os.environ.get('ADMIN_USERNAME', 'admin')
+        admin_email = os.environ.get('ADMIN_EMAIL')
+        admin_password = os.environ.get('ADMIN_PASSWORD')
+        admin_fullname = os.environ.get('ADMIN_FULLNAME', 'Administrator Waskita')
         
         # Hash password
         password_hash = generate_password_hash(admin_password)
@@ -186,16 +186,16 @@ def main():
     
     if not database_url:
         # Construct database URL from individual environment variables
-        db_user = os.environ.get('DATABASE_USER', 'postgres')
-        db_password = os.environ.get('DATABASE_PASSWORD', 'admin12345')
-        db_host = os.environ.get('DATABASE_HOST', 'db')
-        db_port = os.environ.get('DATABASE_PORT', '5432')
-        db_name = os.environ.get('DATABASE_NAME', 'waskita_db')
+        db_user = os.environ.get('DATABASE_USER')
+        db_password = os.environ.get('DATABASE_PASSWORD')
+        db_host = os.environ.get('DATABASE_HOST')
+        db_port = os.environ.get('DATABASE_PORT')
+        db_name = os.environ.get('DATABASE_NAME')
         
-        database_url = f"postgresql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}"
-        print(f"ℹ️  Constructed database URL from environment variables: {database_url}")
+        database_url = "postgresql://{}:{}@{}:{}/{}".format(db_user, db_password, db_host, db_port, db_name)
+        print("ℹ️  Constructed database URL from environment variables: " + database_url)
     
-    print(f"🔗 Using database URL: {database_url}")
+    print("🔗 Using database URL: " + database_url)
     
     # Wait for database to be ready
     if not wait_for_database():
@@ -210,10 +210,10 @@ def main():
         dbname = parsed_url.path[1:]  # Remove leading slash
         
         # Get database connection parameters from environment variables
-        db_user = os.environ.get('DATABASE_USER', 'postgres')
-        db_password = os.environ.get('DATABASE_PASSWORD', 'admin12345')
-        db_host = os.environ.get('DATABASE_HOST', 'db')
-        db_port = os.environ.get('DATABASE_PORT', '5432')
+        db_user = os.environ.get('DATABASE_USER')
+        db_password = os.environ.get('DATABASE_PASSWORD')
+        db_host = os.environ.get('DATABASE_HOST')
+        db_port = os.environ.get('DATABASE_PORT')
         
         # Connect to PostgreSQL server
         conn = psycopg2.connect(
@@ -229,11 +229,11 @@ def main():
         # Check if database exists
         cursor.execute("SELECT 1 FROM pg_database WHERE datname = %s", (dbname,))
         if cursor.fetchone():
-            print(f"✅ Database '{dbname}' already exists")
+            print("✅ Database '" + dbname + "' already exists")
         else:
             # Create database
-            cursor.execute(f"CREATE DATABASE {dbname}")
-            print(f"✅ Database '{dbname}' created successfully")
+            cursor.execute("CREATE DATABASE " + dbname)
+            print("✅ Database '" + dbname + "' created successfully")
         
         cursor.close()
         conn.close()
@@ -280,10 +280,10 @@ def main():
         sys.exit(0)
         
     except psycopg2.Error as e:
-        print(f"❌ Database error: {e}")
+        print("❌ Database error: " + str(e))
         sys.exit(1)
     except Exception as e:
-        print(f"❌ Unexpected error: {e}")
+        print("❌ Unexpected error: " + str(e))
         sys.exit(1)
 
 if __name__ == "__main__":
