@@ -168,19 +168,19 @@ def check_database_connection(db_config):
     
     return False
 
+# Fungsi helper untuk input dengan default value dan handling non-interactive
+def get_input(prompt, default):
+    try:
+        value = input(f"{prompt}").strip()
+        return value or default
+    except EOFError:
+        print(f"ℹ️  Menggunakan nilai default: {default}")
+        return default
+
 def create_database_and_user():
     """Membuat database dan user PostgreSQL"""
     print("🔧 Setup Database PostgreSQL untuk Waskita")
     print("=" * 50)
-    
-    # Fungsi helper untuk input dengan default value dan handling non-interactive
-    def get_input(prompt, default):
-        try:
-            value = input(f"{prompt}").strip()
-            return value or default
-        except EOFError:
-            print(f"ℹ️  Menggunakan nilai default: {default}")
-            return default
     
     # Input konfigurasi database
     print("\n📋 Konfigurasi Database:")
