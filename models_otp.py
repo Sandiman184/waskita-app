@@ -2,6 +2,7 @@
 from datetime import datetime, timedelta
 from sqlalchemy import Column, Integer, String, DateTime, Boolean, Text, ForeignKey
 from sqlalchemy.orm import relationship
+from flask import current_app
 from models import db
 import secrets
 import string
@@ -40,7 +41,7 @@ class RegistrationRequest(db.Model):
         self.password_hash = password_hash
         self.full_name = full_name
         self.otp_code = self.generate_otp()
-        self.otp_expires_at = datetime.utcnow() + timedelta(minutes=2)
+        self.otp_expires_at = datetime.utcnow() + timedelta(minutes=current_app.config['OTP_EXPIRY_MINUTES'])
     
     def generate_otp(self):
         """Generate OTP code using configured length"""
@@ -53,7 +54,7 @@ class RegistrationRequest(db.Model):
     def regenerate_otp(self):
         """Generate new OTP and extend expiry"""
         self.otp_code = self.generate_otp()
-        self.otp_expires_at = datetime.utcnow() + timedelta(minutes=2)
+        self.otp_expires_at = datetime.utcnow() + timedelta(minutes=current_app.config['OTP_EXPIRY_MINUTES'])
         return self.otp_code
 
 class AdminNotification(db.Model):

@@ -490,7 +490,7 @@ def resend_first_login_otp():
         
         # Update session with new OTP and expiry
         session['first_login_otp'] = otp_code
-        session['first_login_otp_expires'] = (datetime.utcnow() + timedelta(minutes=2)).isoformat()
+        session['first_login_otp_expires'] = (datetime.utcnow() + timedelta(minutes=current_app.config['OTP_EXPIRY_MINUTES'])).isoformat()
         
         # Send new OTP email
         from email_service import email_service

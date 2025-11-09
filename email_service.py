@@ -4,7 +4,7 @@ import os
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime, timedelta
-from flask import current_app, render_template_string
+from flask import current_app, render_template_string, render_template
 from models import db, User
 from models_otp import RegistrationRequest, AdminNotification, OTPEmailLog
 
@@ -235,7 +235,7 @@ class EmailService:
         """
         Template email OTP untuk login pertama
         """
-        expires_time = (datetime.utcnow() + timedelta(minutes=2)).strftime('%d/%m/%Y %H:%M WIB')
+        expires_time = (datetime.utcnow() + timedelta(minutes=current_app.config['OTP_EXPIRY_MINUTES'])).strftime('%d/%m/%Y %H:%M WIB')
         return f"""
         <!DOCTYPE html>
         <html>

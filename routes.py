@@ -105,7 +105,7 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                         from otp_routes import generate_otp
                         otp_code = generate_otp()
                         session['first_login_otp'] = otp_code
-                        session['first_login_otp_expires'] = (datetime.utcnow() + timedelta(minutes=2)).isoformat()
+                        session['first_login_otp_expires'] = (datetime.utcnow() + timedelta(minutes=current_app.config['OTP_EXPIRY_MINUTES'])).isoformat()
 
                         # Kirim email OTP
                         from email_service import email_service
