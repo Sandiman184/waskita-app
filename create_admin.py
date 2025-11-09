@@ -34,10 +34,10 @@ def create_admin_user():
         conn = psycopg2.connect(db_url)
         cursor = conn.cursor()
         
-        # Default admin credentials
+        # Default admin credentials - use environment variables
         admin_username = "admin"
-        admin_email = "admin@waskita.com"
-        admin_password = "admin123"  # Default password, should be changed in production
+        admin_email = os.getenv('ADMIN_EMAIL', 'admin@waskita.com')
+        admin_password = os.getenv('ADMIN_PASSWORD', os.getenv('DATABASE_PASSWORD', 'admin12345'))  # Use environment variables, not hardcoded
         admin_fullname = "Administrator Waskita"
         
         # Hash password

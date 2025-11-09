@@ -139,7 +139,7 @@ def create_admin_user(conn):
         # Default admin credentials - use environment variable or fallback to placeholder
         admin_username = "admin"
         admin_email = os.environ.get('ADMIN_EMAIL', 'admin@waskita.com')
-        admin_password = "admin123"  # Default password, should be changed in production
+        admin_password = os.environ.get('ADMIN_PASSWORD', os.environ.get('DATABASE_PASSWORD', 'admin12345'))  # Use environment variables, not hardcoded
         admin_fullname = "Administrator Waskita"
         
         # Hash password

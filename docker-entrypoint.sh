@@ -43,10 +43,11 @@ auto_setup_env() {
         APIFY_MAX_RETRIES=${APIFY_MAX_RETRIES:-3}
         APIFY_RETRY_DELAY=${APIFY_RETRY_DELAY:-5}
         
-        # Create complete .env file with all essential variables including email
+        # Create minimal .env file for Docker environment - ONLY non-database settings
+        # Database configuration should come directly from Docker environment variables
         cat > /app/.env << EOF
-# Complete .env file for Docker environment
-# Configuration is handled by Docker Compose environment variables
+# Minimal .env file for Docker environment
+# Database configuration is handled directly by Docker Compose environment variables
 
 # Security keys (auto-generated)
 SECRET_KEY=$(python -c "import secrets; print(secrets.token_hex(32))")
@@ -94,9 +95,9 @@ APIFY_TIMEOUT=${APIFY_TIMEOUT}
 APIFY_MAX_RETRIES=${APIFY_MAX_RETRIES}
 APIFY_RETRY_DELAY=${APIFY_RETRY_DELAY}
 
-# Database configuration from Docker environment variables
-DATABASE_URL=postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}
-DATABASE_URL_DOCKER=postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}
+# NOTE: Database configuration is intentionally NOT included here
+# Database connection should use environment variables directly:
+# DATABASE_URL, DATABASE_USER, DATABASE_PASSWORD, etc. from Docker Compose
 EOF
         
         echo "✅ Complete .env file created successfully for Docker using environment variables"

@@ -128,7 +128,7 @@ def create_admin_user(conn):
         # Default admin credentials - use environment variable or fallback to placeholder
         admin_username = "admin"
         admin_email = os.environ.get('ADMIN_EMAIL', 'admin@waskita.com')
-        admin_password = "admin123"  # Default password, should be changed in production
+        admin_password = os.environ.get('ADMIN_PASSWORD', os.environ.get('DATABASE_PASSWORD', 'admin12345'))  # Use ADMIN_PASSWORD or fallback to DATABASE_PASSWORD
         admin_fullname = "Administrator Waskita"
         
         # Hash password
@@ -257,7 +257,9 @@ def main():
         print("✅ Database schema created successfully")
         
         # Create or update admin user with consistent schema and OTP requirement
-        hashed_password = generate_password_hash('admin123', method='scrypt')
+        # Use the same password as database for consistency
+        admin_password = os.environ.get('DATABASE_PASSWORD', 'admin12345')
+        hashed_password = generate_password_hash(admin_password, method='scrypt')
         cursor.execute(
             """
             INSERT INTO users (username, email, password_hash, role, full_name, is_active, theme_preference, first_login)
