@@ -882,7 +882,7 @@ function resetScrapingUI(successCount = 0, responseData = null) {
         icon: actualCount > 0 ? 'success' : 'warning',
         title: 'Scraping Selesai',
         text: notificationText,
-        showCancelButton: true,
+        showCancelButton: actualCount > 0, // Hanya tampilkan cancel button jika ada data
         confirmButtonText: actualCount > 0 ? 'Lihat Hasil' : 'Tutup',
         cancelButtonText: 'Tutup'
     }).then(function(result) {
@@ -990,7 +990,7 @@ function completeScraping(successCount, jobId, responseData = null) {
         icon: actualCount > 0 ? 'success' : 'warning',
         title: 'Scraping Selesai',
         text: notificationText,
-        showCancelButton: true,
+        showCancelButton: actualCount > 0, // Hanya tampilkan cancel button jika ada data
         confirmButtonText: actualCount > 0 ? 'Lihat Hasil' : 'Tutup',
         cancelButtonText: 'Tutup'
     }).then(function(result) {
