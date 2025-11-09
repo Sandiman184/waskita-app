@@ -170,6 +170,46 @@ def create_admin_user(conn):
     except Exception as e:
         return False
 
+def update_admin_email_from_env(conn):
+    """Update admin email to always use environment variable value"""
+    try:
+        # Get admin email from environment variable
+        admin_email_from_env = os.environ.get('ADMIN_EMAIL')
+        
+        if not admin_email_from_env:
+            print("⚠️  ADMIN_EMAIL environment variable not set, skipping email update")
+            return True
+        
+        cursor = conn.cursor()
+        
+        # Check current admin email
+        cursor.execute("SELECT email FROM users WHERE username = 'admin';")
+        result = cursor.fetchone()
+        
+        if result and result[0] != admin_email_from_env:
+            print(f"📧 Updating admin email from '{result[0]}' to '{admin_email_from_env}'")
+            
+            # Update admin email to match environment variable
+            update_sql = """
+            UPDATE users 
+            SET email = %s, 
+                updated_at = CURRENT_TIMESTAMP
+            WHERE username = 'admin';
+            """
+            
+            cursor.execute(update_sql, (admin_email_from_env,))
+            conn.commit()
+            print("✅ Admin email updated successfully")
+        else:
+            print(f"✅ Admin email already matches environment variable: {admin_email_from_env}")
+        
+        cursor.close()
+        return True
+        
+    except Exception as e:
+        print(f"⚠️ Warning while updating admin email: {e}")
+        return False
+
 def update_admin_otp_setting(conn):
     """Update admin OTP settings to be consistent with local environment"""
     try:
@@ -274,6 +314,9 @@ def main():
         if not create_demo_user(conn):
             conn.close()
             sys.exit(1)
+        
+        # Always update admin email to match environment variable (critical for Docker)
+        update_admin_email_from_env(conn)
         
         # Update admin user to disable first login OTP requirement (Docker mode)
         update_admin_otp_setting(conn)

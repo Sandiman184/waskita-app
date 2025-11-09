@@ -219,15 +219,12 @@ main() {
         exit 1
     fi
     
-    # Check if database needs initialization
-    if check_database_initialized; then
-        echo "📋 Database is already set up, skipping initialization"
-    else
-        # Initialize database
-        if ! initialize_database; then
-            echo "❌ Failed to initialize database"
-            exit 1
-        fi
+    # Always run database initialization to ensure environment variables are applied
+    # This is critical for Docker to ensure admin email and other settings match environment
+    echo "🔧 Always running database initialization to apply environment variables..."
+    if ! initialize_database; then
+        echo "❌ Failed to initialize database"
+        exit 1
     fi
     
     # Start the application
