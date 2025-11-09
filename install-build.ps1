@@ -79,6 +79,7 @@ if ($Clean) {
 # Determine environment
 $composeFile = "docker/docker-compose.yml"
 $envFile = ".env"
+$useDockerEnv = $false
 
 if ($Production) {
     Write-Host ""
@@ -94,6 +95,15 @@ if ($Production) {
 } else {
     Write-Host ""
     Write-Host "=== DEVELOPMENT BUILD ===" -ForegroundColor Blue
+    
+    # Check if we should use .env.docker for Docker environment
+    if (Test-Path ".env.docker") {
+        Write-Host "Menggunakan .env.docker untuk environment Docker" -ForegroundColor Green
+        $useDockerEnv = $true
+        $envFile = ".env.docker"
+    } else {
+        Write-Host "Menggunakan .env untuk environment lokal" -ForegroundColor Yellow
+    }
 }
 
 # Check environment file
@@ -138,37 +148,40 @@ if (-not (Test-Path $envFile)) {
     }
 } else {
     # Periksa apakah kredensial masih menggunakan nilai default
-    $envContent = Get-Content $envFile -Raw
-    if ($envContent -match "your_secure_password" -or $envContent -match "admin_ws") {
-        Write-Host ""
-        Write-Host "=== PERINGATAN KEAMANAN ===" -ForegroundColor Red
-        Write-Host "File .env masih menggunakan kredensial default!" -ForegroundColor Yellow
-        Write-Host "Sangat disarankan untuk mengubah kredensial database." -ForegroundColor Yellow
-        
-        $changeCreds = Read-Host "Apakah Anda ingin mengubah kredensial sekarang? (y/N)"
-        if ($changeCreds -eq "y" -or $changeCreds -eq "Y") {
+    # Hanya periksa untuk file .env (lokal), bukan .env.docker
+    if ($envFile -eq ".env") {
+        $envContent = Get-Content $envFile -Raw
+        if ($envContent -match "your_secure_password" -or $envContent -match "admin_ws") {
             Write-Host ""
-            Write-Host "=== UPDATE KREDENSIAL DATABASE ===" -ForegroundColor Cyan
+            Write-Host "=== PERINGATAN KEAMANAN ===" -ForegroundColor Red
+            Write-Host "File .env masih menggunakan kredensial default!" -ForegroundColor Yellow
+            Write-Host "Sangat disarankan untuk mengubah kredensial database." -ForegroundColor Yellow
             
-            $dbUser = Read-Host "Database Username (default: admin_ws)"
-            if ([string]::IsNullOrEmpty($dbUser)) { $dbUser = "admin_ws" }
-            
-            $dbPass = Read-Host "Database Password" -AsSecureString
-            $dbPassPlain = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($dbPass))
-            
-            $dbName = Read-Host "Database Name (default: waskita_db)"
-            if ([string]::IsNullOrEmpty($dbName)) { $dbName = "waskita_db" }
-            
-            # Update file .env dengan kredensial baru
-            $envContent = $envContent -replace "DATABASE_USER=.*", "DATABASE_USER=$dbUser"
-            $envContent = $envContent -replace "DATABASE_PASSWORD=.*", "DATABASE_PASSWORD=$dbPassPlain"
-            $envContent = $envContent -replace "DATABASE_NAME=.*", "DATABASE_NAME=$dbName"
-            $envContent = $envContent -replace "POSTGRES_USER=.*", "POSTGRES_USER=$dbUser"
-            $envContent = $envContent -replace "POSTGRES_PASSWORD=.*", "POSTGRES_PASSWORD=$dbPassPlain"
-            $envContent = $envContent -replace "POSTGRES_DB=.*", "POSTGRES_DB=$dbName"
-            
-            Set-Content -Path $envFile -Value $envContent
-            Write-Host "Kredensial database berhasil diupdate!" -ForegroundColor Green
+            $changeCreds = Read-Host "Apakah Anda ingin mengubah kredensial sekarang? (y/N)"
+            if ($changeCreds -eq "y" -or $changeCreds -eq "Y") {
+                Write-Host ""
+                Write-Host "=== UPDATE KREDENSIAL DATABASE ===" -ForegroundColor Cyan
+                
+                $dbUser = Read-Host "Database Username (default: admin_ws)"
+                if ([string]::IsNullOrEmpty($dbUser)) { $dbUser = "admin_ws" }
+                
+                $dbPass = Read-Host "Database Password" -AsSecureString
+                $dbPassPlain = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($dbPass))
+                
+                $dbName = Read-Host "Database Name (default: waskita_db)"
+                if ([string]::IsNullOrEmpty($dbName)) { $dbName = "waskita_db" }
+                
+                # Update file .env dengan kredensial baru
+                $envContent = $envContent -replace "DATABASE_USER=.*", "DATABASE_USER=$dbUser"
+                $envContent = $envContent -replace "DATABASE_PASSWORD=.*", "DATABASE_PASSWORD=$dbPassPlain"
+                $envContent = $envContent -replace "DATABASE_NAME=.*", "DATABASE_NAME=$dbName"
+                $envContent = $envContent -replace "POSTGRES_USER=.*", "POSTGRES_USER=$dbUser"
+                $envContent = $envContent -replace "POSTGRES_PASSWORD=.*", "POSTGRES_PASSWORD=$dbPassPlain"
+                $envContent = $envContent -replace "POSTGRES_DB=.*", "POSTGRES_DB=$dbName"
+                
+                Set-Content -Path $envFile -Value $envContent
+                Write-Host "Kredensial database berhasil diupdate!" -ForegroundColor Green
+            }
         }
     }
 }
@@ -183,7 +196,13 @@ if ($Production) {
     docker-compose -f $composeFile up --build -d
 } else {
     $env:CREATE_SAMPLE_DATA = "true"
-    docker-compose -f $composeFile up --build -d
+    if ($useDockerEnv) {
+        # Gunakan .env.docker dengan parameter --env-file
+        docker-compose -f $composeFile --env-file $envFile up --build -d
+    } else {
+        # Gunakan .env untuk environment lokal
+        docker-compose -f $composeFile up --build -d
+    }
 }
 
 if ($LASTEXITCODE -ne 0) {
@@ -200,7 +219,11 @@ Start-Sleep -Seconds 10
 
 # Check if services are running
 Write-Host "Memeriksa status services..." -ForegroundColor Yellow
-$containers = docker-compose -f docker/docker-compose.yml ps --services --filter "status=running"
+if ($useDockerEnv) {
+    $containers = docker-compose -f docker/docker-compose.yml --env-file $envFile ps --services --filter "status=running"
+} else {
+    $containers = docker-compose -f docker/docker-compose.yml ps --services --filter "status=running"
+}
 if ($containers -match "app" -and $containers -match "db") {
     Write-Host "Services berjalan dengan baik" -ForegroundColor Green
 } else {
