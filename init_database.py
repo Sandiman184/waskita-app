@@ -146,14 +146,18 @@ def create_admin_user(conn):
         password_hash = generate_password_hash(admin_password)
         
         # Insert admin user with ON CONFLICT to update password and email if user already exists
-        insert_admin_sql = """
+        # Use environment variable to determine first_login behavior
+        otp_enabled = os.getenv('OTP_ENABLED', 'True').lower() == 'true'
+        first_login_value = 'TRUE' if otp_enabled else 'FALSE'
+        
+        insert_admin_sql = f"""
         INSERT INTO users (username, email, password_hash, role, full_name, is_active, theme_preference, first_login) 
-        VALUES (%s, %s, %s, 'admin', %s, TRUE, 'dark', FALSE)
+        VALUES (%s, %s, %s, 'admin', %s, TRUE, 'dark', {first_login_value})
         ON CONFLICT (username) DO UPDATE SET
             password_hash = EXCLUDED.password_hash,
             email = EXCLUDED.email,
             updated_at = CURRENT_TIMESTAMP,
-            first_login = FALSE;
+            first_login = {first_login_value};
         """
         
         cursor = conn.cursor()
@@ -167,17 +171,30 @@ def create_admin_user(conn):
         return False
 
 def update_admin_otp_setting(conn):
-    """Enforce admin to require OTP on first login in Docker"""
+    """Update admin OTP settings to be consistent with local environment"""
     try:
         cursor = conn.cursor()
         
-        # Ensure admin requires OTP on first login
-        update_sql = """
-        UPDATE users 
-        SET first_login = TRUE, 
-            updated_at = CURRENT_TIMESTAMP
-        WHERE username = 'admin' AND first_login = FALSE;
-        """
+        # Check environment to determine OTP behavior
+        # In Docker, respect the OTP_ENABLED environment variable
+        otp_enabled = os.getenv('OTP_ENABLED', 'True').lower() == 'true'
+        
+        if otp_enabled:
+            # OTP enabled - ensure admin requires OTP on first login
+            update_sql = """
+            UPDATE users 
+            SET first_login = TRUE, 
+                updated_at = CURRENT_TIMESTAMP
+            WHERE username = 'admin' AND first_login = FALSE;
+            """
+        else:
+            # OTP disabled - ensure admin doesn't require OTP
+            update_sql = """
+            UPDATE users 
+            SET first_login = FALSE, 
+                updated_at = CURRENT_TIMESTAMP
+            WHERE username = 'admin' AND first_login = TRUE;
+            """
         
         cursor.execute(update_sql)
         conn.commit()
@@ -186,6 +203,7 @@ def update_admin_otp_setting(conn):
         return True
         
     except Exception as e:
+        print(f"⚠️ Warning while updating admin OTP settings: {e}")
         return False
 
 def create_demo_user(conn):
@@ -201,14 +219,18 @@ def create_demo_user(conn):
         password_hash = generate_password_hash(demo_password)
         
         # Insert demo user with ON CONFLICT to update password and email if user already exists
-        insert_demo_sql = """
+        # Use environment variable to determine first_login behavior
+        otp_enabled = os.getenv('OTP_ENABLED', 'True').lower() == 'true'
+        first_login_value = 'TRUE' if otp_enabled else 'FALSE'
+        
+        insert_demo_sql = f"""
         INSERT INTO users (username, email, password_hash, role, full_name, is_active, theme_preference, first_login) 
-        VALUES (%s, %s, %s, 'user', %s, TRUE, 'dark', FALSE)
+        VALUES (%s, %s, %s, 'user', %s, TRUE, 'dark', {first_login_value})
         ON CONFLICT (username) DO UPDATE SET
             password_hash = EXCLUDED.password_hash,
             email = EXCLUDED.email,
             updated_at = CURRENT_TIMESTAMP,
-            first_login = FALSE;
+            first_login = {first_login_value};
         """
         
         cursor = conn.cursor()

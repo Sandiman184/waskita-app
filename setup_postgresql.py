@@ -642,7 +642,7 @@ ADMIN_EMAILS={existing_config.get('ADMIN_EMAILS', 'admin@waskita.com,admin2@wask
 # =============================================================================
 OTP_ENABLED={existing_config.get('OTP_ENABLED', 'True')}
 OTP_LENGTH=6
-OTP_EXPIRY_MINUTES=30
+OTP_EXPIRY_MINUTES=1
 MAX_OTP_ATTEMPTS=3
 LOCKOUT_DURATION_MINUTES=15
 
@@ -898,7 +898,7 @@ ADMIN_EMAILS={docker_config.get('ADMIN_EMAILS', 'admin@waskita.com,admin2@waskit
 # =============================================================================
 OTP_ENABLED={docker_config.get('OTP_ENABLED', 'True')}
 OTP_LENGTH=6
-OTP_EXPIRY_MINUTES=30
+OTP_EXPIRY_MINUTES=1
 MAX_OTP_ATTEMPTS=3
 LOCKOUT_DURATION_MINUTES=15
 

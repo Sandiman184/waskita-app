@@ -159,7 +159,7 @@
                                 Kirim Ulang OTP
                             </button>
                             <div id="timer" class="text-muted small mt-2" style="display: none;">
-                                Dapat mengirim ulang dalam <span id="countdown">120</span> detik
+                                Dapat mengirim ulang dalam <span id="countdown">60</span> detik
                             </div>
                         </div>
                     </div>
@@ -190,7 +190,7 @@
             startCountdown();
         });
         
-        let countdown = 120; // 2 minutes in seconds
+        let countdown = 60; // 1 minute in seconds
         let countdownInterval;
         
         function startCountdown() {
@@ -235,7 +235,7 @@
                     showAlert('OTP berhasil dikirim ulang! Silakan cek email Anda.', 'success');
                     
                     // Reset countdown
-                    countdown = 120;
+                    countdown = 60;
                     document.getElementById('countdown').textContent = countdown;
                     timer.style.display = 'block';
                     

@@ -62,11 +62,11 @@ python -c "import secrets, string; chars = string.ascii_letters + string.digits;
 ## 📧 SISTEM OTP (One-Time Password)
 
 ### Overview
-Sistem OTP Waskita menggunakan email untuk verifikasi registrasi user baru dengan kode 6 digit yang berlaku 2 menit.
+Sistem OTP Waskita menggunakan email untuk verifikasi registrasi user baru dengan kode 6 digit yang berlaku 1 menit.
 
 ### Fitur OTP System
 - ✅ **Email verification** untuk registrasi user baru
-- ✅ **6-digit OTP code** dengan expiry 2 menit
+- ✅ **6-digit OTP code** dengan expiry 1 menit
 - ✅ **Rate limiting** untuk mencegah spam
 - ✅ **Secure token generation** menggunakan `secrets` module
 - ✅ **Gmail SMTP integration** dengan App Password
@@ -111,7 +111,7 @@ with app.app_context():
 ```
 1. User mengisi form registrasi
 2. System generate 6-digit OTP code
-3. OTP disimpan di database dengan expiry 2 menit
+3. OTP disimpan di database dengan expiry 1 menit
 4. Email dikirim ke user dengan OTP code
 5. User input OTP code untuk verifikasi
 6. System validasi OTP dan activate account
@@ -121,7 +121,7 @@ with app.app_context():
 ```
 1. User berhasil registrasi dan account aktif
 2. Saat pertama kali login, system generate OTP baru
-3. OTP dikirim ke email user (expiry 2 menit)
+3. OTP dikirim ke email user (expiry 1 menit)
 4. User harus input OTP untuk first login verification
 5. Setelah verifikasi, user dapat akses aplikasi normal
 6. OTP tidak diperlukan untuk login selanjutnya
@@ -129,7 +129,7 @@ with app.app_context():
 
 #### 3. OTP Security Features
 - **Rate Limiting**: Max 5 OTP requests per email per jam
-- **Expiry Time**: OTP berlaku 2 menit
+- **Expiry Time**: OTP berlaku 1 menit
 - **Secure Generation**: Menggunakan `secrets.randbelow()`
 - **Auto Cleanup**: Expired OTP otomatis dihapus
 - **Email Validation**: Validasi format email sebelum kirim OTP
