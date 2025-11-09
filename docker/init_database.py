@@ -18,13 +18,22 @@ def wait_for_database():
     
     while attempt < max_attempts:
         try:
-            # Get database connection from environment variables
-            db_url = os.getenv('DATABASE_URL')
-            if not db_url:
-                return False
+            # Get database connection parameters from environment variables
+            db_user = os.environ.get('DATABASE_USER', 'postgres')
+            db_password = os.environ.get('DATABASE_PASSWORD', 'admin12345')
+            db_host = os.environ.get('DATABASE_HOST', 'db')
+            db_port = os.environ.get('DATABASE_PORT', '5432')
+            db_name = os.environ.get('DATABASE_NAME', 'postgres')  # Connect to default database
             
-            # Try to connect to database
-            conn = psycopg2.connect(db_url)
+            # Try to connect to database with explicit parameters
+            conn = psycopg2.connect(
+                host=db_host,
+                port=db_port,
+                user=db_user,
+                password=db_password,
+                database=db_name,
+                connect_timeout=5
+            )
             conn.close()
             return True
             
@@ -200,12 +209,18 @@ def main():
         parsed_url = urlparse(database_url)
         dbname = parsed_url.path[1:]  # Remove leading slash
         
+        # Get database connection parameters from environment variables
+        db_user = os.environ.get('DATABASE_USER', 'postgres')
+        db_password = os.environ.get('DATABASE_PASSWORD', 'admin12345')
+        db_host = os.environ.get('DATABASE_HOST', 'db')
+        db_port = os.environ.get('DATABASE_PORT', '5432')
+        
         # Connect to PostgreSQL server
         conn = psycopg2.connect(
-            host=parsed_url.hostname,
-            port=parsed_url.port,
-            user=parsed_url.username,
-            password=parsed_url.password,
+            host=db_host,
+            port=db_port,
+            user=db_user,
+            password=db_password,
             dbname='postgres'  # Connect to default database first
         )
         conn.autocommit = True
@@ -224,7 +239,13 @@ def main():
         conn.close()
         
         # Now connect to the specific database to create tables
-        conn = psycopg2.connect(database_url)
+        conn = psycopg2.connect(
+            host=db_host,
+            port=db_port,
+            user=db_user,
+            password=db_password,
+            dbname=dbname
+        )
         conn.autocommit = True
         cursor = conn.cursor()
         
