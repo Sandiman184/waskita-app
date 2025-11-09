@@ -47,14 +47,14 @@ def create_admin_user():
         # Insert admin user with ON CONFLICT to update password if user already exists
         insert_admin_sql = """
         INSERT INTO users (username, email, password_hash, role, full_name, is_active, preferences, first_login) 
-        VALUES (%s, %s, %s, 'admin', %s, TRUE, '{\"theme\": \"dark\"}', FALSE)
+        VALUES (%s, %s, %s, 'admin', %s, TRUE, '{\"theme\": \"dark\"}', TRUE)
         ON CONFLICT (username) DO UPDATE SET
             password_hash = EXCLUDED.password_hash,
             email = EXCLUDED.email,
             full_name = EXCLUDED.full_name,
             preferences = EXCLUDED.preferences,
             updated_at = CURRENT_TIMESTAMP,
-            first_login = FALSE;
+            first_login = TRUE;
         """
         
         cursor.execute(insert_admin_sql, (admin_username, admin_email, password_hash, admin_fullname))

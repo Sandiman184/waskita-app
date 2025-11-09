@@ -388,11 +388,12 @@ def create_tables_and_admin(db_config):
         
         # Insert admin user dengan ON CONFLICT untuk update password jika user sudah ada
         insert_admin_sql = """
-        INSERT INTO users (username, email, password_hash, role, full_name, is_active, theme_preference) 
-        VALUES (%s, %s, %s, 'admin', %s, TRUE, 'dark')
+        INSERT INTO users (username, email, password_hash, role, full_name, is_active, theme_preference, first_login) 
+        VALUES (%s, %s, %s, 'admin', %s, TRUE, 'dark', TRUE)
         ON CONFLICT (username) DO UPDATE SET
             password_hash = EXCLUDED.password_hash,
             email = EXCLUDED.email,
+            first_login = TRUE,
             updated_at = CURRENT_TIMESTAMP;
         """
         

@@ -172,6 +172,7 @@ def pending_registrations():
                     password_hash=registration_request.password_hash,
                     role='user',
                     is_active=True,
+                    first_login=True,
                     created_at=datetime.utcnow()
                 )
                 
@@ -293,6 +294,7 @@ def approve_registration_public(request_id):
                 password_hash=registration_request.password_hash,
                 role='user',
                 is_active=True,
+                first_login=True,
                 created_at=datetime.utcnow()
             )
             
