@@ -120,14 +120,14 @@ if (-not (Test-Path $envFile)) {
         Write-Host "=== KONFIGURASI DATABASE ===" -ForegroundColor Cyan
         Write-Host "Silakan masukkan kredensial database PostgreSQL:" -ForegroundColor Yellow
         
-        $dbUser = Read-Host "Database Username (default: admin_ws)"
-        if ([string]::IsNullOrEmpty($dbUser)) { $dbUser = "admin_ws" }
+        $dbUser = Read-Host "Database Username (default: admin)"
+        if ([string]::IsNullOrEmpty($dbUser)) { $dbUser = "admin" }
         
         $dbPass = Read-Host "Database Password (default: your_secure_password)" -AsSecureString
         $dbPassPlain = if ($dbPass) { [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($dbPass)) } else { "your_secure_password" }
         
-        $dbName = Read-Host "Database Name (default: waskita_db)"
-        if ([string]::IsNullOrEmpty($dbName)) { $dbName = "waskita_db" }
+        $dbName = Read-Host "Database Name (default: db_waskita)"
+        if ([string]::IsNullOrEmpty($dbName)) { $dbName = "db_waskita" }
         
         # Update file .env dengan kredensial yang dimasukkan
         $envContent = Get-Content $envFile -Raw
@@ -162,14 +162,14 @@ if (-not (Test-Path $envFile)) {
                 Write-Host ""
                 Write-Host "=== UPDATE KREDENSIAL DATABASE ===" -ForegroundColor Cyan
                 
-                $dbUser = Read-Host "Database Username (default: admin_ws)"
-                if ([string]::IsNullOrEmpty($dbUser)) { $dbUser = "admin_ws" }
+                $dbUser = Read-Host "Database Username (default: admin)"
+                if ([string]::IsNullOrEmpty($dbUser)) { $dbUser = "admin" }
                 
                 $dbPass = Read-Host "Database Password" -AsSecureString
                 $dbPassPlain = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($dbPass))
                 
-                $dbName = Read-Host "Database Name (default: waskita_db)"
-                if ([string]::IsNullOrEmpty($dbName)) { $dbName = "waskita_db" }
+                $dbName = Read-Host "Database Name (default: db_waskita)"
+                if ([string]::IsNullOrEmpty($dbName)) { $dbName = "db_waskita" }
                 
                 # Update file .env dengan kredensial baru
                 $envContent = $envContent -replace "DATABASE_USER=.*", "DATABASE_USER=$dbUser"

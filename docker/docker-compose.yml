@@ -5,8 +5,6 @@ services:
     container_name: waskita-app-postgres
     env_file:
       - ../.env.docker
-    environment:
-      POSTGRES_DB: waskita_db
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:

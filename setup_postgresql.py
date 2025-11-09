@@ -828,18 +828,18 @@ def create_docker_env_file(db_config):
         # Path untuk file environment Docker - sekarang di root folder
         docker_env_path = '.env.docker'
         
-        # Konfigurasi khusus Docker
+        # Konfigurasi khusus Docker - menggunakan nilai dari db_config
         docker_config = {
-            'DATABASE_URL': f"postgresql://postgres:{db_config['db_password']}@db:5432/waskita_db",
-            'TEST_DATABASE_URL': f"postgresql://postgres:{db_config['db_password']}@db:5432/testwaskita_db",
-            'DATABASE_HOST': 'db',
+            'DATABASE_URL': f"postgresql://{db_config.get('db_user', 'admin')}:{db_config['db_password']}@db:5432/{db_config.get('db_name', 'db_waskita')}",
+            'TEST_DATABASE_URL': f"postgresql://{db_config.get('db_user', 'admin')}:{db_config['db_password']}@db:5432/{db_config.get('db_test_name', 'db_waskitatest')}",
+            'DATABASE_HOST': 'db',  # Untuk Docker, host selalu 'db' (nama service)
             'DATABASE_PORT': '5432',
-            'DATABASE_NAME': 'waskita_db',
-            'DATABASE_USER': 'postgres',
+            'DATABASE_NAME': db_config.get('db_name', 'db_waskita'),
+            'DATABASE_USER': db_config.get('db_user', 'admin'),
             'DATABASE_PASSWORD': db_config['db_password'],
-            'POSTGRES_USER': 'postgres',
+            'POSTGRES_USER': db_config.get('db_user', 'admin'),
             'POSTGRES_PASSWORD': db_config['db_password'],
-            'POSTGRES_DB': 'waskita_db',
+            'POSTGRES_DB': db_config.get('db_name', 'db_waskita'),
             'ADMIN_EMAIL': db_config.get('admin_email', 'admin@waskita.com'),
             'ADMIN_EMAILS': db_config.get('admin_email', 'admin@waskita.com'),
             'MAIL_USERNAME': db_config.get('mail_username', db_config.get('admin_email', 'admin@waskita.com')),
@@ -1183,6 +1183,10 @@ def main():
                 db_config['db_user'] = get_input("Database User (default: admin): ", "admin")
                 db_config['db_password'] = get_input("Database Password (default: admin12345): ", "admin12345")
                 db_config['db_test_name'] = get_input("Test Database Name (default: db_waskitatest): ", "db_waskitatest")
+                
+                # Untuk Docker, host harus selalu 'db' (nama service), beri informasi ke user
+                print("\nℹ️  Untuk Docker environment, host akan diubah menjadi 'db' (nama service Docker)")
+                print("   Host yang diinput hanya digunakan untuk referensi di file .env")
                 
                 # Konfigurasi email
                 db_config['admin_email'] = get_input("Admin Email (default: admin@waskita.com): ", "admin@waskita.com")
