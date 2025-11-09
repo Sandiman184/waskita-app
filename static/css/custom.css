@@ -240,6 +240,21 @@
     font-size: 2rem;
 }
 
+/* Styling untuk logo image */
+.brand-link img.brand-icon {
+    height: 32px;
+    width: auto;
+    object-fit: contain;
+    margin-right: 0.75rem;
+}
+
+/* Hover effect untuk logo */
+.brand-link:hover img.brand-icon {
+    opacity: 0.9;
+    transform: scale(1.05);
+    transition: all 0.3s ease;
+}
+
 .invisible-label {
     visibility: hidden;
 }
