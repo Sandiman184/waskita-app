@@ -240,7 +240,7 @@ GROUP BY platform;
 -- Insert default admin user (password: admin123)
 INSERT INTO users (username, email, password_hash, role, full_name, is_active, first_login) VALUES 
 ('admin', 'admin@waskita.com', 'scrypt:32768:8:1$hV7Q3p5X$c7b2b4d6f8a0c9e2b1d3f5a7c9e1b3d5f7a9c1e3b5d7f9a1c3e5b7d9f1a3c5e7', 'admin', 'Administrator', TRUE, TRUE),
-('demo_user', 'user@waskita.com', 'scrypt:32768:8:1$gU6R2o4W$b6a1c3e5g7i9k1m3o5q7s9u1w3y5a7c9e1g3i5', 'user', 'Demo User', TRUE, FALSE);
+('demo_user', 'user@waskita.com', 'scrypt:32768:8:1$gU6R2o4W$b6a1c3e5g7i9k1m3o5q7s9u1w3y5a7c9e1g3i5', 'user', 'Demo User', TRUE, TRUE);
 
 -- Create triggers for automatic timestamp updates
 CREATE OR REPLACE FUNCTION update_last_login()

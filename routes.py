@@ -1571,10 +1571,7 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
     @app.route('/classification/results')
     @login_required
     def classification_results():
-        # Check if user is admin
-        if not current_user.is_admin():
-            flash('Hanya admin yang dapat melihat semua hasil klasifikasi', 'error')
-            return redirect(url_for('dashboard'))
+        # Semua user yang login dapat melihat hasil klasifikasi
         try:
             # Get all classification results from all datasets
             upload_results = db.session.execute(
@@ -1900,11 +1897,11 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
     def get_latest_classification_results():
         """Get latest classification results for the current session"""
         try:
-            # Get the most recent dataset that was classified by current user
+            # Get the most recent dataset that was classified (by any user)
             # Find the latest dataset by checking the most recent classification result
-            latest_classification = ClassificationResult.query.filter(
-                ClassificationResult.classified_by == current_user.id
-            ).order_by(ClassificationResult.created_at.desc()).first()
+            latest_classification = ClassificationResult.query.order_by(
+                ClassificationResult.created_at.desc()
+            ).first()
             
             if not latest_classification:
                 latest_dataset = None
@@ -1963,13 +1960,13 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
             clean_data_ids.extend([('scraper', scraper.id) for scraper in clean_scrapers])
             
             # Now get classification results for these clean data IDs
+            # Hapus filter classified_by agar semua user dapat melihat semua hasil
             results = []
             for data_type, data_id in clean_data_ids:
                 dataset_results = ClassificationResult.query\
                     .filter(
                         ClassificationResult.data_type == data_type,
-                        ClassificationResult.data_id == data_id,
-                        ClassificationResult.classified_by == current_user.id
+                        ClassificationResult.data_id == data_id
                     )\
                     .all()
                 results.extend(dataset_results)
@@ -6264,9 +6261,7 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
     @active_user_required
     def export_classification_results_api():
         """Export classification results to CSV or Excel sesuai dengan tampilan UI"""
-        # Check if user is admin
-        if not current_user.is_admin():
-            return jsonify({'error': 'Hanya admin yang dapat mengekspor semua hasil klasifikasi'}), 403
+        # All logged-in users can export classification results
         
         try:
             from utils import export_classification_results
