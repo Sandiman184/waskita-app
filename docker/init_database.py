@@ -178,7 +178,7 @@ def main():
     if not database_url:
         # Construct database URL from individual environment variables
         db_user = os.environ.get('DATABASE_USER', 'postgres')
-        db_password = os.environ.get('DATABASE_PASSWORD', 'Sandiman184')
+        db_password = os.environ.get('DATABASE_PASSWORD', 'admin12345')
         db_host = os.environ.get('DATABASE_HOST', 'db')
         db_port = os.environ.get('DATABASE_PORT', '5432')
         db_name = os.environ.get('DATABASE_NAME', 'waskita_db')

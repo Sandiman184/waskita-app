@@ -16,7 +16,7 @@ auto_setup_env() {
         
         # Get database configuration from Docker environment variables
         DB_USER=${DATABASE_USER:-postgres}
-        DB_PASSWORD=${DATABASE_PASSWORD:-Sandiman184}
+        DB_PASSWORD=${DATABASE_PASSWORD:-admin12345}
         DB_NAME=${DATABASE_NAME:-waskita_db}
         DB_HOST=${DATABASE_HOST:-db}
         DB_PORT=${DATABASE_PORT:-5432}
