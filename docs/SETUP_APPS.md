@@ -300,6 +300,83 @@ work_mem = 4MB
 docker-compose up -d --scale app=2
 ```
 
+#### Model Loading Issues
+```bash
+# Cek apakah model files ada di container
+docker-compose exec app ls -la /app/models/
+
+# Cek file Word2Vec
+docker-compose exec app ls -la /app/models/embeddings/
+
+# Cek file Naive Bayes
+docker-compose exec app ls -la /app/models/navesbayes/
+
+# Restart aplikasi untuk reload model
+docker-compose restart app
+
+# Cek logs untuk error model loading
+docker-compose logs app | grep -i model
+
+# Test model loading manual
+docker-compose exec app python -c "
+import os
+print('Word2Vec exists:', os.path.exists('/app/models/embeddings/wiki_word2vec_csv_updated.model'))
+print('NB Model1 exists:', os.path.exists('/app/models/navesbayes/naive_bayes_model1.pkl'))
+"
+```
+
+#### Email Configuration Issues
+```bash
+# Test email configuration
+docker-compose exec app python -c "
+from flask_mail import Mail
+from app import app
+mail = Mail(app)
+print('Mail server:', app.config.get('MAIL_SERVER'))
+print('Mail port:', app.config.get('MAIL_PORT'))
+print('Mail username:', app.config.get('MAIL_USERNAME'))
+"
+
+# Check email service status
+docker-compose exec app python -c "
+import smtplib
+try:
+    server = smtplib.SMTP('smtp.gmail.com', 587)
+    server.starttls()
+    print('Gmail SMTP connection: SUCCESS')
+    server.quit()
+except Exception as e:
+    print('Gmail SMTP connection: FAILED -', str(e))
+"
+```
+
+#### Application Startup Issues
+```bash
+# Check application logs
+docker-compose logs app --tail=100
+
+# Check database connection
+docker-compose exec app python -c "
+from app import db
+try:
+    db.engine.connect()
+    print('Database connection: SUCCESS')
+except Exception as e:
+    print('Database connection: FAILED -', str(e))
+"
+
+# Check Redis connection
+docker-compose exec app python -c "
+import redis
+try:
+    r = redis.Redis(host='redis', port=6379, db=0)
+    r.ping()
+    print('Redis connection: SUCCESS')
+except Exception as e:
+    print('Redis connection: FAILED -', str(e))
+"
+```
+
 ---
 
 ## 📋 DAFTAR ISI
@@ -484,17 +561,178 @@ psql -U waskita_user -d waskita_db -f database_schema.sql
 DATABASE_URL=postgresql://waskita_user:waskita_password123@localhost:5432/waskita_db
 ```
 
-### 5. Setup Database Migrations
+### 5. Setup Database Migrations dengan Flask-Migrate
+
+Aplikasi Waskita menggunakan **Flask-Migrate** dengan **Alembic** untuk manajemen migrasi database. Ini adalah pendekatan modern yang lebih fleksibel dibandingkan menggunakan file SQL schema statis.
+
+#### Keunggulan Flask-Migrate:
+- **Version Control**: Setiap perubahan database dapat dilacak melalui migrasi
+- **Auto-generate**: Migrasi dapat digenerate otomatis dari perubahan model
+- **Rollback**: Dapat melakukan downgrade ke versi sebelumnya jika diperlukan
+- **Consistency**: Memastikan konsistensi schema di semua environment
+
+#### Perintah Migrasi Utama:
 ```bash
-# Initialize migrations (jika belum ada)
+# Initialize migrations (hanya sekali di awal project)
 flask db init
 
-# Create migration
-flask db migrate -m "Initial migration"
+# Generate migration otomatis dari perubahan model
+flask db migrate -m "Deskripsi perubahan"
 
-# Apply migrations
+# Apply semua migrasi yang pending
 flask db upgrade
+
+# Rollback ke migrasi sebelumnya
+flask db downgrade
+
+# Lihat status migrasi saat ini
+flask db current
+
+# Lihat history migrasi
+flask db history
 ```
+
+#### Untuk Docker Environment:
+```bash
+# Jalankan migrasi di container aplikasi
+docker-compose exec app flask db upgrade
+
+# Generate migrasi baru dari dalam container
+docker-compose exec app flask db migrate -m "nama_migrasi"
+
+# Lihat status migrasi
+docker-compose exec app flask db current
+```
+
+### 6. Best Practices untuk Development
+
+#### 🔧 Environment Management
+```bash
+# Selalu gunakan virtual environment
+python -m venv venv
+source venv/bin/activate  # Linux/Mac
+venv\Scripts\activate    # Windows
+
+# Install dependencies dengan requirements.txt
+pip install -r requirements.txt
+
+# Freeze dependencies setelah perubahan
+pip freeze > requirements.txt
+
+# Gunakan .env untuk konfigurasi sensitif
+# JANGAN commit .env ke version control!
+```
+
+#### 🗄️ Database Management
+```bash
+# Backup database secara berkala
+pg_dump -U waskita_user waskita_db > backup_$(date +%Y%m%d).sql
+
+# Restore dari backup
+psql -U waskita_user -d waskita_db < backup.sql
+
+# Monitor database performance
+# Install pg_stat_statements di PostgreSQL
+```
+
+#### 🐳 Docker Development Best Practices
+```bash
+# Gunakan Docker Compose untuk development
+docker-compose up -d --build
+
+# Monitor logs secara real-time
+docker-compose logs -f app
+
+# Masuk ke container untuk debugging
+docker-compose exec app bash
+
+# Rebuild containers setelah perubahan code
+docker-compose up -d --build
+
+# Clean up resources yang tidak digunakan
+docker system prune -f
+docker volume prune -f
+```
+
+#### 📊 Performance Optimization
+```bash
+# Monitor resource usage
+docker stats
+
+# Optimize Python application
+# Gunakan gunicorn untuk production
+# Enable worker processes dan threads
+
+# Optimize PostgreSQL
+shared_buffers = 25% of RAM
+effective_cache_size = 50% of RAM
+work_mem = 4MB per connection
+
+# Enable Redis caching untuk performa
+```
+
+### 7. Contoh Implementasi - Setup Production Ready
+
+#### 🔐 Production Environment Configuration
+```bash
+# .env.prod - Production Environment
+SECRET_KEY=your-super-secure-random-secret-key-here
+DATABASE_URL=postgresql://waskita_user:secure_password@db:5432/waskita_db
+REDIS_URL=redis://redis:6379/0
+MAIL_SERVER=smtp.gmail.com
+MAIL_PORT=587
+MAIL_USE_TLS=true
+MAIL_USERNAME=your-email@gmail.com
+MAIL_PASSWORD=your-app-password
+MODEL_WORD2VEC_PATH=/app/models/embeddings/wiki_word2vec_csv_updated.model
+MODEL_NAIVE_BAYES_PATH=/app/models/navesbayes/naive_bayes_model1.pkl
+```
+
+#### 🚀 Production Deployment Script
+```bash
+#!/bin/bash
+# deploy-prod.sh
+
+echo "🚀 Starting Production Deployment..."
+
+# Pull latest code
+git pull origin main
+
+# Build and deploy
+docker-compose -f docker-compose.prod.yml up -d --build
+
+# Run database migrations
+docker-compose -f docker-compose.prod.yml exec app flask db upgrade
+
+# Check application health
+echo "✅ Deployment completed!"
+echo "🌐 Application URL: https://your-domain.com"
+echo "📊 Health Check: curl https://your-domain.com/health"
+```
+
+#### 📋 Production Readiness Checklist
+- [ ] ✅ Environment variables configured for production
+- [ ] ✅ Database backups configured
+- [ ] ✅ SSL/TLS certificates installed
+- [ ] ✅ Monitoring and alerting setup
+- [ ] ✅ Log aggregation configured
+- [ ] ✅ Performance testing completed
+- [ ] ✅ Security scanning completed
+- [ ] ✅ Disaster recovery plan in place
+- [ ] ✅ Load testing performed
+- [ ] ✅ Documentation updated
+
+# Generate migrasi baru dari container
+docker-compose exec app flask db migrate -m "Nama migrasi"
+
+# Lihat status migrasi di Docker
+docker-compose exec app flask db current
+```
+
+#### Migrasi vs Static SQL Schema:
+- **Gunakan `flask db upgrade`** untuk environment production dan development
+- **File `database_schema.sql`** disediakan sebagai backup/referensi saja
+- **Prioritas**: Selalu gunakan sistem migrasi untuk perubahan database
 
 ### 6. Buat Admin User
 ```bash
@@ -585,6 +823,69 @@ REDIS_URL=redis://redis:6379/0
 # Docker Configuration
 CREATE_SAMPLE_DATA=true
 ```
+
+### 🧠 Konfigurasi Model Paths di Docker
+
+Model machine learning (Word2Vec dan Naive Bayes) harus tersedia di dalam container Docker. Berikut cara setup yang benar:
+
+#### 1. Pastikan File Model Ada di Host
+File model harus berada di path berikut di host machine:
+```
+waskita-app/
+├── models/
+│   ├── embeddings/
+│   │   └── wiki_word2vec_csv_updated.model
+│   └── navesbayes/
+│       ├── naive_bayes_model1.pkl
+│       ├── naive_bayes_model2.pkl
+│       └── naive_bayes_model3.pkl
+```
+
+#### 2. Docker Volume Mapping
+File `docker-compose.yml` sudah mengkonfigurasi volume mapping yang benar:
+```yaml
+volumes:
+  - ./models:/app/models  # Map folder models host ke container
+```
+
+#### 3. Verifikasi Model di Container
+```bash
+# Cek apakah model files ada di container
+docker-compose exec app ls -la /app/models/
+
+# Expected output:
+# embeddings/  navesbayes/
+
+# Cek file Word2Vec
+docker-compose exec app ls -la /app/models/embeddings/
+
+# Cek file Naive Bayes
+docker-compose exec app ls -la /app/models/navesbayes/
+```
+
+#### 4. Troubleshooting Model Loading
+Jika model tidak terload:
+```bash
+# Restart aplikasi untuk reload model
+docker-compose restart app
+
+# Cek logs untuk error model loading
+docker-compose logs app | grep -i model
+
+# Pastikan file model ada dan readable
+docker-compose exec app python -c "
+import os
+print('Word2Vec exists:', os.path.exists('/app/models/embeddings/wiki_word2vec_csv_updated.model'))
+print('NB Model1 exists:', os.path.exists('/app/models/navesbayes/naive_bayes_model1.pkl'))
+"
+```
+
+#### 5. Download Model (Jika Belum Ada)
+Jika file model belum tersedia, sistem akan otomatis mencoba mendownload saat pertama kali running:
+- Word2Vec model akan didownload dari URL yang dikonfigurasi
+- Naive Bayes models akan di-training otomatis dari sample data
+
+**Note**: Proses download/training pertama kali mungkin memakan waktu beberapa menit.
 
 ---
 

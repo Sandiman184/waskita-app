@@ -62,11 +62,11 @@ python -c "import secrets, string; chars = string.ascii_letters + string.digits;
 ## 📧 SISTEM OTP (One-Time Password)
 
 ### Overview
-Sistem OTP Waskita menggunakan email untuk verifikasi registrasi user baru dengan kode 6 digit yang berlaku 10 menit.
+Sistem OTP Waskita menggunakan email untuk verifikasi registrasi user baru dengan kode 6 digit yang berlaku 2 menit.
 
 ### Fitur OTP System
 - ✅ **Email verification** untuk registrasi user baru
-- ✅ **6-digit OTP code** dengan expiry 10 menit
+- ✅ **6-digit OTP code** dengan expiry 2 menit
 - ✅ **Rate limiting** untuk mencegah spam
 - ✅ **Secure token generation** menggunakan `secrets` module
 - ✅ **Gmail SMTP integration** dengan App Password
@@ -111,15 +111,25 @@ with app.app_context():
 ```
 1. User mengisi form registrasi
 2. System generate 6-digit OTP code
-3. OTP disimpan di database dengan expiry 10 menit
+3. OTP disimpan di database dengan expiry 2 menit
 4. Email dikirim ke user dengan OTP code
 5. User input OTP code untuk verifikasi
 6. System validasi OTP dan activate account
 ```
 
-#### 2. OTP Security Features
+#### 2. First Login OTP Flow
+```
+1. User berhasil registrasi dan account aktif
+2. Saat pertama kali login, system generate OTP baru
+3. OTP dikirim ke email user (expiry 2 menit)
+4. User harus input OTP untuk first login verification
+5. Setelah verifikasi, user dapat akses aplikasi normal
+6. OTP tidak diperlukan untuk login selanjutnya
+```
+
+#### 3. OTP Security Features
 - **Rate Limiting**: Max 5 OTP requests per email per jam
-- **Expiry Time**: OTP berlaku 10 menit
+- **Expiry Time**: OTP berlaku 2 menit
 - **Secure Generation**: Menggunakan `secrets.randbelow()`
 - **Auto Cleanup**: Expired OTP otomatis dihapus
 - **Email Validation**: Validasi format email sebelum kirim OTP
@@ -188,6 +198,270 @@ bandit -r . -f json -o security_report.json
 - [ ] **Rate limiting validation**
 
 ---
+
+## 🛠️ BEST PRACTICES & TROUBLESHOOTING
+
+### 🔧 Best Practices Keamanan
+
+#### 1. Password Management
+```bash
+# Generate strong password (Python)
+import secrets
+import string
+
+def generate_strong_password(length=32):
+    chars = string.ascii_letters + string.digits + '!@#$%^&*()_+-=[]{}|;:,.<>?'
+    return ''.join(secrets.choice(chars) for _ in range(length))
+
+# Contoh penggunaan
+print("Strong Password:", generate_strong_password())
+```
+
+#### 2. Environment Variables Security
+```bash
+# JANGAN pernah commit .env files
+# Gunakan .env.example untuk template
+# Validasi environment variables saat startup
+
+# Contoh validasi di app.py
+required_env_vars = ['SECRET_KEY', 'DATABASE_URL', 'MAIL_USERNAME']
+for var in required_env_vars:
+    if not os.getenv(var):
+        raise ValueError(f"Environment variable {var} is required!")
+```
+
+#### 3. Database Security Practices
+```bash
+# Enable SSL untuk PostgreSQL production
+# Di .env.prod:
+DATABASE_URL=postgresql://user:pass@host:5432/db?sslmode=require
+
+# Regular backup dengan encryption
+pg_dump -U user db | gzip > backup_$(date +%Y%m%d).sql.gz
+
+# Monitor database access logs
+```
+
+#### 4. Session Security
+```python
+# Konfigurasi session yang aman
+app.config.update(
+    SESSION_COOKIE_SECURE=True,    # Hanya HTTPS
+    SESSION_COOKIE_HTTPONLY=True,  # Tidak bisa diakses JavaScript
+    SESSION_COOKIE_SAMESITE='Lax',  # CSRF protection
+    PERMANENT_SESSION_LIFETIME=3600  # 1 hour timeout
+)
+```
+
+### 🚨 Troubleshooting Umum
+
+#### 1. OTP Email Tidak Terkirim
+```bash
+# Cek konfigurasi SMTP
+docker-compose exec app python -c "
+import smtplib
+try:
+    server = smtplib.SMTP('smtp.gmail.com', 587)
+    server.starttls()
+    print('✅ SMTP Connection: SUCCESS')
+    server.quit()
+except Exception as e:
+    print('❌ SMTP Connection: FAILED -', str(e))
+"
+
+# Cek App Password Gmail
+# Pastikan menggunakan App Password, bukan password akun
+
+# Cek firewall/port 587 tidak diblokir
+```
+
+#### 2. OTP Tidak Valid atau Expired
+```bash
+# Cek waktu server
+# Pastikan waktu server sync dengan NTP
+
+# Cek OTP storage di database
+docker-compose exec postgres psql -U waskita_user -d waskita_db -c "
+SELECT email, otp_code, created_at, expires_at 
+FROM registration_requests 
+ORDER BY created_at DESC LIMIT 5;
+"
+```
+
+#### 3. Rate Limiting Terlalu Ketat
+```python
+# Adjust rate limiting di app.py
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+
+limiter = Limiter(
+    app,
+    key_func=get_remote_address,
+    default_limits=["500 per day", "200 per hour"]
+)
+
+# Untuk development, bisa dikurangi:
+# default_limits=["1000 per day", "500 per hour"]
+```
+
+#### 4. Database Connection Issues
+```bash
+# Test database connection
+docker-compose exec app python -c "
+from app import db
+try:
+    db.engine.connect()
+    print('✅ Database Connection: SUCCESS')
+except Exception as e:
+    print('❌ Database Connection: FAILED -', str(e))
+"
+
+# Cek PostgreSQL logs
+docker-compose logs postgres | grep -i error
+```
+
+#### 5. SSL Certificate Issues
+```bash
+# Test SSL configuration
+curl -v https://your-domain.com
+
+# Check certificate validity
+openssl s_client -connect your-domain.com:443
+
+# Renew Let's Encrypt certificate
+certbot renew --dry-run
+```
+
+### 📋 Contoh Implementasi Keamanan
+
+#### 🔐 Secure Password Hashing
+```python
+from werkzeug.security import generate_password_hash, check_password_hash
+
+# Hash password
+def create_user(username, password):
+    hashed_password = generate_password_hash(
+        password, 
+        method='pbkdf2:sha256', 
+        salt_length=16
+    )
+    # Simpan hashed_password ke database
+
+# Verify password
+def verify_password(stored_hash, provided_password):
+    return check_password_hash(stored_hash, provided_password)
+```
+
+#### 🛡️ CSRF Protection
+```python
+from flask_wtf.csrf import CSRFProtect
+
+csrf = CSRFProtect(app)
+
+# Di form HTML:
+# <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+# Di AJAX requests:
+# headers: { 'X-CSRFToken': '{{ csrf_token() }}' }
+```
+
+#### 📧 Secure Email Sending
+```python
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+
+def send_secure_email(to_email, subject, body):
+    msg = MIMEMultipart()
+    msg['From'] = os.getenv('MAIL_USERNAME')
+    msg['To'] = to_email
+    msg['Subject'] = subject
+    msg.attach(MIMEText(body, 'plain'))
+    
+    with smtplib.SMTP(os.getenv('MAIL_SERVER'), os.getenv('MAIL_PORT')) as server:
+        server.starttls()
+        server.login(os.getenv('MAIL_USERNAME'), os.getenv('MAIL_PASSWORD'))
+        server.send_message(msg)
+```
+
+### 🚀 Production Security Checklist
+
+#### Pre-Deployment Security Audit
+- [ ] ✅ Semua kredensial menggunakan environment variables
+- [ ] ✅ SECRET_KEY digenerate dengan panjang minimal 64 bytes
+- [ ] ✅ Database menggunakan SSL/TLS encryption
+- [ ] ✅ HTTPS enabled dengan certificate valid
+- [ ] ✅ Rate limiting configured untuk semua endpoints
+- [ ] ✅ File upload validation implemented
+- [ ] ✅ CSRF protection enabled
+- [ ] ✅ XSS protection headers configured
+- [ ] ✅ Session security settings optimized
+- [ ] ✅ Error messages sanitized (no sensitive data leakage)
+- [ ] ✅ Logging configured untuk security events
+- [ ] ✅ Backup system tested dan working
+- [ ] ✅ Monitoring dan alerting setup
+- [ ] ✅ Security headers implemented (CSP, HSTS, etc.)
+- [ ] ✅ Regular security scanning scheduled
+- [ ] ✅ Incident response plan documented
+
+#### Post-Deployment Security Tasks
+- [ ] ✅ Setup automated security updates
+- [ ] ✅ Configure firewall rules
+- [ ] ✅ Enable intrusion detection system
+- [ ] ✅ Schedule regular security audits
+- [ ] ✅ Monitor access logs untuk suspicious activities
+- [ ] ✅ Regular backup verification
+- [ ] ✅ Security patch management
+- [ ] ✅ User access review (quarterly)
+- [ ] ✅ Penetration testing (annual)
+- [ ] ✅ Compliance checking (GDPR, etc.)
+
+### 📊 Security Monitoring & Logging
+
+```bash
+# Monitor security events
+docker-compose logs app | grep -E "(failed|error|invalid|unauthorized)"
+
+# Check database access logs
+docker-compose exec postgres psql -U waskita_user -d waskita_db -c "
+SELECT * FROM pg_stat_activity WHERE state = 'active';
+"
+
+# Monitor rate limiting
+docker-compose exec app python -c "
+from flask_limiter import Limiter
+limiter = Limiter()
+print('Rate Limit Info:', limiter.limiter.storage)
+"
+```
+
+### 🔄 Incident Response Plan
+
+#### 1. Security Incident Classification
+- **Level 1**: Minor - Login attempts, failed OTP
+- **Level 2**: Moderate - Multiple failed logins, suspicious patterns  
+- **Level 3**: Critical - Data breach, system compromise
+
+#### 2. Immediate Actions
+```bash
+# Isolate affected systems
+docker-compose stop app
+
+# Preserve logs for investigation
+docker-compose logs --tail=1000 > security_incident_logs.txt
+
+# Notify security team
+# Contact: security@your-company.com
+
+# Begin forensic analysis
+```
+
+#### 3. Recovery Procedures
+- Reset compromised credentials
+- Rotate API keys and certificates  
+- Restore from clean backups
+- Apply security patches
+- Update incident response documentation
 
 ## 🚨 INCIDENT RESPONSE
 
