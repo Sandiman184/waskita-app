@@ -3,10 +3,12 @@ services:
   db:
     image: postgres:15-alpine
     container_name: waskita-app-postgres
+    env_file:
+      - ../.env.docker
     environment:
       POSTGRES_DB: waskita_db
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: Sandiman184
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-admin12345}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
@@ -66,8 +68,8 @@ services:
       - ../.env.docker
     environment:
       - TZ=Asia/Jakarta
-      - DATABASE_URL=postgresql://postgres:Sandiman184@db:5432/waskita_db
-      - DATABASE_URL_DOCKER=postgresql://postgres:Sandiman184@db:5432/waskita_db
+      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD:-admin12345}@db:5432/waskita_db
+      - DATABASE_URL_DOCKER=postgresql://postgres:${POSTGRES_PASSWORD:-admin12345}@db:5432/waskita_db
       - REDIS_URL=redis://waskita-app-redis:6379/0
       # Model paths for container (harus di-set karena path berbeda di container)
       - WORD2VEC_MODEL_PATH=/app/models/embeddings/wiki_word2vec_csv_updated.model
