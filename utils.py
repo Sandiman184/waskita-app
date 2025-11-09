@@ -64,7 +64,7 @@ def admin_required(f):
             flash('Silakan login terlebih dahulu.', 'error')
             return redirect(url_for('login'))
         
-        if not current_user.is_admin:
+        if not current_user.is_admin():
             flash('Akses ditolak! Hanya admin yang dapat mengakses halaman ini.', 'error')
             return redirect(url_for('dashboard'))
         

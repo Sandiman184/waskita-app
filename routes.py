@@ -221,7 +221,7 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
             
             if not use_cached:
                 # Get fresh statistics with role-based filtering
-                if current_user.is_admin:
+                if current_user.is_admin():
                     # Admin dapat melihat semua data
                     platform_stats = {
                         'twitter_upload': RawData.query.filter_by(platform='twitter').filter(RawData.dataset_id.isnot(None)).count(),
@@ -298,7 +298,7 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
             db.session.commit()
         
         # Get platform statistics - only count data that belongs to existing datasets
-        if current_user.is_admin:
+        if current_user.is_admin():
             # Admin dapat melihat semua data
             platform_stats = {
                 'twitter_upload': RawData.query.filter_by(platform='twitter').filter(RawData.dataset_id.isnot(None)).count(),
@@ -334,7 +334,7 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
         
         # Get recent activities from database
         from models import UserActivity
-        if current_user.is_admin:
+        if current_user.is_admin():
             # Admin dapat melihat semua aktivitas
             recent_activities_query = UserActivity.query.order_by(UserActivity.created_at.desc()).limit(4).all()
         else:
@@ -696,7 +696,7 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
     def data_cleaning():
         """Halaman untuk cleaning data"""
         # Get raw data yang belum dibersihkan dengan filter role-based
-        if current_user.is_admin:
+        if current_user.is_admin():
             # Admin dapat melihat semua data
             raw_upload_data = RawData.query.filter_by(status='raw').order_by(desc(RawData.created_at)).all()
             raw_scraper_data = RawDataScraper.query.filter_by(status='raw').order_by(desc(RawDataScraper.created_at)).all()
@@ -773,7 +773,7 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
             query = Dataset.query
             
             # Apply user filter (admin sees all, users see datasets containing their data)
-            if not current_user.is_admin:
+            if not current_user.is_admin():
                 # Get dataset IDs that contain user's data
                 user_dataset_ids = db.session.query(RawData.dataset_id).filter(
                     RawData.uploaded_by == current_user.id,
@@ -832,7 +832,7 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                     continue
                     
                 # Count raw data (upload + scraper) with role-based filtering
-                if current_user.is_admin:
+                if current_user.is_admin():
                     raw_upload_count = RawData.query.filter_by(dataset_id=dataset.id).count()
                     raw_scraper_count = RawDataScraper.query.filter_by(dataset_id=dataset.id).count()
                 else:
@@ -897,7 +897,7 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                 ).scalar() or 0
                 
                 # Count classified data (upload + scraper) with role-based filtering
-                if current_user.is_admin:
+                if current_user.is_admin():
                     classified_upload_count = db.session.execute(
                         text("SELECT COUNT(*) FROM classification_results cr JOIN clean_data_upload cdu ON cr.data_type = 'upload' AND cr.data_id = cdu.id JOIN raw_data rd ON cdu.raw_data_id = rd.id WHERE rd.dataset_id = :dataset_id"),
                         {'dataset_id': dataset.id}
@@ -953,7 +953,7 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
         """Get raw data for cleaning"""
         try:
             # Get raw upload data with role-based filtering
-            if current_user.is_admin:
+            if current_user.is_admin():
                 raw_upload_data = RawData.query.order_by(desc(RawData.created_at)).all()
                 raw_scraper_data = RawDataScraper.query.order_by(desc(RawDataScraper.created_at)).all()
             else:
@@ -1115,7 +1115,7 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                 clean_scraper_data = result.fetchall()
                 
                 # Count classified data for this dataset with role-based filtering
-                if current_user.is_admin:
+                if current_user.is_admin():
                     classified_upload_count = db.session.execute(
                         text("SELECT COUNT(DISTINCT cr.data_id) FROM classification_results cr JOIN clean_data_upload cdu ON cr.data_type = 'upload' AND cr.data_id = cdu.id WHERE cdu.dataset_id = :dataset_id"),
                         {'dataset_id': dataset_id}
@@ -1189,7 +1189,7 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
         try:
             if data_type == 'upload':
                 # Ambil data dari dataset upload dengan role-based filtering
-                if current_user.is_admin:
+                if current_user.is_admin():
                     result = db.session.execute(text("""
                         SELECT cdu.id, cdu.platform, cdu.username, cdu.content, 
                                cdu.cleaned_content, cdu.created_at, d.name as dataset_name,
@@ -1231,7 +1231,7 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                 
             elif data_type == 'scraper':
                 # Ambil data dari dataset scraper dengan role-based filtering
-                if current_user.is_admin:
+                if current_user.is_admin():
                     result = db.session.execute(text("""
                         SELECT cds.id, cds.platform, cds.username, cds.content, 
                                cds.cleaned_content, cds.created_at, d.name as dataset_name,
@@ -1310,7 +1310,7 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
             from sqlalchemy import func
             
             # Count clean data ready for classification
-            if current_user.is_admin:
+            if current_user.is_admin():
                 clean_upload_count = CleanDataUpload.query.count()
                 clean_scraper_count = CleanDataScraper.query.count()
             else:
@@ -1319,13 +1319,13 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
             clean_data_count = clean_upload_count + clean_scraper_count
             
             # Count classified data for manual classification results
-            if current_user.is_admin:
+            if current_user.is_admin():
                 classified_count = ClassificationResult.query.count() or 0
             else:
                 classified_count = ClassificationResult.query.filter_by(classified_by=current_user.id).count() or 0
             
             # Count radical and non-radical content
-            if current_user.is_admin:
+            if current_user.is_admin():
                 radical_count = db.session.query(func.count(ClassificationResult.id)).filter(
                     ClassificationResult.prediction == 'radikal'
                 ).scalar() or 0
@@ -1365,7 +1365,7 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
             from sqlalchemy import func
             
             # Count clean data ready for classification
-            if current_user.is_admin:
+            if current_user.is_admin():
                 clean_upload_count = CleanDataUpload.query.count()
                 clean_scraper_count = CleanDataScraper.query.count()
             else:
@@ -1374,7 +1374,7 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
             clean_data_count = clean_upload_count + clean_scraper_count
             
             # Count classified data
-            if current_user.is_admin:
+            if current_user.is_admin():
                 classified_upload_count = db.session.query(func.count(ClassificationResult.id)).filter(
                     ClassificationResult.data_type == 'upload'
                 ).scalar() or 0
@@ -1396,7 +1396,7 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
             classified_count = classified_upload_count + classified_scraper_count
             
             # Count radical and non-radical content
-            if current_user.is_admin:
+            if current_user.is_admin():
                 radical_count = db.session.query(func.count(ClassificationResult.id)).filter(
                     ClassificationResult.prediction == 'radikal'
                 ).scalar() or 0
@@ -1416,7 +1416,7 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                 ).scalar() or 0
             
             # Get recent classifications for batch mode with platform information
-            if current_user.is_admin:
+            if current_user.is_admin():
                 recent_classifications = db.session.query(
                     ClassificationResult,
                     db.func.coalesce(CleanDataUpload.platform, CleanDataScraper.platform).label('platform'),
@@ -1572,7 +1572,7 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
     @login_required
     def classification_results():
         # Check if user is admin
-        if not current_user.is_admin:
+        if not current_user.is_admin():
             flash('Hanya admin yang dapat melihat semua hasil klasifikasi', 'error')
             return redirect(url_for('dashboard'))
         try:
@@ -4361,7 +4361,7 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
         """Clean all raw data (upload and scraper) at once"""
         try:
             # Get all raw upload data with status 'raw' dengan filter role-based
-            if current_user.is_admin:
+            if current_user.is_admin():
                 # Admin dapat melihat semua data
                 raw_uploads = RawData.query.filter_by(status='raw').all()
                 raw_scrapers = RawDataScraper.query.filter_by(status='raw').all()
@@ -4556,7 +4556,7 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
             per_page = 10  # Show 10 items per page
             
             # Get dataset statistics (both upload and scraper data) with role-based filtering
-            if current_user.is_admin:
+            if current_user.is_admin():
                 raw_upload_data = RawData.query.filter_by(dataset_id=dataset_id).all()
                 raw_scraper_data = RawDataScraper.query.filter_by(dataset_id=dataset_id).all()
             else:
@@ -4580,7 +4580,7 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
             
             if clean_upload_data:
                 # Get all classification results for upload data with role-based filtering
-                if current_user.is_admin:
+                if current_user.is_admin():
                     upload_results = db.session.execute(
                         text("SELECT cr.id, cr.data_type, cr.data_id, cr.model_name, cr.prediction, cr.probability_radikal, cr.probability_non_radikal, cr.classified_at, cdu.cleaned_content as content, cdu.username, cdu.url, cdu.created_at FROM classification_results cr JOIN clean_data_upload cdu ON cr.data_type = 'upload' AND cr.data_id = cdu.id JOIN raw_data rd ON cdu.raw_data_id = rd.id WHERE rd.dataset_id = :dataset_id ORDER BY cdu.id, cr.model_name"),
                         {'dataset_id': dataset_id}
@@ -4619,7 +4619,7 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
             
             if clean_scraper_data:
                 # Get all classification results for scraper data with role-based filtering
-                if current_user.is_admin:
+                if current_user.is_admin():
                     scraper_results = db.session.execute(
                         text("SELECT cr.id, cr.data_type, cr.data_id, cr.model_name, cr.prediction, cr.probability_radikal, cr.probability_non_radikal, cr.classified_at, cds.cleaned_content as content, cds.username, cds.url, cds.created_at FROM classification_results cr JOIN clean_data_scraper cds ON cr.data_type = 'scraper' AND cr.data_id = cds.id JOIN raw_data_scraper rds ON cds.raw_data_scraper_id = rds.id WHERE rds.dataset_id = :dataset_id ORDER BY cds.id, cr.model_name"),
                         {'dataset_id': dataset_id}
@@ -4726,7 +4726,7 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                 return jsonify({'error': message}), http_status
             
             # Get dataset statistics (both upload and scraper data) with role-based filtering
-            if current_user.is_admin:
+            if current_user.is_admin():
                 raw_upload_data = RawData.query.filter_by(dataset_id=dataset_id).all()
                 raw_scraper_data = RawDataScraper.query.filter_by(dataset_id=dataset_id).all()
             else:
@@ -4749,7 +4749,7 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
             classified_scraper_data = []
             
             if clean_upload_data:
-                if current_user.is_admin:
+                if current_user.is_admin():
                     classified_upload_data = db.session.execute(
                         text("SELECT cr.* FROM classification_results cr JOIN clean_data_upload cdu ON cr.data_type = 'upload' AND cr.data_id = cdu.id JOIN raw_data rd ON cdu.raw_data_id = rd.id WHERE rd.dataset_id = :dataset_id"),
                         {'dataset_id': dataset_id}
@@ -4762,7 +4762,7 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                     ).mappings().fetchall()
             
             if clean_scraper_data:
-                if current_user.is_admin:
+                if current_user.is_admin():
                     classified_scraper_data = db.session.execute(
                         text("SELECT cr.* FROM classification_results cr JOIN clean_data_scraper cds ON cr.data_type = 'scraper' AND cr.data_id = cds.id JOIN raw_data_scraper rds ON cds.raw_data_scraper_id = rds.id WHERE rds.dataset_id = :dataset_id"),
                         {'dataset_id': dataset_id}
@@ -5213,7 +5213,7 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                 return jsonify({'error': message}), http_status
             
             # Count related data - count all records with same keyword/platform combination
-            if current_user.is_admin:
+            if current_user.is_admin():
                 data_count = RawDataScraper.query.filter_by(
                     keyword=scraping_job.keyword,
                     platform=scraping_job.platform
@@ -5296,7 +5296,7 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
         try:
             # Base query - filter by user if not admin
             base_query = RawDataScraper.query
-            if not current_user.is_admin:
+            if not current_user.is_admin():
                 base_query = base_query.filter_by(scraped_by=current_user.id)
             
             # Total scraping jobs
@@ -5308,7 +5308,7 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                 func.count(RawDataScraper.id).label('count')
             )
             
-            if not current_user.is_admin:
+            if not current_user.is_admin():
                 platform_stats = platform_stats.filter_by(scraped_by=current_user.id)
             
             platform_stats = platform_stats.group_by(RawDataScraper.platform).all()
@@ -5350,7 +5350,7 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
             search_query = request.args.get('search', '', type=str).strip()
             
             # Get unique scraping jobs grouped by keyword, platform, and dataset_id to show all scraping history
-            if current_user.is_admin:
+            if current_user.is_admin():
                 # Use subquery to get the latest record for each unique combination
                 subquery = db.session.query(
                     RawDataScraper.keyword,
@@ -5445,7 +5445,7 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
             history_data = []
             for job in pagination.items:
                 # Count related data for each specific dataset
-                if current_user.is_admin:
+                if current_user.is_admin():
                     data_count = RawDataScraper.query.filter_by(
                         keyword=job.keyword,
                         platform=job.platform,
@@ -5460,7 +5460,7 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                     ).count()
                 
                 # Determine status based on data processing state for specific dataset
-                if current_user.is_admin:
+                if current_user.is_admin():
                     # Get clean scraper IDs for this specific dataset
                     clean_scraper_ids = db.session.query(CleanDataScraper.id).join(
                         RawDataScraper, CleanDataScraper.raw_data_scraper_id == RawDataScraper.id
@@ -6206,7 +6206,7 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
     def get_classification_results():
         """Get classification results API"""
         # Check if user is admin
-        if not current_user.is_admin:
+        if not current_user.is_admin():
             return jsonify({'error': 'Hanya admin yang dapat mengakses semua hasil klasifikasi'}), 403
         
         try:
@@ -6265,7 +6265,7 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
     def export_classification_results_api():
         """Export classification results to CSV or Excel sesuai dengan tampilan UI"""
         # Check if user is admin
-        if not current_user.is_admin:
+        if not current_user.is_admin():
             return jsonify({'error': 'Hanya admin yang dapat mengekspor semua hasil klasifikasi'}), 403
         
         try:
@@ -7237,7 +7237,7 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                 ORDER BY created_at DESC
             """)
             
-            if not current_user.is_admin:
+            if not current_user.is_admin():
                 datasets_query = text("""
                     WITH dataset_stats AS (
                         SELECT 
