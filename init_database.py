@@ -148,12 +148,12 @@ def create_admin_user(conn):
         # Insert admin user with ON CONFLICT to update password and email if user already exists
         insert_admin_sql = """
         INSERT INTO users (username, email, password_hash, role, full_name, is_active, theme_preference, first_login) 
-        VALUES (%s, %s, %s, 'admin', %s, TRUE, 'dark', TRUE)
+        VALUES (%s, %s, %s, 'admin', %s, TRUE, 'dark', FALSE)
         ON CONFLICT (username) DO UPDATE SET
             password_hash = EXCLUDED.password_hash,
             email = EXCLUDED.email,
             updated_at = CURRENT_TIMESTAMP,
-            first_login = TRUE;
+            first_login = FALSE;
         """
         
         cursor = conn.cursor()
@@ -188,6 +188,40 @@ def update_admin_otp_setting(conn):
     except Exception as e:
         return False
 
+def create_demo_user(conn):
+    """Create demo user in the database"""
+    try:
+        # Demo user credentials
+        demo_username = "demo_user"
+        demo_email = "demo@waskita.com"
+        demo_password = "demo123"  # Default password for demo
+        demo_fullname = "Demo User Waskita"
+        
+        # Hash password
+        password_hash = generate_password_hash(demo_password)
+        
+        # Insert demo user with ON CONFLICT to update password and email if user already exists
+        insert_demo_sql = """
+        INSERT INTO users (username, email, password_hash, role, full_name, is_active, theme_preference, first_login) 
+        VALUES (%s, %s, %s, 'user', %s, TRUE, 'dark', FALSE)
+        ON CONFLICT (username) DO UPDATE SET
+            password_hash = EXCLUDED.password_hash,
+            email = EXCLUDED.email,
+            updated_at = CURRENT_TIMESTAMP,
+            first_login = FALSE;
+        """
+        
+        cursor = conn.cursor()
+        cursor.execute(insert_demo_sql, (demo_username, demo_email, password_hash, demo_fullname))
+        conn.commit()
+        cursor.close()
+        
+        return True
+        
+    except Exception as e:
+        print(f"⚠️ Warning while creating demo user: {e}")
+        return False
+
 def main():
     """Main initialization function"""
     
@@ -211,6 +245,11 @@ def main():
         
         # Create admin user
         if not create_admin_user(conn):
+            conn.close()
+            sys.exit(1)
+        
+        # Create demo user
+        if not create_demo_user(conn):
             conn.close()
             sys.exit(1)
         
