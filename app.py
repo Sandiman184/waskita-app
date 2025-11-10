@@ -300,7 +300,7 @@ if __name__ == '__main__':
             host='0.0.0.0', 
             port=5000,
             use_reloader=debug_mode,  # Hanya aktifkan reloader jika debug mode
-            reloader_type='watchdog' if debug_mode else 'auto'  # Gunakan watchdog untuk lebih stabil
+            reloader_type='stat' if debug_mode else 'auto'  # Gunakan stat untuk lebih stabil
         )
     except KeyboardInterrupt:
         logger.info("Shutting down application...")
