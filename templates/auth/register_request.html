@@ -72,6 +72,13 @@
             color: white;
             margin-bottom: 1rem;
         }
+        .brand-logo img {
+            height: 68px;
+            max-width: 100%;
+            width: auto;
+            object-fit: contain;
+            filter: drop-shadow(0 1px 1px rgba(0,0,0,0.25));
+        }
 
         .card-body {
             padding: 2rem;
@@ -432,7 +439,7 @@
         <div class="register-box">
             <div class="brand-logo text-center">
                 <a href="{{ url_for('index') }}" style="color: white; text-decoration: none;">
-                    <i class="fas fa-shield-alt"></i>
+                    <img src="{{ url_for('static', filename='images/logo.webp') }}" alt="Logo Waskita" />
                 </a>
             </div>
             

@@ -516,6 +516,64 @@ Hasil Klasifikasi - Waskita
     box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
 }
 </style>
+<style>
+/* Responsif: cegah ikon/div keluar area pada mobile */
+@media (max-width: 576px) {
+  /* Header kartu utama (atas halaman) */
+  .card-header .d-flex.justify-content-between.align-items-center {
+    flex-wrap: wrap !important;
+    row-gap: .5rem !important;
+    justify-content: flex-start !important;
+  }
+  .card-header .d-flex.gap-2 {
+    width: 100% !important;
+    justify-content: flex-start !important;
+    flex-wrap: wrap !important;
+    gap: .5rem !important;
+  }
+
+  /* Header dataset pada setiap section */
+  .dataset-header .d-flex.justify-content-between.align-items-center {
+    flex-wrap: wrap !important;
+    row-gap: .5rem !important;
+    justify-content: flex-start !important;
+  }
+  .dataset-header .d-flex.align-items-center.flex-grow-1 {
+    min-width: 0 !important; /* izinkan ellipsis */
+  }
+  .dataset-header .dataset-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 60vw; /* batasi lebar judul */
+  }
+  .dataset-header .badge {
+    flex-shrink: 0;
+  }
+  .dataset-header .collapse-icon {
+    margin-left: .5rem;
+    flex-shrink: 0;
+  }
+  /* Grup tombol ekspor pindah ke baris berikutnya, tetap di dalam kartu */
+  .dataset-header .ml-3 {
+    margin-left: 0 !important;
+    flex: 1 1 100% !important;
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: .5rem !important;
+    justify-content: flex-start !important;
+    max-width: 100% !important;
+  }
+  .dataset-header .btn {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+}
+
+/* Pastikan konten kartu terklip di tepi kartu */
+.dataset-section .card { overflow: hidden; }
+.dataset-section .card .card-header { box-sizing: border-box; }
+</style>
 {% endblock extra_css %}
 
 {% block scripts %}

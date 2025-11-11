@@ -697,10 +697,31 @@
             // Global functions
         // Loading functions removed - using SweetAlert2 implementation below
             
+            // Safe SweetAlert2 wrapper to sanitize invalid icons
+            (function() {
+                const allowedIcons = new Set(['success','error','warning','info','question']);
+                const originalFire = Swal.fire.bind(Swal);
+                Swal.safeFire = function(optOrTitle, text, icon) {
+                    if (typeof optOrTitle === 'object') {
+                        const cfg = { ...optOrTitle };
+                        if (cfg.icon && !allowedIcons.has(String(cfg.icon))) {
+                            console.warn('Invalid SweetAlert2 icon:', cfg.icon, '→ using "info"');
+                            cfg.icon = 'info';
+                        }
+                        return originalFire(cfg);
+                    } else {
+                        const normalizedIcon = allowedIcons.has(String(icon)) ? icon : 'info';
+                        if (normalizedIcon !== icon) {
+                            console.warn('Invalid SweetAlert2 icon:', icon, '→ using "info"');
+                        }
+                        return originalFire(optOrTitle, text, normalizedIcon);
+                    }
+                };
+            })();
 
             
             window.confirmAction = function(title, text, callback) {
-                Swal.fire({
+                Swal.safeFire({
                     title: title,
                     text: text,
                     icon: 'warning',
@@ -725,7 +746,7 @@
             };
             
             window.showLoading = function(title = 'Memproses...', text = 'Sedang memproses permintaan') {
-                Swal.fire({
+                Swal.safeFire({
                     title: title,
                     text: text,
                     allowOutsideClick: false,
@@ -784,7 +805,7 @@
                     Swal.close();
                 }
                 
-                return Swal.fire(config);
+                return Swal.safeFire(config);
             };
             
             window.swalError = function(content = '', options = {}) {
@@ -813,7 +834,7 @@
                     Swal.close();
                 }
                 
-                return Swal.fire(config);
+                return Swal.safeFire(config);
             };
             
             window.swalWarning = function(content = '', options = {}) {
@@ -842,7 +863,7 @@
                     Swal.close();
                 }
                 
-                return Swal.fire(config);
+                return Swal.safeFire(config);
             };
             
             window.swalInfo = function(content = '', options = {}) {
@@ -871,7 +892,7 @@
                     Swal.close();
                 }
                 
-                return Swal.fire(config);
+                return Swal.safeFire(config);
             };
             
             window.swalConfirm = function(content = '', options = {}) {
@@ -900,7 +921,7 @@
                     config.text = content;
                 }
                 
-                return Swal.fire(config);
+                return Swal.safeFire(config);
             };
             $('table.data-table').DataTable({
                 responsive: true,

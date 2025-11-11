@@ -43,7 +43,11 @@
         .card-header h1 {
             margin: 0;
             font-size: 2rem;
-            font-weight: 300;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+        .card-header p {
+            font-weight: 700;
         }
         .card-body {
             padding: 2rem;
@@ -91,6 +95,13 @@
             color: white;
             margin-bottom: 1rem;
         }
+        .brand-logo img {
+            height: 68px;
+            max-width: 100%;
+            width: auto;
+            object-fit: contain;
+            filter: drop-shadow(0 1px 1px rgba(0,0,0,0.25));
+        }
         .register-link {
             text-align: center;
             margin-top: 1rem;
@@ -126,12 +137,12 @@
     <body class="hold-transition login-page">
         <div class="login-box">
             <div class="card card-outline card-primary">
-                <header class="card-header" role="banner">
-                    <div class="brand-logo" aria-hidden="true">
-                        <i class="fas fa-shield-alt"></i>
+                <header class="card-header brand-header" role="banner">
+                    <div class="brand-logo">
+                        <img src="{{ url_for('static', filename='images/logo.webp') }}" alt="Logo Waskita" />
                     </div>
-                    <h1>Waskita</h1>
-                    <p class="mb-0">Sistem Klasifikasi Konten</p>
+                    <h1 class="brand-text">WASKITA</h1>
+                    <p class="brand-subtitle mb-0">Sistem Klasifikasi Konten</p>
                 </header>
                 <main class="card-body" role="main">
                     <p class="login-box-msg">Silakan login untuk melanjutkan</p>

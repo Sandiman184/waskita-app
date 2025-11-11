@@ -349,6 +349,85 @@ select.form-control option {
     font-size: 3rem;
     opacity: 0.3;
 }
+
+/* Responsive table handling and mobile optimizations */
+.user-management-table { overflow: hidden !important; }
+.user-management-table .table-responsive {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+}
+
+.user-management-table .table {
+    table-layout: auto;
+    border-collapse: separate;
+    border-spacing: 0;
+    min-width: 900px; /* memastikan muncul horizontal scroll bila layar sempit */
+}
+
+/* Min/Max width per kolom untuk kontrol yang stabil */
+.user-management-table .table thead th.col-id { min-width: 56px; max-width: 72px; }
+.user-management-table .table thead th.col-username { min-width: 150px; }
+.user-management-table .table thead th.col-email { min-width: 180px; }
+.user-management-table .table thead th.col-role { min-width: 110px; }
+.user-management-table .table thead th.col-status { min-width: 100px; }
+.user-management-table .table thead th.col-last-login { min-width: 160px; }
+.user-management-table .table thead th.col-created { min-width: 160px; }
+.user-management-table .table thead th.col-actions { min-width: 160px; }
+
+@media (max-width: 992px) {
+    .user-management-table .table { min-width: 820px; }
+    .user-management-table .table thead th { font-size: 12px; }
+    .user-management-table .table tbody td { font-size: 13px; }
+}
+
+@media (max-width: 768px) {
+    .user-management-table .table { min-width: 780px; }
+    /* izinkan wrap pada konten agar tidak memaksa overflow */
+    .user-management-table .table.text-nowrap tbody td { white-space: normal !important; }
+    .user-management-table .table thead th { white-space: nowrap !important; }
+    .user-management-table .table tbody td { padding: 8px 10px; font-size: 12.5px; }
+    .user-management-table .btn-group .btn { padding: 4px 8px; font-size: 11px; }
+}
+
+@media (max-width: 576px) {
+    .user-management-table .table { min-width: 720px; }
+    /* sembunyikan kolom tidak kritis: terakhir login */
+    .user-management-table .table thead th.col-last-login,
+    .user-management-table .table tbody td.col-last-login { display: none; }
+    /* truncation untuk username dan email agar tetap rapi */
+    .user-management-table .table tbody td.col-username .username-text,
+    .user-management-table .table tbody td.col-email .email-text { display: inline-block; max-width: 160px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+}
+
+@media (max-width: 480px) {
+    .user-management-table .table { min-width: 640px; }
+    /* sembunyikan kolom opsional tambahan: role dan tanggal daftar */
+    .user-management-table .table thead th.col-role,
+    .user-management-table .table tbody td.col-role { display: none; }
+    .user-management-table .table thead th.col-created,
+    .user-management-table .table tbody td.col-created { display: none; }
+    .user-management-table .table tbody td, .user-management-table .table thead th { padding: 6px 8px; font-size: 11.5px; }
+}
+
+@media (max-width: 360px) {
+    .user-management-table .table { min-width: 580px; }
+    .user-management-table .btn-group .btn { padding: 3px 6px; font-size: 10px; }
+}
+/* Hard containment to prevent any bleed of scroll content */
+.card.user-management-table {
+    position: relative !important;
+    overflow: hidden !important; /* clip children within rounded corners */
+    /* additional clipping for browsers that ignore overflow on complex children */
+    clip-path: inset(0 round 8px);
+}
+.card.user-management-table .table-responsive {
+    display: block !important;
+    max-width: 100% !important;
+}
+.card.user-management-table .card-body {
+    overflow: hidden !important;
+}
 </style>
 {% endblock extra_css %}
 {% block content %}
@@ -440,47 +519,48 @@ select.form-control option {
                                 </span>
                             </div>
                         </div>
-                        <div class="card-body table-responsive p-0">
+                        <div class="card-body p-0">
+                            <div class="table-responsive padded-scroll">
                             <table class="table table-hover text-nowrap" role="table" aria-labelledby="user-table-header" aria-describedby="user-table-description">
                                 <caption id="user-table-description" class="sr-only">Tabel daftar pengguna dengan informasi ID, username, email, role, status, dan aksi yang dapat dilakukan</caption>
                                 <thead>
                                     <tr role="row">
-                                        <th scope="col" style="width: 60px;" data-sort="id" data-sort-type="number">
+                                        <th class="col-id" scope="col" style="width: 60px;" data-sort="id" data-sort-type="number">
                                             <i class="fas fa-hashtag mr-1" aria-hidden="true"></i>
                                             ID
                                             <span class="sort-indicator"><i class="fas fa-sort"></i></span>
                                         </th>
-                                        <th scope="col" style="width: 150px;" data-sort="username" data-sort-type="text">
+                                        <th class="col-username" scope="col" style="width: 150px;" data-sort="username" data-sort-type="text">
                                             <i class="fas fa-user mr-1" aria-hidden="true"></i>
                                             Username
                                             <span class="sort-indicator"><i class="fas fa-sort"></i></span>
                                         </th>
-                                        <th scope="col" style="width: 200px;" data-sort="email" data-sort-type="text">
+                                        <th class="col-email" scope="col" style="width: 200px;" data-sort="email" data-sort-type="text">
                                             <i class="fas fa-envelope mr-1" aria-hidden="true"></i>
                                             Email
                                             <span class="sort-indicator"><i class="fas fa-sort"></i></span>
                                         </th>
-                                        <th scope="col" style="width: 120px;" data-sort="role" data-sort-type="text">
+                                        <th class="col-role" scope="col" style="width: 120px;" data-sort="role" data-sort-type="text">
                                             <i class="fas fa-user-tag mr-1" aria-hidden="true"></i>
                                             Role
                                             <span class="sort-indicator"><i class="fas fa-sort"></i></span>
                                         </th>
-                                        <th scope="col" style="width: 100px;" data-sort="status" data-sort-type="text">
+                                        <th class="col-status" scope="col" style="width: 100px;" data-sort="status" data-sort-type="text">
                                             <i class="fas fa-toggle-on mr-1" aria-hidden="true"></i>
                                             Status
                                             <span class="sort-indicator"><i class="fas fa-sort"></i></span>
                                         </th>
-                                        <th scope="col" style="width: 150px;" data-sort="last_login" data-sort-type="datetime">
+                                        <th class="col-last-login" scope="col" style="width: 150px;" data-sort="last_login" data-sort-type="datetime">
                                             <i class="fas fa-clock mr-1" aria-hidden="true"></i>
                                             Terakhir Login
                                             <span class="sort-indicator"><i class="fas fa-sort"></i></span>
                                         </th>
-                                        <th scope="col" style="width: 150px;" data-sort="created_at" data-sort-type="datetime">
+                                        <th class="col-created" scope="col" style="width: 150px;" data-sort="created_at" data-sort-type="datetime">
                                             <i class="fas fa-calendar-plus mr-1" aria-hidden="true"></i>
                                             Tanggal Daftar
                                             <span class="sort-indicator"><i class="fas fa-sort"></i></span>
                                         </th>
-                                        <th scope="col" style="width: 180px;">
+                                        <th class="col-actions" scope="col" style="width: 180px;">
                                             <i class="fas fa-cogs mr-1" aria-hidden="true"></i>
                                             Aksi
                                         </th>
@@ -489,16 +569,16 @@ select.form-control option {
                                 <tbody>
                                     {% for user in users %}
                                         <tr role="row">
-                                            <td class="text-center">
+                                            <td class="text-center col-id">
                                                 <span class="badge badge-light" aria-label="ID pengguna {{ user.id }}">#{{ user.id }}</span>
                                             </td>
-                                            <td>
+                                            <td class="col-username">
                                                 <div class="d-flex align-items-center">
                                                     <div class="user-avatar mr-2">
                                                         <i class="fas fa-user-circle fa-2x text-muted" aria-hidden="true"></i>
                                                     </div>
                                                     <div>
-                                                        <strong>{{ user.username }}</strong>
+                                                        <strong class="username-text" title="{{ user.username }}">{{ user.username }}</strong>
                                                         {% if user.id == current_user.id %}
                                                             <span class="badge bg-info ml-1" aria-label="Akun Anda saat ini">
                                                                 <i class="fas fa-star mr-1" aria-hidden="true"></i>Anda
@@ -510,13 +590,13 @@ select.form-control option {
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td>
+                                            <td class="col-email">
                                                 <div class="d-flex align-items-center">
                                                     <i class="fas fa-at text-muted mr-2" aria-hidden="true"></i>
-                                                    <span>{{ user.email }}</span>
+                                                    <span class="email-text" title="{{ user.email }}">{{ user.email }}</span>
                                                 </div>
                                             </td>
-                                            <td>
+                                            <td class="col-role">
                                                 {% if user.role == 'admin' %}
                                                     <span class="badge bg-danger" aria-label="Role Administrator">
                                                         <i class="fas fa-crown mr-1" aria-hidden="true"></i>Administrator
@@ -527,7 +607,7 @@ select.form-control option {
                                                     </span>
                                                 {% endif %}
                                             </td>
-                                            <td>
+                                            <td class="col-status">
                                                 {% if user.is_active %}
                                                     <span class="badge bg-success" aria-label="Status Aktif">
                                                         <i class="fas fa-check-circle mr-1" aria-hidden="true"></i>Aktif
@@ -538,7 +618,7 @@ select.form-control option {
                                                     </span>
                                                 {% endif %}
                                             </td>
-                                            <td>
+                                            <td class="col-last-login">
                                                 {% if user.last_login %}
                                                     <div class="d-flex align-items-center">
                                                         <i class="fas fa-history text-success mr-2" aria-hidden="true"></i>
@@ -553,13 +633,13 @@ select.form-control option {
                                                     </div>
                                                 {% endif %}
                                             </td>
-                                            <td>
+                                            <td class="col-created">
                                                 <div class="d-flex align-items-center">
                                                     <i class="fas fa-calendar text-info mr-2" aria-hidden="true"></i>
                                                     <small>{{ user.created_at | format_datetime }}</small>
                                                 </div>
                                             </td>
-                                            <td>
+                                            <td class="col-actions">
                                                 <div class="btn-group" role="group">
                                                     <button type="button"
                                                             class="btn btn-sm btn-info"
@@ -622,6 +702,7 @@ select.form-control option {
                                     {% endfor %}
                                 </tbody>
                             </table>
+                            </div>
                         </div>
                         {% if users|length > 0 %}
                         <div class="card-footer">
@@ -813,9 +894,9 @@ $(document).ready(function() {
     $('select[name="role"], select[name="status"]').on('blur', function() {
         $(this).css('z-index', '9999');
     });
-    
-    // Force container overflow to be visible
-    $('.card-body, .card, .form-group').css('overflow', 'visible');
+    // Batasi perubahan overflow agar tidak bersifat global
+    // Catatan: kita sudah mengatur overflow khusus untuk kartu tabel pengguna via CSS.
+    // Di sini, kita tidak lagi memaksa semua .card/.card-body menjadi visible.
     
     // Ensure form elements have consistent height
     $('.form-control, .btn').css({
