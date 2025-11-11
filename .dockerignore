@@ -40,8 +40,11 @@ ENV/
 .git/
 .gitignore
 
-# Docker configuration files (moved to docker/ folder)
-docker/
+# Docker configuration files
+# NOTE: Do not ignore the `docker/` folder so that entrypoint helpers
+# like `docker/init_database.py` are included in the production image.
+# If you want to exclude specific large or dev-only files, list them explicitly.
+# docker/
 
 # Documentation (optional, uncomment if you don't want docs in container)
 # docs/

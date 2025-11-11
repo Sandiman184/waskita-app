@@ -324,6 +324,8 @@ def load_word2vec_model(app=None):
     Load Word2Vec model from configured path dengan optimasi memory mapping
     """
     if not GENSIM_AVAILABLE:
+        if app:
+            app.logger.error("Gensim tidak tersedia - Word2Vec model tidak dapat dimuat")
         return None
         
     try:
@@ -337,17 +339,30 @@ def load_word2vec_model(app=None):
             model_path = current_app.config.get('WORD2VEC_MODEL_PATH')
         
         if not model_path:
+            if app:
+                app.logger.error("WORD2VEC_MODEL_PATH tidak dikonfigurasi")
             return None
             
         if not os.path.exists(model_path):
+            if app:
+                app.logger.error(f"File Word2Vec model tidak ditemukan: {model_path}")
             return None
             
         from gensim.models import Word2Vec
         # Gunakan memory mapping untuk mengurangi beban memory
+        if app:
+            app.logger.info(f"Memuat Word2Vec model dari: {model_path}")
         model = Word2Vec.load(model_path, mmap='r')
+        
+        if app:
+            app.logger.info(f"Word2Vec model berhasil dimuat. Vocabulary size: {len(model.wv.key_to_index)}")
         return model
         
     except Exception as e:
+        if app:
+            app.logger.error(f"Error loading Word2Vec model: {str(e)}")
+            import traceback
+            app.logger.error(f"Traceback: {traceback.format_exc()}")
         return None
 
 def load_naive_bayes_models():

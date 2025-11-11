@@ -136,6 +136,33 @@ def inject_asset_version():
 # Create upload directory if it doesn't exist
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
+# Attempt self-healing permissions for upload folder (helps on VPS/Docker bind mounts)
+try:
+    upload_dir = os.path.abspath(app.config['UPLOAD_FOLDER'])
+    if not os.access(upload_dir, os.W_OK):
+        logger.warning(f"Upload folder not writable: {upload_dir}. Attempting to fix permissions...")
+        # Try chmod to 775
+        try:
+            os.chmod(upload_dir, 0o775)
+        except Exception as e:
+            logger.warning(f"Failed to chmod {upload_dir} to 775: {e}")
+        # Try chown to current user/group (only relevant on Linux)
+        if os.name != 'nt':
+            try:
+                uid = os.getuid()
+                gid = os.getgid()
+                os.chown(upload_dir, uid, gid)
+            except Exception as e:
+                logger.warning(f"Failed to chown {upload_dir} to current uid/gid: {e}")
+        # Re-check write access
+        if not os.access(upload_dir, os.W_OK):
+            logger.error(
+                "Upload folder still not writable after self-healing. "
+                "Please ensure host directory permissions allow writes for container user."
+            )
+except Exception as e:
+    logger.error(f"Error while validating/fixing upload folder permissions: {e}")
+
 # Create database tables
 with app.app_context():
     db.create_all()

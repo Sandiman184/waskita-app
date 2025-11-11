@@ -2773,14 +2773,36 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
             except Exception as e:
                 return jsonify({'success': False, 'message': f'Error saat memproses nama file: {str(e)}'}), 500
             
-            # Create upload directory if not exists and validate write permission
+            # Create upload directory if not exists and validate write permission with self-healing
             try:
                 upload_dir = app.config.get('UPLOAD_FOLDER')
                 if not upload_dir:
                     return jsonify({'success': False, 'message': 'Konfigurasi folder upload tidak ditemukan.'}), 500
                 os.makedirs(upload_dir, exist_ok=True)
+
+                # Early check
                 if not os.access(upload_dir, os.W_OK):
-                    return jsonify({'success': False, 'message': 'Folder upload tidak dapat ditulis. Periksa izin dan mapping volume.'}), 500
+                    app.logger.warning(f"Folder upload tidak writable: {upload_dir}. Mencoba memperbaiki izin...")
+                    # Try chmod and chown as fallback (Linux containers)
+                    try:
+                        os.chmod(upload_dir, 0o775)
+                    except Exception as e:
+                        app.logger.warning(f"Gagal chmod {upload_dir} ke 775: {e}")
+                    if os.name != 'nt':
+                        try:
+                            uid = os.getuid()
+                            gid = os.getgid()
+                            os.chown(upload_dir, uid, gid)
+                        except Exception as e:
+                            app.logger.warning(f"Gagal chown {upload_dir}: {e}")
+
+                # Final check
+                if not os.access(upload_dir, os.W_OK):
+                    guide = (
+                        "Folder upload tidak dapat ditulis. Jika menggunakan Docker, pastikan volume host 'uploads' dimiliki user "
+                        "yang kompatibel dengan container (contoh: chown -R $(id -u):$(id -g) uploads && chmod -R 775 uploads)."
+                    )
+                    return jsonify({'success': False, 'message': guide}), 500
             except Exception as e:
                 return jsonify({'success': False, 'message': f'Error saat menyiapkan direktori upload: {str(e)}'}), 500
             

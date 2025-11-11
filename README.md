@@ -46,8 +46,12 @@ docker-compose -f docker/docker-compose.local.yml up --build
 #### 3. Docker Production
 ```bash
 # Gunakan .env.production untuk production  
-cp .env.example .env.production
+cp .env.production.example .env.production
 # Edit .env.production (ENABLE_SSL=true, NGINX_SERVER_NAME=yourdomain.com)
+
+# Pastikan variabel berikut ada di .env.production:
+# - DATABASE_URL (contoh: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB})
+# - REDIS_URL (contoh: redis://redis:6379/0)
 
 docker-compose -f docker/docker-compose.yml up --build -d
 ```

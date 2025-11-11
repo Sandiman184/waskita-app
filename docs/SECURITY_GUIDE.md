@@ -457,9 +457,9 @@ docker-compose -f docker-compose.yml up -d --build
 
 #### Docker Production (SSL Enabled)
 ```bash
-cp .env.example .env.production
+cp .env.production.example .env.production
 # Edit .env.production untuk production settings
-docker-compose -f docker-compose.yml --env-file .env.production up -d --build
+docker-compose -f docker/docker-compose.yml --env-file .env.production up -d --build
 ```
 
 #### Automated VPS Deployment

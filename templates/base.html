@@ -808,7 +808,33 @@
                 return Swal.safeFire(config);
             };
             
-            window.swalError = function(content = '', options = {}) {
+            // Error wrapper: support both (message) and (title, message[, options])
+            window.swalError = function(titleOrContent = '', contentOrOptions = '', options = {}) {
+                let title = '';
+                let content = '';
+                let opts = {};
+
+                // Normalize arguments
+                const argLen = arguments.length;
+                if (argLen === 1) {
+                    // Single parameter: treat as content/message
+                    content = titleOrContent;
+                } else if (argLen === 2) {
+                    // Two parameters: could be (title, message) or (content, options)
+                    if (typeof contentOrOptions === 'object' && contentOrOptions !== null && !Array.isArray(contentOrOptions)) {
+                        content = titleOrContent;
+                        opts = contentOrOptions;
+                    } else {
+                        title = titleOrContent;
+                        content = contentOrOptions;
+                    }
+                } else {
+                    // Three parameters: (title, message, options)
+                    title = titleOrContent;
+                    content = contentOrOptions;
+                    opts = options || {};
+                }
+
                 const config = {
                     icon: 'error',
                     confirmButtonColor: '#007bff',
@@ -819,21 +845,25 @@
                         actions: 'swal2-actions',
                         confirmButton: 'swal2-confirm'
                     },
-                    ...options
+                    ...opts
                 };
-                
+
+                if (title) {
+                    config.title = title;
+                }
+
                 // Check if content contains HTML tags
                 if (content && typeof content === 'string' && content.includes('<') && content.includes('>')) {
                     config.html = content;
                 } else {
                     config.text = content;
                 }
-                
+
                 // Prevent multiple notifications by closing any existing ones first
                 if (Swal.isVisible()) {
                     Swal.close();
                 }
-                
+
                 return Swal.safeFire(config);
             };
             

@@ -6,6 +6,8 @@ set -e
 
 echo "🚀 Starting Waskita Docker Entrypoint"
 
+# Use network alias 'db' for Postgres in Docker Compose
+
 # Function to setup environment file
 auto_setup_env() {
     echo "🔧 Auto-setting up environment configuration..."
@@ -177,8 +179,19 @@ except Exception as e:
 initialize_database() {
     echo "📊 Initializing database..."
     
+    # Determine init script path (prefer idempotent root script)
+    INIT_SCRIPT=""
+    if [ -f "/app/init_database.py" ]; then
+        INIT_SCRIPT="/app/init_database.py"
+    elif [ -f "/app/docker/init_database.py" ]; then
+        INIT_SCRIPT="/app/docker/init_database.py"
+    else
+        echo "⚠️  Database init script not found at /app/init_database.py or /app/docker/init_database.py"
+        return 1
+    fi
+
     # Capture output and error from init_database.py
-    output=$(python /app/init_database.py 2>&1)
+    output=$(python "$INIT_SCRIPT" 2>&1)
     exit_code=$?
     
     # Display the output

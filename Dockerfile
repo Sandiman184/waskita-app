@@ -5,6 +5,13 @@ FROM python:3.11-slim
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV FLASK_ENV=production
+ENV FLASK_DEBUG=False
+ENV DOTENV_OVERRIDE=True
+# Model paths for container
+ENV WORD2VEC_MODEL_PATH=/app/models/embeddings/wiki_word2vec_csv_updated.model
+ENV NAIVE_BAYES_MODEL1_PATH=/app/models/navesbayes/naive_bayes_model1.pkl
+ENV NAIVE_BAYES_MODEL2_PATH=/app/models/navesbayes/naive_bayes_model2.pkl
+ENV NAIVE_BAYES_MODEL3_PATH=/app/models/navesbayes/naive_bayes_model3.pkl
 
 # Create non-root user
 RUN groupadd -r waskita && useradd -r -g waskita waskita
@@ -30,18 +37,21 @@ RUN pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir -r requirements.txt
 
 # Copy project files
+# Ensure docker helpers are copied (entrypoint expects /app/docker/init_database.py)
+COPY docker /app/docker
 COPY . .
 
 # Normalize Windows line-endings and make entrypoint executable
+# Guard init_admin.sh to avoid build failure if the file is omitted
 RUN sed -i 's/\r$//' docker-entrypoint.sh \
     && chmod +x docker-entrypoint.sh \
-    && chmod +x init_admin.sh
+    && if [ -f init_admin.sh ]; then chmod +x init_admin.sh; fi
 
 # Create necessary directories with proper permissions
 RUN mkdir -p uploads logs static/uploads data \
     && chown -R waskita:waskita /app \
     && chmod -R 755 /app \
-    && chmod -R 777 uploads logs static/uploads data
+    && chmod -R 775 uploads logs static/uploads data
 
 # Switch to non-root user
 USER waskita
@@ -58,4 +68,4 @@ HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
 
 # Run the application
-CMD ["python", "app.py"]
+CMD ["gunicorn", "-w", "2", "-k", "gthread", "--threads", "4", "-b", "0.0.0.0:5000", "--timeout", "120", "app:app"]
