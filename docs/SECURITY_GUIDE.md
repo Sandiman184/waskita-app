@@ -416,6 +416,160 @@ def send_secure_email(to_email, subject, body):
 - [ ] ✅ Penetration testing (annual)
 - [ ] ✅ Compliance checking (GDPR, etc.)
 
+## 🚀 DEPLOYMENT WORKFLOW TERBARU
+
+### Environment Files yang Didukung
+Aplikasi Waskita sekarang mendukung multiple environment files untuk berbagai deployment scenario:
+
+#### 1. Local Development (`.env`)
+- Untuk development tradisional tanpa Docker
+- Database: `localhost:5432`
+- Tanpa SSL, debug mode enabled
+
+#### 2. Docker Development (`.env.docker`)
+- Untuk Docker development dengan SSL disabled
+- Database: `postgres:5432` (Docker networking)
+- Nginx HTTP configuration
+
+#### 3. Docker Production (`.env.production`)
+- Untuk production deployment dengan SSL enabled
+- Database SSL: `sslmode=require`
+- Nginx SSL configuration dengan HSTS
+
+### Quick Deployment Commands
+
+#### Local Development
+```bash
+cp .env.example .env
+# Edit .env untuk local database
+python -m venv venv
+venv\Scripts\activate
+pip install -r requirements.txt
+python app.py
+```
+
+#### Docker Development (SSL Disabled)
+```bash
+cp .env.example .env.docker
+# .env.docker sudah dikonfigurasi untuk Docker development
+docker-compose -f docker-compose.yml up -d --build
+```
+
+#### Docker Production (SSL Enabled)
+```bash
+cp .env.example .env.production
+# Edit .env.production untuk production settings
+docker-compose -f docker-compose.yml --env-file .env.production up -d --build
+```
+
+#### Automated VPS Deployment
+```bash
+# Menggunakan script otomatis
+./deploy-vps.sh
+
+# Atau manual setup
+bash <(curl -s https://raw.githubusercontent.com/Sandiman184/waskita-app/main/scripts/vps-setup.sh)
+```
+
+### Security Configuration untuk Deployment
+
+#### Database Security (Production)
+```bash
+# Wajib di production:
+DB_SSL_MODE=require
+DB_SSL_ROOT_CERT=/path/to/ca-cert.pem
+SESSION_COOKIE_SECURE=true
+SESSION_COOKIE_HTTPONLY=true
+```
+
+#### SSL Configuration
+- `ENABLE_SSL=true` untuk production (Nginx SSL config)
+- `ENABLE_SSL=false` untuk development (Nginx HTTP config)
+- `NGINX_SERVER_NAME` set ke domain production
+
+#### Security Headers (Production)
+```nginx
+# Nginx configuration untuk production
+add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+add_header X-Frame-Options "DENY" always;
+add_header X-Content-Type-Options "nosniff" always;
+add_header X-XSS-Protection "1; mode=block" always;
+add_header Content-Security-Policy "default-src 'self'" always;
+```
+
+### Monitoring Deployment
+
+#### Health Check
+```bash
+# Check application health
+curl -f http://localhost:5000/health || echo "App unhealthy"
+
+# Check database connection
+docker-compose exec postgres pg_isready -U $POSTGRES_USER
+
+# Check Redis connection
+docker-compose exec app python -c "import redis; redis.Redis(host='redis').ping()"
+```
+
+#### Log Monitoring
+```bash
+# Monitor real-time logs
+docker-compose logs -f --tail=50
+
+# Check for errors
+docker-compose logs app | grep -E "(error|exception|fail)"
+
+# Security event monitoring
+docker-compose logs app | grep -E "(login|auth|security|otp)"
+```
+
+### Backup & Recovery
+
+#### Database Backup (Production)
+```bash
+# Automated daily backup
+#!/bin/bash
+DATE=$(date +%Y%m%d_%H%M%S)
+docker-compose exec -T postgres pg_dump -U $POSTGRES_USER $POSTGRES_DB > backup_$DATE.sql
+gzip backup_$DATE.sql
+# Upload to cloud storage
+```
+
+#### Environment Backup
+```bash
+# Backup environment files
+cp .env.production backup/.env.production.$DATE
+cp docker-compose.yml backup/docker-compose.yml.$DATE
+
+# Backup SSL certificates
+tar -czf ssl-backup-$DATE.tar.gz /etc/letsencrypt/live/your-domain.com/
+```
+
+### Incident Response untuk Deployment
+
+#### Deployment Failure
+```bash
+# Rollback to previous version
+git checkout tags/previous-version
+docker-compose down
+docker-compose up -d --build
+
+# Restore from backup
+zcat backup_20241201.sql.gz | docker-compose exec -T postgres psql -U $POSTGRES_USER $POSTGRES_DB
+```
+
+#### Security Incident During Deployment
+```bash
+# Immediate isolation
+docker-compose stop
+
+# Forensic analysis
+docker-compose logs --tail=1000 > security_incident_$DATE.log
+
+# Contact security team
+# Rotate all credentials in .env.production
+```
+
 ### 📊 Security Monitoring & Logging
 
 ```bash

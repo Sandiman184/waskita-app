@@ -388,6 +388,7 @@ except Exception as e:
 5. [👤 Pembuatan Admin User](#-pembuatan-admin-user)
 6. [📋 Perintah Berguna](#-perintah-berguna)
 7. [🔍 Troubleshooting](#-troubleshooting)
+8. [🚀 Deployment Workflow](#-deployment-workflow)
 
 ---
 
@@ -687,6 +688,182 @@ MAIL_PASSWORD=your-app-password
 MODEL_WORD2VEC_PATH=/app/models/embeddings/wiki_word2vec_csv_updated.model
 MODEL_NAIVE_BAYES_PATH=/app/models/navesbayes/naive_bayes_model1.pkl
 ```
+
+---
+
+## 🚀 DEPLOYMENT WORKFLOW
+
+### Environment Files yang Didukung
+Aplikasi Waskita mendukung multiple environment files untuk berbagai deployment scenario:
+
+#### 1. `.env` - Local Development
+- Untuk development tradisional tanpa Docker
+- Database: `localhost:5432`
+- Tanpa SSL, debug mode enabled
+
+#### 2. `.env.docker` - Docker Development  
+- Untuk Docker development dengan SSL disabled
+- Database: `postgres:5432` (Docker networking)
+- Nginx HTTP configuration
+
+#### 3. `.env.production` - Docker Production
+- Untuk production deployment dengan SSL enabled
+- Database SSL: `sslmode=require`
+- Nginx SSL configuration dengan HSTS
+
+### Quick Deployment Commands
+
+#### Local Development
+```bash
+cp .env.example .env
+# Edit .env untuk local database
+python -m venv venv
+venv\Scripts\activate
+pip install -r requirements.txt
+python app.py
+```
+
+#### Docker Development (SSL Disabled)
+```bash
+cp .env.example .env.docker
+# .env.docker sudah dikonfigurasi untuk Docker development
+docker-compose -f docker-compose.yml up -d --build
+```
+
+#### Docker Production (SSL Enabled)
+```bash
+cp .env.example .env.production
+# Edit .env.production untuk production settings
+docker-compose -f docker-compose.yml --env-file .env.production up -d --build
+```
+
+#### Automated VPS Deployment
+```bash
+# Menggunakan script otomatis
+./deploy-vps.sh
+
+# Atau manual setup
+bash <(curl -s https://raw.githubusercontent.com/Sandiman184/waskita-app/main/scripts/vps-setup.sh)
+```
+
+### Deployment Checklist
+
+#### Pre-Deployment
+- [ ] Environment file sesuai target deployment
+- [ ] Semua credentials diganti dengan values production
+- [ ] SSL certificate tersedia (untuk production)
+- [ ] Database backup sebelum deploy
+- [ ] Test deployment di staging environment
+
+#### During Deployment
+- [ ] Monitor logs real-time: `docker-compose logs -f`
+- [ ] Verify health checks: `curl http://localhost:5000/health`
+- [ ] Test database connection
+- [ ] Verify SSL certificate (jika production)
+
+#### Post-Deployment
+- [ ] Monitor application performance
+- [ ] Setup automated backups
+- [ ] Configure monitoring dan alerting
+- [ ] Update documentation dengan deployment details
+
+### Troubleshooting Deployment
+
+#### Common Issues
+```bash
+# Port already in use
+netstat -ano | findstr :5000
+taskkill /PID <PID> /F
+
+# Database connection issues
+docker-compose logs postgres | grep -i "connection"
+
+# SSL certificate problems
+docker-compose logs nginx | grep -i "ssl"
+
+# Model loading failures  
+docker-compose logs app | grep -i "model"
+```
+
+#### Quick Fixes
+```bash
+# Restart specific service
+docker-compose restart app
+
+# Rebuild containers
+docker-compose up -d --build
+
+# Reset database (hati-hati!)
+docker-compose down -v
+docker-compose up -d
+
+# Check resource usage
+docker stats
+```
+
+### Monitoring & Maintenance
+
+#### Health Monitoring
+```bash
+# Application health
+curl -f http://localhost:5000/health
+
+# Database health
+docker-compose exec postgres pg_isready -U $POSTGRES_USER
+
+# Redis health
+docker-compose exec app python -c "import redis; redis.Redis(host='redis').ping()"
+```
+
+#### Log Management
+```bash
+# Real-time logs
+docker-compose logs -f --tail=50
+
+# Error monitoring
+docker-compose logs app | grep -E "(error|exception|fail)"
+
+# Security monitoring
+docker-compose logs app | grep -E "(login|auth|security|otp)"
+```
+
+#### Backup Procedures
+```bash
+# Database backup
+DATE=$(date +%Y%m%d_%H%M%S)
+docker-compose exec -T postgres pg_dump -U $POSTGRES_USER $POSTGRES_DB > backup_$DATE.sql
+gzip backup_$DATE.sql
+
+# Environment backup
+cp .env.production backup/.env.production.$DATE
+cp docker-compose.yml backup/docker-compose.yml.$DATE
+```
+
+### Best Practices Deployment
+
+#### Security
+- Gunakan environment variables untuk semua credentials
+- Enable SSL/TLS untuk production deployment
+- Setup firewall rules yang appropriate
+- Regular security scanning dan patching
+
+#### Performance
+- Monitor resource usage (CPU, memory, disk)
+- Optimize database configuration
+- Enable caching dengan Redis
+- Setup load balancing jika diperlukan
+
+#### Reliability
+- Implement health checks
+- Setup automated backups
+- Configure monitoring dan alerting
+- Document recovery procedures
+
+#### Maintenance
+- Regular updates dan patching
+- Monitor logs untuk anomalies
+- Regular performance tuning
+- Update documentation secara berkala
 
 #### 🚀 Production Deployment Script
 ```bash
