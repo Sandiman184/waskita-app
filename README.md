@@ -14,137 +14,100 @@ Aplikasi web Flask untuk klasifikasi konten media sosial (Radikal/Non‑Radikal)
 - Klasifikasi dan probabilitas hasil
 - Dark/Light mode, notifikasi SweetAlert2
 
-## Alur Kerja Aplikasi
+## 🚀 Quick Deployment Guide
 
-### Diagram Alur Pengembangan
-```
-Clone Repository → Setup Environment → Konfigurasi Database → Jalankan Aplikasi
-       │                  │                    │                    │
-       │                  │                    │              Development Mode
-       │                  │              (Lokal/Docker)          atau
-       │            (Virtual Env)                           Production Mode
-       │                  │
-       │            Install Dependencies
-       │
-GitHub Repository
-```
+### Development Options:
 
-### Quick Start
-
-#### 1. Clone Repository
+#### 1. Local Development
 ```bash
+# Clone repository
 git clone https://github.com/Sandiman184/waskita-app.git
 cd waskita-app
-```
 
-#### 2. Setup Environment
-##### Lokal (Development)
-Windows (PowerShell):
-```powershell
-python -m venv venv
-```
-```powershell
-venv\Scripts\activate
-```
-```powershell
-pip install -r requirements.txt
-```
-```powershell
-copy .env.example .env
-```
-
-Linux/Mac (bash):
-```bash
-python -m venv venv
-```
-```bash
-source venv/bin/activate
-```
-```bash
-pip install -r requirements.txt
-```
-```bash
+# Setup environment
 cp .env.example .env
-```
+# Edit .env dengan konfigurasi lokal
 
-- Minimal `.env`:
-  - `DATABASE_URL=postgresql://<user>:<pass>@localhost:5432/<db>`
-  - `SECRET_KEY=<random_string>`
-  - `OTP_ENABLED=False` (disarankan untuk dev)
-
-#### 3. Konfigurasi Database
-```powershell
+# Install dependencies & run
+pip install -r requirements.txt
 python setup_postgresql.py
-```
-
-#### 4. Jalankan Aplikasi (Development Mode)
-```powershell
 python app.py
 ```
 
-- Akses: `http://localhost:5000/`
-
-### Docker (Production Ready)
-#### Prerequisites Docker
-- Pastikan `.env` sudah dikonfigurasi dengan benar
-- Opsional set untuk Docker:
-  - `DATABASE_URL_DOCKER=postgresql://<user>:<pass>@waskita-app-postgres:5432/<db>`
-    - atau gunakan `host.docker.internal:5432` jika menggunakan Postgres lokal dari container
-- Compose menggunakan fallback: `DATABASE_URL=${DATABASE_URL_DOCKER:-${DATABASE_URL}}`
-
-#### Build dan Jalankan dengan Docker
-Windows (PowerShell):
-```powershell
-./install-build.ps1
-```
-
-Manual build:
+#### 2. Docker Development
 ```bash
-docker compose -f docker/docker-compose.yml build
-docker compose -f docker/docker-compose.yml up -d
+# Gunakan .env.docker untuk development
+cp .env.example .env.docker
+# Edit .env.docker (ENABLE_SSL=false, NGINX_SERVER_NAME=localhost)
+
+docker-compose -f docker/docker-compose.local.yml up --build
 ```
 
-- Akses: `http://localhost:5000/`
+#### 3. Docker Production
+```bash
+# Gunakan .env.production untuk production  
+cp .env.example .env.production
+# Edit .env.production (ENABLE_SSL=true, NGINX_SERVER_NAME=yourdomain.com)
 
-### Workflow Pengembangan
+docker-compose -f docker/docker-compose.yml up --build -d
+```
 
-#### Development Workflow
-1. **Setup Awal**: Clone repository dan setup environment
-2. **Development**: Modifikasi kode dan test secara lokal
-3. **Testing**: Jalankan aplikasi dan verifikasi fungsionalitas
-4. **Commit**: Simpan perubahan dengan pesan commit yang jelas
-5. **Push**: Kirim perubahan ke repository GitHub
+#### 4. Automated VPS Deployment
+```bash
+# Script otomatis untuk VPS
+./install-build.ps1 -Production
+```
 
-#### Production Deployment
-1. **Build Docker Image**: `docker compose -f docker/docker-compose.yml build`
-2. **Deploy Container**: `docker compose -f docker/docker-compose.yml up -d`
-3. **Monitoring**: Pantau log aplikasi untuk memastikan berjalan normal
-4. **Scaling**: Sesuaikan resource berdasarkan kebutuhan
+### Access Points:
+- **Development**: http://localhost:5000/
+- **Production**: https://yourdomain.com/ (dengan SSL)
 
-### Opsi B — Satu sumber DATABASE_URL (direkomendasi dengan fallback)
-- Gunakan satu `DATABASE_URL` di `.env` untuk lokal.
-- Untuk Docker, Anda boleh set `DATABASE_URL_DOCKER`; jika tidak ada, container fallback ke `DATABASE_URL`.
-- Compose sudah menerapkan: `DATABASE_URL=${DATABASE_URL_DOCKER:-${DATABASE_URL}}`.
+### Environment Files:
+- `.env` - Local development
+- `.env.docker` - Docker development (SSL disabled)  
+- `.env.production` - Docker production (SSL enabled)
 
-Contoh `.env` minimal:
-```env
-DATABASE_URL=postgresql://user:pass@localhost:5432/db
-# Opsional untuk Docker (diprioritaskan di container jika ada):
-DATABASE_URL_DOCKER=postgresql://user:pass@waskita-app-postgres:5432/db
+### Deployment Workflow
+
+#### Development Flow:
+1. **Code** → **Test Locally** → **Docker Test** → **Commit** → **Push**
+
+#### Production Flow:
+1. **Setup VPS** → **Configure Domain** → **Deploy with SSL** → **Monitor**
+
+#### Quick Commands:
+```bash
+# Development
+docker-compose -f docker/docker-compose.local.yml up --build
+
+# Production  
+docker-compose -f docker/docker-compose.yml up --build -d
+
+# Automated VPS
+./install-build.ps1 -Production
 ```
 
 ## Konfigurasi Penting
-- `DATABASE_URL` (wajib, untuk lokal)
-- `DATABASE_URL_DOCKER` (opsional, diprioritaskan oleh container)
-- `SECRET_KEY` (wajib)
-- `OTP_ENABLED` (`False` untuk dev, `True` untuk produksi bila OTP diperlukan)
-- Email/Apify (opsional): `MAIL_USERNAME`, `MAIL_PASSWORD`, `APIFY_API_TOKEN`
 
-## Verifikasi Cepat
-- Lokal: buka `http://localhost:5000/`
-- Docker:
-  - `docker compose -f docker\docker-compose.yml ps`
-  - `docker compose -f docker\docker-compose.yml logs -f web`
+### Database Configuration:
+- **Development**: `DATABASE_URL=postgresql://user:pass@localhost:5432/db`
+- **Docker**: Otomatis menggunakan service name `db`
+
+### Security Settings:
+- `SECRET_KEY` - Wajib, generate dengan: `python -c "import secrets; print(secrets.token_hex(32))"`
+- `OTP_ENABLED` - `False` untuk development, `True` untuk production
+
+### Optional Services:
+- Email: `MAIL_USERNAME`, `MAIL_PASSWORD`
+- Apify: `APIFY_API_TOKEN` untuk scraping data
+
+## Quick Verification
+- **Local**: http://localhost:5000/
+- **Docker**: 
+  ```bash
+  docker-compose -f docker/docker-compose.yml ps
+  docker-compose -f docker/docker-compose.yml logs -f web
+  ```
 
 ## Dokumentasi Lengkap
 - `docs/SETUP_APPS.md` — langkah detail instalasi dan konfigurasi
