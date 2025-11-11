@@ -209,6 +209,15 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                 db.session.add(stats)
                 db.session.commit()
             
+            # Safeguard against None values to prevent TypeError
+            total_raw_upload = stats.total_raw_upload or 0
+            total_raw_scraper = stats.total_raw_scraper or 0
+            total_clean_upload = stats.total_clean_upload or 0
+            total_clean_scraper = stats.total_clean_scraper or 0
+            total_classified = stats.total_classified or 0
+            total_radikal = stats.total_radikal or 0
+            total_non_radikal = stats.total_non_radikal or 0
+
             # Get platform statistics with simplified queries to avoid database locks
             platform_stats = {}
             
@@ -261,19 +270,19 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
             # Calculate percentages
             radikal_percentage = 0
             non_radikal_percentage = 0
-            if stats.total_classified and stats.total_classified > 0:
-                radikal_percentage = (stats.total_radikal / stats.total_classified) * 100
-                non_radikal_percentage = (stats.total_non_radikal / stats.total_classified) * 100
+            if total_classified > 0:
+                radikal_percentage = (total_radikal / total_classified) * 100
+                non_radikal_percentage = (total_non_radikal / total_classified) * 100
             
             return jsonify({
                 'success': True,
-                'total_raw_upload': stats.total_raw_upload,
-                'total_raw_scraper': stats.total_raw_scraper,
-                'total_clean_upload': stats.total_clean_upload,
-                'total_clean_scraper': stats.total_clean_scraper,
-                'total_classified': stats.total_classified,
-                'total_radikal': stats.total_radikal,
-                'total_non_radikal': stats.total_non_radikal,
+                'total_raw_upload': total_raw_upload,
+                'total_raw_scraper': total_raw_scraper,
+                'total_clean_upload': total_clean_upload,
+                'total_clean_scraper': total_clean_scraper,
+                'total_classified': total_classified,
+                'total_radikal': total_radikal,
+                'total_non_radikal': total_non_radikal,
                 'radikal_percentage': radikal_percentage,
                 'non_radikal_percentage': non_radikal_percentage,
                 **platform_stats
@@ -2764,15 +2773,22 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
             except Exception as e:
                 return jsonify({'success': False, 'message': f'Error saat memproses nama file: {str(e)}'}), 500
             
-            # Create upload directory if not exists
+            # Create upload directory if not exists and validate write permission
             try:
-                os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+                upload_dir = app.config.get('UPLOAD_FOLDER')
+                if not upload_dir:
+                    return jsonify({'success': False, 'message': 'Konfigurasi folder upload tidak ditemukan.'}), 500
+                os.makedirs(upload_dir, exist_ok=True)
+                if not os.access(upload_dir, os.W_OK):
+                    return jsonify({'success': False, 'message': 'Folder upload tidak dapat ditulis. Periksa izin dan mapping volume.'}), 500
             except Exception as e:
-                return jsonify({'success': False, 'message': f'Error saat membuat direktori upload: {str(e)}'}), 500
+                return jsonify({'success': False, 'message': f'Error saat menyiapkan direktori upload: {str(e)}'}), 500
             
             # Save the file
             try:
                 file.save(filepath)
+            except PermissionError:
+                return jsonify({'success': False, 'message': 'Izin ditolak saat menyimpan file ke folder upload. Hubungi administrator.'}), 500
             except Exception as e:
                 return jsonify({'success': False, 'message': f'Error saat menyimpan file: {str(e)}'}), 500
             
