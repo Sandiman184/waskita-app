@@ -128,6 +128,11 @@ login_manager.login_view = 'login'
 login_manager.login_message = 'Silakan login untuk mengakses halaman ini.'
 login_manager.login_message_category = 'info'
 
+# Inject asset version for cache-busting of static files
+@app.context_processor
+def inject_asset_version():
+    return {"asset_version": os.getenv("ASSET_VERSION", "1")}
+
 # Create upload directory if it doesn't exist
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
@@ -282,7 +287,14 @@ logger.info("OTP authentication blueprint registered with rate limiting")
 if __name__ == '__main__':
     
     # Load models only once when application starts (not during reloads)
-    load_models()
+    disable_model_loading = os.environ.get('DISABLE_MODEL_LOADING', 'False').lower() == 'true'
+    if disable_model_loading:
+        logger.info("Model loading is disabled via DISABLE_MODEL_LOADING environment variable")
+        # Explicitly set models to None/empty in app config for route usage
+        app.config['WORD2VEC_MODEL'] = None
+        app.config['NAIVE_BAYES_MODELS'] = {}
+    else:
+        load_models()
     
     # Start automatic cleanup scheduler
     cleanup_scheduler.start_scheduler()
