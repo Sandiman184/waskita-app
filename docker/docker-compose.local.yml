@@ -1,0 +1,15 @@
+services:
+  # Override untuk service web agar berjalan dengan konfigurasi development
+  web:
+    environment:
+      - FLASK_CONFIG=development
+      - DOTENV_OVERRIDE=False
+      - DISABLE_MODEL_LOADING=True
+
+  nginx:
+    # Override ports: pakai 8080 di host untuk lokal (hard-code untuk hindari variabel env)
+    ports:
+      - "8080:80"
+    # EntryPoint akan memilih HTTP config karena ENABLE_SSL=false
+    environment:
+      - ENABLE_SSL=false

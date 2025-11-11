@@ -549,6 +549,21 @@ certbot --nginx -d yourdomain.com
 openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365
 ```
 
+### Nginx SSL Toggle & HSTS
+- `ENABLE_SSL` mengontrol pemilihan konfigurasi Nginx:
+  - `false`: HTTP-only untuk lokal, memakai `nginx.http.conf`
+  - `true`: SSL untuk production, memakai `nginx.conf`
+- `NGINX_SERVER_NAME`: set host/domain untuk Nginx (contoh: `localhost`, `waskita.example.com`).
+- Verifikasi pilihan config:
+  - `docker compose logs nginx` → pastikan muncul “Using SSL config” (production) atau “Using HTTP config” (local).
+- Best practices SSL/HSTS:
+  - Aktifkan HSTS di production (Strict-Transport-Security: max-age=31536000; includeSubDomains)
+  - Gunakan sertifikat valid (Let’s Encrypt atau CA komersial)
+  - Redirect HTTP→HTTPS di `server` port 80
+  - Review security headers (CSP, X-Frame-Options, X-Content-Type-Options)
+  - Pastikan cookies secure: `SESSION_COOKIE_SECURE=True` saat HTTPS
+
+
 ---
 
 ## 📊 LAPORAN AUDIT KEAMANAN

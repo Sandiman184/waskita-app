@@ -860,6 +860,87 @@ select.form-control {
     }
 }
 
+/* =====================================
+   Dataset Management Table - Column Fixes
+   - Prevent overlap (dataset vs konten)
+   - Ideal sizing for username
+   - Date vs action spacing
+   - URL icon sizing
+   ===================================== */
+
+/* Use fixed table layout so widths are respected */
+.table-container table { table-layout: fixed; width: 100%; }
+
+/* Column sizing (desktop baseline) */
+/* Percent-based widths with safe minimums to avoid overflow */
+th.dataset-column { width: 24%; }
+td.dataset-cell { padding-right: 12px; }
+th.content-column, td.content-column { width: 26%; }
+th.username-column, td.username-column { width: 10%; }
+th.url-column, td.url-column { width: 8%; }
+th.stats-column, td.stats-column { width: 10%; }
+th.status-column, td.status-column { width: 8%; }
+th.date-column, td.date-column { width: 7%; white-space: nowrap; min-width: 150px; }
+th.action-column, td.action-column { width: 7%; white-space: nowrap; min-width: 150px; }
+
+/* Truncation rules to avoid text overlapping into next column */
+.dataset-cell .d-flex,
+.content-column .d-flex,
+.username-column .d-flex,
+.url-column .d-flex { min-width: 0; }
+
+.dataset-cell h6,
+.username-text,
+.content-text,
+.url-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Username column alignment and padding for precision */
+td.username-column { text-align: center; padding: 0 12px; }
+
+/* Content preview should use column width */
+.content-column .content-preview { width: 100%; }
+
+/* URL icon and button sizing to match action buttons */
+.url-icon {
+  min-width: 32px;
+  height: 32px;
+  line-height: 32px;
+  padding: 0 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.url-icon i { font-size: 0.85rem; }
+
+/* Action buttons uniform size */
+.action-btn {
+  min-width: 32px;
+  height: 32px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Responsive adjustments */
+@media (max-width: 1200px) {
+  th.username-column, td.username-column { width: 120px; }
+  th.url-column, td.url-column { width: 160px; }
+  th.date-column, td.date-column { width: 150px; }
+  th.action-column, td.action-column { width: 148px; }
+}
+
+@media (max-width: 992px) {
+  th.username-column, td.username-column { width: 110px; }
+  th.url-column, td.url-column { width: 150px; }
+  th.date-column, td.date-column { width: 140px; }
+  th.action-column, td.action-column { width: 140px; }
+}
+
 /* Clean dropdown styling - single source of truth */
 .modal select,
 .modal select.form-control,

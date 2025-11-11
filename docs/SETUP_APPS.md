@@ -1233,3 +1233,40 @@ docker volume rm waskita_postgres_data
 ---
 
 // ... existing code ...
+
+## 🔐 Nginx SSL Toggle (ENABLE_SSL)
+
+Gunakan toggle `ENABLE_SSL` untuk memilih konfigurasi Nginx secara otomatis antara HTTP-only (lokal) dan SSL (production).
+
+### Variabel Penting
+- `ENABLE_SSL`: `false` untuk lokal (HTTP-only), `true` untuk production (SSL aktif)
+- `NGINX_SERVER_NAME`: nama host/domain untuk Nginx (contoh: `localhost` atau `app.waskita.my.id`)
+
+### Cara Pakai
+- Lokal (HTTP-only):
+  - Jalankan: `./install-build.ps1 -Local` (Windows PowerShell)
+  - Mengaktifkan `ENABLE_SSL=false` dan menggunakan `nginx.http.conf`
+  - Akses: `http://localhost:${NGINX_HTTP_PORT}` (default `80`)
+- Production (SSL ON):
+  - Jalankan: `./install-build.ps1 -Production`
+  - Mengaktifkan `ENABLE_SSL=true` dan menggunakan `nginx.conf` (SSL)
+  - Set `NGINX_SERVER_NAME` ke domain Anda (contoh: `waskita.example.com`)
+  - Pastikan sertifikat berada di `docker/ssl/` dan path sesuai di `docker/nginx.conf`
+
+### File Terkait
+- `docker/docker-compose.yml`: memuat `ENABLE_SSL` dan `NGINX_SERVER_NAME` ke container Nginx
+- `docker/docker-compose.local.yml`: override lokal, memaksa `ENABLE_SSL=false` dan hanya port HTTP
+- `docker/nginx.entrypoint.sh`: memilih config otomatis (SSL vs HTTP) berdasarkan `ENABLE_SSL`
+
+### Verifikasi Cepat
+- Cek Nginx memilih config yang benar:
+  - `docker compose logs nginx` → harus muncul `Using SSL config` (production) atau `Using HTTP config` (local)
+- Test HTTP (lokal):
+  - `curl -I http://localhost:${NGINX_HTTP_PORT}` → status `200 OK`
+- Test HTTPS (production):
+  - `curl -I https://your-domain` → status `200 OK`, sertifikat valid
+
+### Catatan
+- `.env.docker` kini menyertakan default `ENABLE_SSL=false` dan `NGINX_SERVER_NAME=localhost`.
+- Script `install-build.ps1` akan meng-override nilai tersebut saat startup sesuai mode yang dipilih.
+ - `.env.docker` juga menetapkan `REDIS_URL=redis://redis:6379/0` agar koneksi Redis dalam Docker berjalan benar.

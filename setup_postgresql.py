@@ -725,6 +725,8 @@ WEB_PORT=5000
 REDIS_PORT=6379
 NGINX_HTTP_PORT=80
 NGINX_HTTPS_PORT=443
+ENABLE_SSL=false
+NGINX_SERVER_NAME=localhost
 CREATE_SAMPLE_DATA=false
 
 # =============================================================================
@@ -821,7 +823,22 @@ def check_existing_config():
         return None
 
 def create_docker_env_file(db_config):
-    """Membuat file environment khusus untuk Docker"""
+    """
+    Membuat file .env.docker untuk environment Docker dengan format yang konsisten
+    dengan file .env lokal. Template ini mencakup semua variabel environment yang
+    diperlukan untuk menjalankan aplikasi Waskita dalam container Docker.
+    
+    Args:
+        db_config (dict): Konfigurasi database yang mencakup:
+            - Database settings (host, port, name, user, password)
+            - Admin email settings
+            - Email configuration
+            - Apify API token
+            - Nginx server name
+    
+    Returns:
+        str: Konten file .env.docker yang telah diformat
+    """
     try:
         print("\n🐳 Membuat file environment khusus Docker...")
         
@@ -846,7 +863,15 @@ def create_docker_env_file(db_config):
             'MAIL_PASSWORD': db_config.get('mail_password', ''),
             'MAIL_DEFAULT_SENDER': db_config.get('mail_default_sender', db_config.get('admin_email', 'admin@waskita.com')),
             'APIFY_API_TOKEN': db_config.get('apify_api_token', 'your-apify-api-token'),
-            'OTP_ENABLED': 'True'
+            'OTP_ENABLED': 'True',
+            # Tambahan untuk konsistensi Docker: Redis & Nginx/SSL
+            'REDIS_URL': 'redis://redis:6379/0',
+            'ENABLE_SSL': 'false',  # Default false untuk Docker lokal, bisa diubah ke true untuk production
+            'NGINX_SERVER_NAME': db_config.get('nginx_server_name', 'localhost'),
+            # Variabel baru untuk konsistensi dengan .env
+            'DOTENV_OVERRIDE': 'True',
+            'ASSET_VERSION': '20251111_5',
+            'DISABLE_MODEL_LOADING': 'True'
         }
         
         # Generate secure keys untuk Docker
@@ -868,6 +893,8 @@ def create_docker_env_file(db_config):
 # =============================================================================
 # DATABASE CONFIGURATION - DOCKER
 # =============================================================================
+# Development Database (PostgreSQL) - Docker Environment
+# Format: postgresql://username:password@host:port/database_name
 DATABASE_URL={docker_config.get('DATABASE_URL')}
 TEST_DATABASE_URL={docker_config.get('TEST_DATABASE_URL')}
 DATABASE_HOST={docker_config.get('DATABASE_HOST')}
@@ -884,9 +911,13 @@ POSTGRES_DB={docker_config.get('POSTGRES_DB')}
 # =============================================================================
 # FLASK CONFIGURATION
 # =============================================================================
+# Secure key yang digenerate otomatis
 SECRET_KEY={docker_config.get('SECRET_KEY')}
 FLASK_ENV=production
 FLASK_DEBUG=False
+DOTENV_OVERRIDE={docker_config.get('DOTENV_OVERRIDE')}
+ASSET_VERSION={docker_config.get('ASSET_VERSION')}
+DISABLE_MODEL_LOADING={docker_config.get('DISABLE_MODEL_LOADING')}
 
 # =============================================================================
 # SECURITY CONFIGURATION
@@ -897,9 +928,33 @@ WTF_CSRF_SECRET_KEY={docker_config.get('WTF_CSRF_SECRET_KEY')}
 JWT_SECRET_KEY={docker_config.get('JWT_SECRET_KEY')}
 WASKITA_API_KEY={docker_config.get('WASKITA_API_KEY')}
 
+# Session Configuration for Docker Environment
+SESSION_COOKIE_SECURE=False
+SESSION_COOKIE_HTTPONLY=True
+SESSION_COOKIE_SAMESITE=Lax
+# SESSION_COOKIE_DOMAIN optional. Biarkan kosong untuk host-only cookie
+SESSION_COOKIE_DOMAIN=
+
 # =============================================================================
-# EMAIL CONFIGURATION
+# FILE UPLOAD CONFIGURATION
 # =============================================================================
+UPLOAD_FOLDER=uploads
+MAX_CONTENT_LENGTH=16777216
+
+# =============================================================================
+# WORD2VEC MODEL CONFIGURATION
+# =============================================================================
+WORD2VEC_MODEL_PATH=models/embeddings/wiki_word2vec_csv_updated.model
+NAIVE_BAYES_MODEL1_PATH=models/navesbayes/naive_bayes_model1.pkl
+NAIVE_BAYES_MODEL2_PATH=models/navesbayes/naive_bayes_model2.pkl
+NAIVE_BAYES_MODEL3_PATH=models/navesbayes/naive_bayes_model3.pkl
+
+# =============================================================================
+# EMAIL CONFIGURATION (Gmail SMTP)
+# =============================================================================
+# For Gmail: Enable 2FA and generate App Password
+# Guide: https://support.google.com/accounts/answer/185833
+# Leave empty to disable email features
 MAIL_SERVER=smtp.gmail.com
 MAIL_PORT=587
 MAIL_USE_TLS=True
@@ -924,6 +979,24 @@ MAX_OTP_ATTEMPTS=3
 LOCKOUT_DURATION_MINUTES=15
 
 # =============================================================================
+# REGISTRATION SETTINGS
+# =============================================================================
+REGISTRATION_ENABLED=True
+AUTO_APPROVE_REGISTRATION=False
+
+# =============================================================================
+# APPLICATION URLS
+# =============================================================================
+BASE_URL=http://localhost:5000
+
+# =============================================================================
+# EMAIL NOTIFICATION SETTINGS
+# =============================================================================
+SEND_EMAIL_NOTIFICATIONS=True
+EMAIL_RETRY_ATTEMPTS=3
+EMAIL_RETRY_DELAY_SECONDS=5
+
+# =============================================================================
 # APIFY API CONFIGURATION
 # =============================================================================
 APIFY_API_TOKEN={docker_config.get('APIFY_API_TOKEN', 'your-apify-api-token')}
@@ -937,6 +1010,22 @@ APIFY_MAX_RETRIES=3
 APIFY_RETRY_DELAY=5
 
 # =============================================================================
+# REDIS CONFIGURATION (Docker)
+# =============================================================================
+REDIS_URL={docker_config.get('REDIS_URL')}
+
+# =============================================================================
+# PAGINATION
+# =============================================================================
+POSTS_PER_PAGE=25
+
+# =============================================================================
+# LOGGING
+# =============================================================================
+LOG_LEVEL=INFO
+LOG_FILE=logs/waskita.log
+
+# =============================================================================
 # DOCKER PORT CONFIGURATION
 # =============================================================================
 DB_PORT=5432
@@ -944,7 +1033,15 @@ WEB_PORT=5000
 REDIS_PORT=6379
 NGINX_HTTP_PORT=80
 NGINX_HTTPS_PORT=443
+ENABLE_SSL={docker_config.get('ENABLE_SSL')}
+NGINX_SERVER_NAME={docker_config.get('NGINX_SERVER_NAME')}
 CREATE_SAMPLE_DATA=false
+
+# =============================================================================
+# CLEANUP CONFIGURATION
+# =============================================================================
+CLEANUP_EXPIRED_REQUESTS_HOURS=24
+KEEP_COMPLETED_REQUESTS_DAYS=30
 """
         
         # Tulis file environment Docker

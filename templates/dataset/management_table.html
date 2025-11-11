@@ -195,6 +195,7 @@ td.content-column .d-flex { justify-content: flex-start !important; gap: 4px; }
 .content-column { width: 420px !important; }
 .dataset-column { width: 260px !important; }
 .dataset-cell { width: 260px !important; }
+.dataset-title { display: block; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.4; }
 .content-text {
   white-space: normal !important;
   word-break: break-word !important;
@@ -228,6 +229,14 @@ td.username-column .d-flex { justify-content: flex-start !important; }
     padding: 4px 0;
     width: 100%;
 }
+
+/* Spasi ekstra antara kolom Tanggal dan Aksi agar tidak berhimpitan */
+th.date-column, td.date-column { padding-right: 18px !important; }
+th.action-column, td.action-column { padding-left: 18px !important; }
+
+/* Samakan ukuran ikon URL dengan tombol aksi */
+.url-icon { min-width: 32px; height: 32px; padding: 0 !important; }
+.url-icon i { font-size: 0.9rem; }
 
 .table th {
     font-size: 12px !important;
@@ -587,7 +596,28 @@ td.username-column .d-flex { justify-content: flex-start !important; }
 
 /* Kolom URL: gunakan ikon di semua mode; sembunyikan teks agar rapi */
 .url-preview .url-text { display: none !important; }
-.url-icon { display: inline-flex !important; align-items: center; justify-content: center; margin-left: 8px; }
+/* Samakan ukuran tombol URL dengan tombol aksi dan kecilkan icon sedikit */
+.url-icon { 
+  display: inline-flex !important; 
+  align-items: center; 
+  justify-content: center; 
+  min-width: 28px; 
+  height: 28px; 
+  line-height: 28px; 
+  padding: 0 !important; 
+  margin-left: 4px; 
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  background: transparent;
+  color: #6c757d;
+  transition: all 0.2s ease;
+}
+.url-icon:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  background-color: #f8f9fa;
+}
+.url-icon i { font-size: 0.75rem !important; }
 
 /* Kolom Dataset: rata kiri dan wrap di mobile untuk hindari overlap checkbox */
 @media (max-width: 576px) {
@@ -609,6 +639,19 @@ td.username-column .d-flex { justify-content: flex-start !important; }
   }
   .dataset-column, .dataset-cell, .content-column { width: auto !important; }
   .url-column { width: 48px !important; }
+  /* Tambahan: beri ruang ekstra antara Tanggal dan Aksi di mobile */
+  th.date-column, td.date-column { padding-right: 14px !important; }
+  th.action-column, td.action-column { padding-left: 14px !important; }
+}
+
+/* Desktop: ruang ekstra antara Tanggal dan Aksi */
+th.date-column, td.date-column { padding-right: 32px !important; }
+th.action-column, td.action-column { padding-left: 32px !important; }
+
+/* Mobile: ruang ekstra antara Tanggal dan Aksi */
+@media (max-width: 576px) {
+    th.date-column, td.date-column { padding-right: 20px !important; }
+    th.action-column, td.action-column { padding-left: 20px !important; }
 }
 </style>
 {% endblock extra_css %}
@@ -741,7 +784,7 @@ td.username-column .d-flex { justify-content: flex-start !important; }
                                     <td class="dataset-cell">
                                         <div class="d-flex px-2 py-1 justify-content-start">
                                             <div class="d-flex flex-column justify-content-center align-items-start">
-                                                <h6 class="mb-1 text-sm font-weight-bold">{{ stat.dataset.name }}</h6>
+                                                <h6 class="mb-1 text-sm font-weight-bold dataset-title" title="{{ stat.dataset.name }}">{{ stat.dataset.name }}</h6>
                                                 <p class="text-xs text-muted mb-0 d-flex align-items-center gap-2">
                                                     {% if stat.raw_upload_count > 0 %}
                                                         <span class="d-inline-flex align-items-center">
@@ -846,7 +889,7 @@ td.username-column .d-flex { justify-content: flex-start !important; }
                                             </span>
                                         {% endif %}
                                     </td>
-                                    <td class="align-middle text-center">
+                                    <td class="align-middle text-center date-column">
                                         <div class="d-flex flex-column justify-content-center align-items-center">
                                             <p class="text-xs text-muted mb-1" style="font-size: 0.75rem;">
                                                 <i class="far fa-calendar-alt me-1"></i>
@@ -858,7 +901,7 @@ td.username-column .d-flex { justify-content: flex-start !important; }
                                             </p>
                                         </div>
                                     </td>
-                                    <td class="align-middle text-center">
+                                    <td class="align-middle text-center action-column">
                                         <div class="d-flex gap-2 justify-content-center">
                                             <button class="btn action-btn" title="Detail" onclick="viewDatasetDetails({{ stat.dataset.id }})" style="min-width: 32px; height: 32px;">
                                                 <i class="fas fa-eye"></i>

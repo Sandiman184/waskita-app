@@ -1,6 +1,6 @@
 # install-build.ps1
-# Script instalasi build Waskita yang sederhana dan user-friendly
-# Menggantikan fresh-build.ps1 dengan pendekatan yang lebih intuitif
+# Script instalasi & orkestrasi Docker untuk Waskita
+# Otomatis jalankan lokal (HTTP-only) atau produksi (SSL) sesuai parameter
 
 param(
     [switch]$Clean,
@@ -53,22 +53,29 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-# Check Docker Compose
-docker-compose --version > $null 2>&1
-if ($LASTEXITCODE -ne 0) {
+function Get-ComposeCommand {
+    # Prioritaskan plugin baru: `docker compose`, fallback ke `docker-compose`
+    docker compose version > $null 2>&1
+    if ($LASTEXITCODE -eq 0) { return @{ exe = 'docker'; sub = 'compose'; label = 'docker compose' } }
+    docker-compose --version > $null 2>&1
+    if ($LASTEXITCODE -eq 0) { return @{ exe = 'docker-compose'; sub = ''; label = 'docker-compose' } }
     Write-Host "Error: Docker Compose tidak tersedia!" -ForegroundColor Red
-    Write-Host "Silakan install Docker Compose terlebih dahulu." -ForegroundColor Yellow
+    Write-Host "Silakan perbarui Docker Desktop agar mendukung 'docker compose'." -ForegroundColor Yellow
     exit 1
 }
 
-Write-Host "Docker dan Docker Compose tersedia dan berjalan" -ForegroundColor Green
+$compose = Get-ComposeCommand
+Write-Host "Docker dan $($compose.label) tersedia dan berjalan" -ForegroundColor Green
 
 # Clean installation if requested
 if ($Clean) {
     Write-Host ""
     Write-Host "=== MEMBERSIHKAN INSTALASI LAMA ===" -ForegroundColor Yellow
     Write-Host "Menghentikan container yang berjalan..." -ForegroundColor Gray
-    docker-compose -f docker/docker-compose.yml down --volumes --remove-orphans 2>$null
+    $downArgs = @('-f', 'docker/docker-compose.yml')
+    if (Test-Path 'docker/docker-compose.local.yml') { $downArgs += @('-f', 'docker/docker-compose.local.yml') }
+    $downArgs += @('down', '--volumes', '--remove-orphans')
+    & $compose.exe $compose.sub @downArgs 2>$null
     
     Write-Host "Menghapus volume database lama..." -ForegroundColor Gray
     docker volume rm waskita_postgres_data -f 2>$null
@@ -76,27 +83,48 @@ if ($Clean) {
     Write-Host "Pembersihan selesai" -ForegroundColor Green
 }
 
-# Determine environment
-$composeFile = "docker/docker-compose.yml"
+function Get-EnvValue {
+    param(
+        [string]$Path,
+        [string]$Key,
+        [string]$Default
+    )
+    if (Test-Path $Path) {
+        $content = Get-Content $Path
+        foreach ($line in $content) {
+            if ($line -match "^$Key=(.*)$") { return $Matches[1] }
+        }
+    }
+    return $Default
+}
+
+# Determine environment & compose files
 $envFile = ".env"
 $useDockerEnv = $false
+$composeFiles = @("docker/docker-compose.yml")
 
 if ($Production) {
-    Write-Host ""
-    Write-Host "=== PRODUCTION BUILD ===" -ForegroundColor Magenta
-    $composeFile = "docker/docker-compose.prod.yml"
+    Write-Host "" 
+    Write-Host "=== PRODUCTION BUILD (SSL ON) ===" -ForegroundColor Magenta
     $envFile = ".env.production"
-    
     if (-not (Test-Path $envFile)) {
         Write-Host "Error: File $envFile tidak ditemukan!" -ForegroundColor Red
-        Write-Host "Silakan buat file environment production terlebih dahulu." -ForegroundColor Yellow
+        Write-Host "Buat file .env.production atau salin dari .env.docker sesuai kebutuhan." -ForegroundColor Yellow
         exit 1
     }
+
+    # Validasi sertifikat SSL untuk produksi
+    if (-not (Test-Path "ssl/fullchain.pem") -or -not (Test-Path "ssl/privkey.pem")) {
+        Write-Host "Error: Sertifikat SSL tidak ditemukan di folder 'ssl/'!" -ForegroundColor Red
+        Write-Host "Pastikan 'ssl/fullchain.pem' dan 'ssl/privkey.pem' tersedia sebelum deploy produksi." -ForegroundColor Yellow
+        Write-Host "Lihat panduan di 'ssl/README.md'." -ForegroundColor Gray
+        exit 1
+    }
+    # Pastikan SSL aktif untuk produksi
+    $env:ENABLE_SSL = "true"
 } else {
-    Write-Host ""
-    Write-Host "=== DEVELOPMENT BUILD ===" -ForegroundColor Blue
-    
-    # Check if we should use .env.docker for Docker environment
+    Write-Host "" 
+    Write-Host "=== DEVELOPMENT BUILD (HTTP-ONLY) ===" -ForegroundColor Blue
     if (Test-Path ".env.docker") {
         Write-Host "Menggunakan .env.docker untuk environment Docker" -ForegroundColor Green
         $useDockerEnv = $true
@@ -104,6 +132,14 @@ if ($Production) {
     } else {
         Write-Host "Menggunakan .env untuk environment lokal" -ForegroundColor Yellow
     }
+    # Tambahkan override agar Nginx berjalan HTTP-only
+    if (Test-Path "docker/docker-compose.local.yml") {
+        $composeFiles += "docker/docker-compose.local.yml"
+    } else {
+        Write-Host "Warning: 'docker/docker-compose.local.yml' tidak ditemukan. Nginx akan tetap mencoba HTTPS." -ForegroundColor Yellow
+    }
+    # Nonaktifkan SSL untuk lokal
+    $env:ENABLE_SSL = "false"
 }
 
 # Check environment file
@@ -191,19 +227,12 @@ Write-Host ""
 Write-Host "=== MEMULAI BUILD & INSTALASI ===" -ForegroundColor Green
 Write-Host "Building Docker images..." -ForegroundColor Yellow
 
-if ($Production) {
-    $env:COMPOSE_FILE = $composeFile
-    docker-compose -f $composeFile up --build -d
-} else {
-    $env:CREATE_SAMPLE_DATA = "true"
-    if ($useDockerEnv) {
-        # Gunakan .env.docker dengan parameter --env-file
-        docker-compose -f $composeFile --env-file $envFile up --build -d
-    } else {
-        # Gunakan .env untuk environment lokal
-        docker-compose -f $composeFile up --build -d
-    }
-}
+$args = @()
+foreach ($f in $composeFiles) { $args += @('-f', $f) }
+if (Test-Path $envFile) { $args += @('--env-file', $envFile) }
+$args += @('up', '--build', '-d')
+
+& $compose.exe $compose.sub @args
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host ""
@@ -219,12 +248,13 @@ Start-Sleep -Seconds 10
 
 # Check if services are running
 Write-Host "Memeriksa status services..." -ForegroundColor Yellow
-if ($useDockerEnv) {
-    $containers = docker-compose -f docker/docker-compose.yml --env-file $envFile ps --services --filter "status=running"
-} else {
-    $containers = docker-compose -f docker/docker-compose.yml ps --services --filter "status=running"
-}
-if ($containers -match "app" -and $containers -match "db") {
+$psArgs = @('-f', 'docker/docker-compose.yml')
+if (-not $Production -and (Test-Path 'docker/docker-compose.local.yml')) { $psArgs += @('-f', 'docker/docker-compose.local.yml') }
+if (Test-Path $envFile) { $psArgs += @('--env-file', $envFile) }
+$psArgs += @('ps', '--services', '--filter', 'status=running')
+
+$containers = & $compose.exe $compose.sub @psArgs
+if ($containers -match "web" -and $containers -match "db") {
     Write-Host "Services berjalan dengan baik" -ForegroundColor Green
 } else {
     Write-Host "Warning: Beberapa services mungkin belum siap" -ForegroundColor Yellow
@@ -236,18 +266,23 @@ Write-Host ""
 Write-Host "=== INSTALASI BERHASIL! ===" -ForegroundColor Green
 Write-Host ""
 
+$httpPort = if ($Production) { '80' } else { '8080' }
+$httpsPort = Get-EnvValue -Path $envFile -Key 'NGINX_HTTPS_PORT' -Default '443'
+$webPort = Get-EnvValue -Path $envFile -Key 'WEB_PORT' -Default '5000'
+
 if ($Production) {
-    Write-Host "🚀 PRODUCTION DEPLOYMENT SIAP" -ForegroundColor Magenta
+    Write-Host "🚀 PRODUCTION DEPLOYMENT SIAP (SSL aktif)" -ForegroundColor Magenta
     Write-Host ""
-    Write-Host "Akses aplikasi:"
-    Write-Host "- HTTPS: https://yourdomain.com" -ForegroundColor Cyan
-    Write-Host "- HTTP:  http://yourdomain.com" -ForegroundColor Cyan
+    Write-Host "Akses aplikasi:" -ForegroundColor White
+    Write-Host "- HTTPS (Nginx): https://yourdomain.com/" -ForegroundColor Cyan
+    Write-Host "- HTTP  (redir): http://yourdomain.com/" -ForegroundColor Cyan
+    Write-Host "- Port lokal terpublikasi: HTTP=$httpPort, HTTPS=$httpsPort" -ForegroundColor Gray
 } else {
-    Write-Host "🎉 DEVELOPMENT ENVIRONMENT SIAP" -ForegroundColor Blue
+    Write-Host "🎉 DEVELOPMENT ENVIRONMENT SIAP (HTTP-only)" -ForegroundColor Blue
     Write-Host ""
-    Write-Host "Akses aplikasi:"
-    Write-Host "- Web App: http://localhost:5000" -ForegroundColor Cyan
-    Write-Host "- Nginx:   http://localhost:80" -ForegroundColor Cyan
+    Write-Host "Akses aplikasi:" -ForegroundColor White
+    Write-Host "- Nginx:   http://localhost:$httpPort/" -ForegroundColor Cyan
+    Write-Host "- Web App: http://localhost:$webPort/" -ForegroundColor Cyan
 }
 
 Write-Host ""
@@ -260,10 +295,10 @@ Write-Host ""
 
 # Useful commands
 Write-Host "Commands berguna:" -ForegroundColor White
-Write-Host "- Lihat logs:     docker-compose -f docker/docker-compose.yml logs -f" -ForegroundColor Gray
-Write-Host "- Stop services:  docker-compose -f docker/docker-compose.yml down" -ForegroundColor Gray
-Write-Host "- Restart:        docker-compose -f docker/docker-compose.yml restart" -ForegroundColor Gray
-Write-Host "- Status:         docker-compose -f docker/docker-compose.yml ps" -ForegroundColor Gray
+Write-Host "- Lihat logs:     $($compose.label) -f docker/docker-compose.yml logs -f" -ForegroundColor Gray
+Write-Host "- Stop services:  $($compose.label) -f docker/docker-compose.yml down" -ForegroundColor Gray
+Write-Host "- Restart:        $($compose.label) -f docker/docker-compose.yml restart" -ForegroundColor Gray
+Write-Host "- Status:         $($compose.label) -f docker/docker-compose.yml ps" -ForegroundColor Gray
 Write-Host ""
 
 if ($Clean) {
