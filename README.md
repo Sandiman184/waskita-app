@@ -2,6 +2,8 @@
 
 Aplikasi web Flask untuk klasifikasi konten media sosial (Radikal/Non‑Radikal) dengan Naive Bayes dan UI Soft UI Dashboard. Aplikasi ini dikembangkan untuk penelitian akademis dalam bidang analisis sentimen dan deteksi konten radikal pada media sosial.
 
+Versi Dokumen: 1.0 — Diperbarui: 2025-11-13
+
 ## Tujuan Akademis
 - **Domain Penelitian**: Analisis sentimen dan klasifikasi teks untuk deteksi konten radikal
 - **Kontribusi Akademis**: Pengembangan model machine learning untuk identifikasi konten berbahaya secara otomatis
@@ -13,6 +15,7 @@ Aplikasi web Flask untuk klasifikasi konten media sosial (Radikal/Non‑Radikal)
 - Cleaning teks otomatis (emoji, link, tanda baca)
 - Klasifikasi dan probabilitas hasil
 - Dark/Light mode, notifikasi SweetAlert2
+- UI default bahasa Indonesia
 
 ## 🚀 Quick Deployment Guide
 
@@ -46,7 +49,7 @@ docker-compose -f docker/docker-compose.local.yml up --build
 #### 3. Docker Production
 ```bash
 # Gunakan .env.production untuk production  
-cp .env.production.example .env.production
+cp .env.example .env.production
 # Edit .env.production (ENABLE_SSL=true, NGINX_SERVER_NAME=yourdomain.com)
 
 # Pastikan variabel berikut ada di .env.production:
@@ -104,6 +107,19 @@ docker-compose -f docker/docker-compose.yml up --build -d
 ### Optional Services:
 - Email: `MAIL_USERNAME`, `MAIL_PASSWORD`
 - Apify: `APIFY_API_TOKEN` untuk scraping data
+
+## Arsitektur Sistem
+- `nginx` sebagai reverse proxy dan terminasi SSL
+- `web` (Flask + Gunicorn) sebagai aplikasi utama
+- `db` (PostgreSQL) untuk penyimpanan data
+- `redis` untuk caching dan rate limiting
+- Model ML (Word2Vec, Naive Bayes) dimuat saat startup
+
+## Endpoint Penting
+- `GET /api/health` — status aplikasi dan database
+- `GET /api/models-status` — status pemuatan model ML
+- `GET /login` — halaman login
+- `GET /` — redirect ke dashboard/login
 
 ## Quick Verification
 - **Local**: http://localhost:5000/

@@ -6,6 +6,8 @@ Panduan lengkap untuk setup dan deployment aplikasi Waskita.
 > - Untuk panduan keamanan lengkap, lihat <mcfile name="SECURITY_GUIDE.md" path="docs/SECURITY_GUIDE.md"></mcfile>
 > - Untuk panduan file statis, lihat <mcfile name="STATIC_FILES_GUIDE.md" path="STATIC_FILES_GUIDE.md"></mcfile>
 
+Versi Dokumen: 1.0 — Diperbarui: 2025-11-13
+
 ## 📋 DAFTAR ISI
 
 1. [🐳 Setup Docker (Rekomendasi)](#-setup-docker-rekomendasi)
@@ -33,7 +35,7 @@ Panduan lengkap untuk setup dan deployment aplikasi Waskita.
 #### 1. Persiapan Environment
 ```bash
 # Clone repository
-git clone https://github.com/shidayaturrohman19-dev/waskita-app.git
+git clone https://github.com/Sandiman184/waskita-app.git
 cd waskita-app
 
 # Verifikasi Docker installation
@@ -75,7 +77,7 @@ docker-compose ps
 docker-compose logs
 
 # Test koneksi database
-docker-compose exec postgres psql -U waskita_user -d waskita_db
+docker-compose exec db psql -U waskita_user -d waskita_db
 ```
 
 #### 5. Akses Aplikasi
@@ -95,10 +97,10 @@ docker-compose exec postgres psql -U waskita_user -d waskita_db
 - ✅ Semua dependencies terinstall
 - ✅ Redis cache aktif
 - ✅ Auto-restart containers
-docker-compose exec postgres pg_dump -U waskita_user waskita_db > backup.sql
+docker-compose exec db pg_dump -U waskita_user waskita_db > backup.sql
 
 # Restore database
-docker-compose exec -T postgres psql -U waskita_user -d waskita_db < backup.sql
+docker-compose exec -T db psql -U waskita_user -d waskita_db < backup.sql
 
 # Reset database (HATI-HATI!)
 docker-compose down -v
@@ -108,16 +110,16 @@ docker-compose up -d
 #### Application Commands
 ```bash
 # Masuk ke app container
-docker-compose exec app bash
+docker-compose exec web sh
 
 # Jalankan migrations
-docker-compose exec app flask db upgrade
+docker-compose exec web flask db upgrade
 
 # Create admin user
-docker-compose exec app python create_admin.py
+docker-compose exec web python create_admin.py
 
 # Run tests
-docker-compose exec app python -m pytest
+docker-compose exec web python -m pytest
 ```
 
 ### Troubleshooting Docker
@@ -125,8 +127,8 @@ docker-compose exec app python -m pytest
 #### Container Won't Start
 ```bash
 # Lihat error logs
-docker-compose logs app
-docker-compose logs postgres
+docker-compose logs web
+docker-compose logs db
 
 # Rebuild containers
 docker-compose down
@@ -154,16 +156,16 @@ WEB_PORT=5001
 #### Database Connection Issues
 ```bash
 # Cek database container
-docker-compose logs postgres
+docker-compose logs db
 
 # Test koneksi
-docker-compose exec postgres pg_isready -U waskita_user
+docker-compose exec db pg_isready -U waskita_user
 
 # Reset database container
-docker-compose stop postgres
-docker-compose rm postgres
+docker-compose stop db
+docker-compose rm db
 docker volume rm waskita_postgres_data
-docker-compose up -d postgres
+docker-compose up -d db
 ```
 
 #### Out of Memory/Disk Space
@@ -194,28 +196,28 @@ effective_cache_size = 1GB
 work_mem = 4MB
 
 # Scale aplikasi
-docker-compose up -d --scale app=2
+docker-compose up -d --scale web=2
 ```
 
 #### Model Loading Issues
 ```bash
 # Cek apakah model files ada di container
-docker-compose exec app ls -la /app/models/
+docker-compose exec web ls -la /app/models/
 
 # Cek file Word2Vec
-docker-compose exec app ls -la /app/models/embeddings/
+docker-compose exec web ls -la /app/models/embeddings/
 
 # Cek file Naive Bayes
-docker-compose exec app ls -la /app/models/navesbayes/
+docker-compose exec web ls -la /app/models/navesbayes/
 
 # Restart aplikasi untuk reload model
-docker-compose restart app
+docker-compose restart web
 
 # Cek logs untuk error model loading
-docker-compose logs app | grep -i model
+docker-compose logs web | grep -i model
 
 # Test model loading manual
-docker-compose exec app python -c "
+docker-compose exec web python -c "
 import os
 print('Word2Vec exists:', os.path.exists('/app/models/embeddings/wiki_word2vec_csv_updated.model'))
 print('NB Model1 exists:', os.path.exists('/app/models/navesbayes/naive_bayes_model1.pkl'))
@@ -225,7 +227,7 @@ print('NB Model1 exists:', os.path.exists('/app/models/navesbayes/naive_bayes_mo
 #### Email Configuration Issues
 ```bash
 # Test email configuration
-docker-compose exec app python -c "
+docker-compose exec web python -c "
 from flask_mail import Mail
 from app import app
 mail = Mail(app)
@@ -235,7 +237,7 @@ print('Mail username:', app.config.get('MAIL_USERNAME'))
 "
 
 # Check email service status
-docker-compose exec app python -c "
+docker-compose exec web python -c "
 import smtplib
 try:
     server = smtplib.SMTP('smtp.gmail.com', 587)
@@ -250,10 +252,10 @@ except Exception as e:
 #### Application Startup Issues
 ```bash
 # Check application logs
-docker-compose logs app --tail=100
+docker-compose logs web --tail=100
 
 # Check database connection
-docker-compose exec app python -c "
+docker-compose exec web python -c "
 from app import db
 try:
     db.engine.connect()
@@ -263,7 +265,7 @@ except Exception as e:
 "
 
 # Check Redis connection
-docker-compose exec app python -c "
+docker-compose exec web python -c "
 import redis
 try:
     r = redis.Redis(host='redis', port=6379, db=0)
@@ -345,7 +347,7 @@ docker-compose ps
 docker-compose logs
 
 # Test koneksi database
-docker-compose exec postgres psql -U waskita_user -d waskita_db
+docker-compose exec db psql -U waskita_user -d waskita_db
 ```
 
 #### 5. Akses Aplikasi
@@ -493,13 +495,13 @@ flask db history
 #### Untuk Docker Environment:
 ```bash
 # Jalankan migrasi di container aplikasi
-docker-compose exec app flask db upgrade
+docker-compose exec web flask db upgrade
 
 # Generate migrasi baru dari dalam container
-docker-compose exec app flask db migrate -m "nama_migrasi"
+docker-compose exec web flask db migrate -m "nama_migrasi"
 
 # Lihat status migrasi
-docker-compose exec app flask db current
+docker-compose exec web flask db current
 ```
 
 ### 6. Best Practices untuk Development
@@ -539,10 +541,10 @@ psql -U waskita_user -d waskita_db < backup.sql
 docker-compose up -d --build
 
 # Monitor logs secara real-time
-docker-compose logs -f app
+docker-compose logs -f web
 
 # Masuk ke container untuk debugging
-docker-compose exec app bash
+docker-compose exec web sh
 
 # Rebuild containers setelah perubahan code
 docker-compose up -d --build
@@ -654,7 +656,7 @@ bash <(curl -s https://raw.githubusercontent.com/Sandiman184/waskita-app/main/sc
 
 #### During Deployment
 - [ ] Monitor logs real-time: `docker-compose logs -f`
-- [ ] Verify health checks: `curl http://localhost:5000/health`
+- [ ] Verify health checks: `curl http://localhost:5000/api/health`
 - [ ] Test database connection
 - [ ] Verify SSL certificate (jika production)
 
@@ -673,13 +675,13 @@ netstat -ano | findstr :5000
 taskkill /PID <PID> /F
 
 # Database connection issues
-docker-compose logs postgres | grep -i "connection"
+docker-compose logs db | grep -i "connection"
 
 # SSL certificate problems
 docker-compose logs nginx | grep -i "ssl"
 
 # Model loading failures  
-docker-compose logs app | grep -i "model"
+docker-compose logs web | grep -i "model"
 ```
 
 #### Quick Fixes
@@ -703,13 +705,13 @@ docker stats
 #### Health Monitoring
 ```bash
 # Application health
-curl -f http://localhost:5000/health
+curl -f http://localhost:5000/api/health
 
 # Database health
-docker-compose exec postgres pg_isready -U $POSTGRES_USER
+docker-compose exec db pg_isready -U $POSTGRES_USER
 
 # Redis health
-docker-compose exec app python -c "import redis; redis.Redis(host='redis').ping()"
+docker-compose exec web python -c "import redis; redis.Redis(host='redis').ping()"
 ```
 
 #### Log Management
@@ -718,17 +720,17 @@ docker-compose exec app python -c "import redis; redis.Redis(host='redis').ping(
 docker-compose logs -f --tail=50
 
 # Error monitoring
-docker-compose logs app | grep -E "(error|exception|fail)"
+docker-compose logs web | grep -E "(error|exception|fail)"
 
 # Security monitoring
-docker-compose logs app | grep -E "(login|auth|security|otp)"
+docker-compose logs web | grep -E "(login|auth|security|otp)"
 ```
 
 #### Backup Procedures
 ```bash
 # Database backup
 DATE=$(date +%Y%m%d_%H%M%S)
-docker-compose exec -T postgres pg_dump -U $POSTGRES_USER $POSTGRES_DB > backup_$DATE.sql
+docker-compose exec -T db pg_dump -U $POSTGRES_USER $POSTGRES_DB > backup_$DATE.sql
 gzip backup_$DATE.sql
 
 # Environment backup
@@ -773,15 +775,15 @@ echo "🚀 Starting Production Deployment..."
 git pull origin main
 
 # Build and deploy
-docker-compose -f docker-compose.prod.yml up -d --build
+docker-compose -f docker/docker-compose.yml up -d --build
 
 # Run database migrations
-docker-compose -f docker-compose.prod.yml exec app flask db upgrade
+docker-compose -f docker/docker-compose.yml exec web flask db upgrade
 
 # Check application health
 echo "✅ Deployment completed!"
 echo "🌐 Application URL: https://your-domain.com"
-echo "📊 Health Check: curl https://your-domain.com/health"
+echo "📊 Health Check: curl https://your-domain.com/api/health"
 ```
 
 #### 📋 Production Readiness Checklist
@@ -797,10 +799,10 @@ echo "📊 Health Check: curl https://your-domain.com/health"
 - [ ] ✅ Documentation updated
 
 # Generate migrasi baru dari container
-docker-compose exec app flask db migrate -m "Nama migrasi"
+docker-compose exec web flask db migrate -m "Nama migrasi"
 
 # Lihat status migrasi di Docker
-docker-compose exec app flask db current
+docker-compose exec web flask db current
 ```
 
 #### Migrasi vs Static SQL Schema:
@@ -832,8 +834,8 @@ gunicorn -w 4 -b 0.0.0.0:5000 app:app
 
 ### 8. Akses Aplikasi
 - **URL**: http://localhost:5000
-- **Admin**: admin@waskita.com / admin123
-- **User**: user@test.com / user123
+- **Admin**: Buat akun admin menggunakan `create_admin.py` (tanpa kredensial default)
+- **User**: Registrasi melalui halaman aplikasi
 
 ---
 
@@ -925,29 +927,29 @@ volumes:
 #### 3. Verifikasi Model di Container
 ```bash
 # Cek apakah model files ada di container
-docker-compose exec app ls -la /app/models/
+docker-compose exec web ls -la /app/models/
 
 # Expected output:
 # embeddings/  navesbayes/
 
 # Cek file Word2Vec
-docker-compose exec app ls -la /app/models/embeddings/
+docker-compose exec web ls -la /app/models/embeddings/
 
 # Cek file Naive Bayes
-docker-compose exec app ls -la /app/models/navesbayes/
+docker-compose exec web ls -la /app/models/navesbayes/
 ```
 
 #### 4. Troubleshooting Model Loading
 Jika model tidak terload:
 ```bash
 # Restart aplikasi untuk reload model
-docker-compose restart app
+docker-compose restart web
 
 # Cek logs untuk error model loading
-docker-compose logs app | grep -i model
+docker-compose logs web | grep -i model
 
 # Pastikan file model ada dan readable
-docker-compose exec app python -c "
+docker-compose exec web python -c "
 import os
 print('Word2Vec exists:', os.path.exists('/app/models/embeddings/wiki_word2vec_csv_updated.model'))
 print('NB Model1 exists:', os.path.exists('/app/models/navesbayes/naive_bayes_model1.pkl'))
@@ -1142,7 +1144,7 @@ docker-compose up -d
 docker-compose logs -f
 
 # Masuk ke container
-docker-compose exec app bash
+docker-compose exec web sh
 
 # Restart services
 docker-compose restart
@@ -1294,10 +1296,10 @@ docker system prune -f
 #### Database Container Issues
 ```bash
 # Cek database logs
-docker-compose logs postgres
+docker-compose logs db
 
 # Masuk ke database container
-docker-compose exec postgres psql -U waskita_user -d waskita_db
+docker-compose exec db psql -U waskita_user -d waskita_db
 
 # Reset database volume
 docker-compose down -v
@@ -1331,6 +1333,7 @@ Gunakan toggle `ENABLE_SSL` untuk memilih konfigurasi Nginx secara otomatis anta
 - `docker/docker-compose.yml`: memuat `ENABLE_SSL` dan `NGINX_SERVER_NAME` ke container Nginx
 - `docker/docker-compose.local.yml`: override lokal, memaksa `ENABLE_SSL=false` dan hanya port HTTP
 - `docker/nginx.entrypoint.sh`: memilih config otomatis (SSL vs HTTP) berdasarkan `ENABLE_SSL`
+  - Catatan: `server_name` ditetapkan di `docker/nginx.conf` dan dimount read-only; nilai `NGINX_SERVER_NAME` tidak mengubah file config saat runtime.
 
 ### Verifikasi Cepat
 - Cek Nginx memilih config yang benar:
@@ -1343,4 +1346,46 @@ Gunakan toggle `ENABLE_SSL` untuk memilih konfigurasi Nginx secara otomatis anta
 ### Catatan
 - `.env.docker` kini menyertakan default `ENABLE_SSL=false` dan `NGINX_SERVER_NAME=localhost`.
 - Script `install-build.ps1` akan meng-override nilai tersebut saat startup sesuai mode yang dipilih.
- - `.env.docker` juga menetapkan `REDIS_URL=redis://redis:6379/0` agar koneksi Redis dalam Docker berjalan benar.
+- `.env.docker` juga menetapkan `REDIS_URL=redis://redis:6379/0` agar koneksi Redis dalam Docker berjalan benar.
+
+## 🚀 Deployment Windows (plink/pscp)
+
+### Ringkasan
+- Gunakan `pscp` untuk mentransfer file `.env.production` dan model ke VPS.
+- Gunakan `plink` untuk menjalankan perintah di VPS (pull kode dari GitHub, build, dan jalankan Docker Compose).
+- Pastikan sertifikat SSL tersedia di host (`/etc/letsencrypt/live/waskita.site/`).
+
+### Langkah
+```powershell
+# 1) Transfer environment file ke VPS
+pscp -pw <PASSWORD> .env.production root@<VPS_IP>:/opt/waskita/.env.production
+
+# 2) Transfer model Word2Vec & Naive Bayes (contoh path)
+pscp -pw <PASSWORD> models/embeddings/wiki_word2vec_csv_updated.model root@<VPS_IP>:/opt/waskita/models/embeddings/
+pscp -pw <PASSWORD> models/navesbayes/naive_bayes_model1.pkl root@<VPS_IP>:/opt/waskita/models/navesbayes/
+
+# 3) Jalankan perintah di VPS untuk setup
+plink -pw <PASSWORD> root@<VPS_IP> "cd /opt && git clone https://github.com/Sandiman184/waskita-app.git || (cd waskita-app && git pull)"
+plink -pw <PASSWORD> root@<VPS_IP> "cd /opt/waskita-app && docker-compose -f docker/docker-compose.yml up -d --build"
+
+# 4) Dapatkan sertifikat SSL Let’s Encrypt (contoh Nginx)
+plink -pw <PASSWORD> root@<VPS_IP> "certbot --nginx -d waskita.site --non-interactive --agree-tos -m admin@waskita.site"
+
+# Pastikan file berikut tersedia di host:
+# /etc/letsencrypt/live/waskita.site/fullchain.pem
+# /etc/letsencrypt/live/waskita.site/privkey.pem
+```
+
+### Verifikasi
+```bash
+# Health check API (container web)
+curl https://waskita.site/api/health
+
+# Status model
+curl https://waskita.site/api/models-status
+```
+
+### Catatan
+- Service names di repository ini: `web` (aplikasi), `db` (PostgreSQL), `redis`, `nginx`.
+- File Compose produksi: `docker/docker-compose.yml`.
+- Sertifikat SSL dimount dari host ke container Nginx.
