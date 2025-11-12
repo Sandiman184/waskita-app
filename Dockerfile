@@ -47,9 +47,15 @@ COPY docker-entrypoint.sh .
 COPY static/ static/
 COPY templates/ templates/
 COPY models/ models/
-COPY utils/ utils/
-COPY services/ services/
-COPY routes/ routes/
+COPY utils.py .
+COPY routes.py .
+COPY config.py .
+COPY models.py .
+COPY models_otp.py .
+COPY otp_routes.py .
+COPY scheduler.py .
+COPY email_service.py .
+COPY security_utils.py .
 
 # Normalize Windows line-endings and make entrypoint executable
 # Guard init_admin.sh to avoid build failure if the file is omitted

@@ -9,19 +9,8 @@ SSL_KEY_PATH="${SSL_KEY_PATH:-/etc/letsencrypt/live/waskita.site/privkey.pem}"
 
 CONF_TARGET="/etc/nginx/conf.d/waskita.conf"
 
-# Optional server_name override
 if [ -n "${NGINX_SERVER_NAME:-}" ]; then
-  echo "[entrypoint] Overriding server_name to: ${NGINX_SERVER_NAME}"
-  sed -E "s/server_name [^;]*;/server_name ${NGINX_SERVER_NAME};/g" "${CONF_TARGET}" > "${CONF_TARGET}.tmp"
-  if [ -f "${CONF_TARGET}.tmp" ]; then
-    if ! cmp -s "${CONF_TARGET}" "${CONF_TARGET}.tmp"; then
-      mv -f "${CONF_TARGET}.tmp" "${CONF_TARGET}"
-      echo "[entrypoint] Server name updated successfully"
-    else
-      rm -f "${CONF_TARGET}.tmp"
-      echo "[entrypoint] Server name already set correctly"
-    fi
-  fi
+  echo "[entrypoint] Server name override requested but config is immutable; skipping"
 fi
 
 # Remove default server config to avoid shadowing our config

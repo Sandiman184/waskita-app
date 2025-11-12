@@ -42,6 +42,15 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
     # Store models in app config for global access
     app.config['WORD2VEC_MODEL'] = word2vec_model_param
     app.config['NAIVE_BAYES_MODELS'] = naive_bayes_models_param
+
+    @app.route('/api/models-status')
+    def models_status():
+        word2vec_model = current_app.config.get('WORD2VEC_MODEL')
+        naive_bayes_models = current_app.config.get('NAIVE_BAYES_MODELS', {})
+        return jsonify({
+            'word2vec_loaded': bool(word2vec_model),
+            'naive_bayes_count': len([m for m in naive_bayes_models.values() if m is not None])
+        })
     
     # Get CSRF instance from app
     from flask_wtf.csrf import CSRFProtect
