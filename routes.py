@@ -474,13 +474,20 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                     ip_address=request.remote_addr
                 )
                 
-                # Read file with enhanced error handling
-                if file_info['mime_type'] in ['text/csv', 'text/plain', 'application/csv']:
-                    # Try different encodings for CSV files
+                mime_type = file_info.get('mime_type', '')
+                detected_format = file_info.get('detected_format')
+                filename_lower = file.filename.lower()
+                is_csv = (
+                    detected_format == 'csv' or
+                    filename_lower.endswith('.csv') or
+                    mime_type in ['text/csv', 'text/plain', 'application/csv', 'application/vnd.ms-excel']
+                )
+
+                if is_csv:
                     encodings_to_try = ['utf-8', 'utf-8-sig', 'latin1', 'cp1252', 'iso-8859-1']
                     df = None
                     last_error = None
-                    
+
                     for encoding in encodings_to_try:
                         try:
                             df = pd.read_csv(filepath, encoding=encoding)
@@ -497,11 +504,18 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                             except Exception as e2:
                                 last_error = e2
                                 continue
-                    
+
                     if df is None:
                         raise Exception(f"Could not read CSV file with any encoding. Last error: {str(last_error)}")
                 else:
-                    df = pd.read_excel(filepath)
+                    try:
+                        df = pd.read_excel(filepath)
+                    except Exception:
+                        try:
+                            df = pd.read_csv(filepath)
+                            app.logger.info("Fallback to CSV after Excel read failure")
+                        except Exception as e2:
+                            raise e2
                 
                 # Process and save data with input sanitization
                 success_count = 0
