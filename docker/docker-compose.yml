@@ -69,22 +69,19 @@ services:
     container_name: waskita-app-web
     env_file:
       - ../.env.production
-    environment:
-      - TZ=Asia/Jakarta
-      - REDIS_URL=redis://redis:6379/0
-      - DATABASE_PORT=${DATABASE_PORT:-5432}
+    environment: {}
     command: ["gunicorn", "-w", "2", "-k", "gthread", "--threads", "4", "-b", "0.0.0.0:5000", "--timeout", "120", "app:app"]
     volumes:
       # Only mount necessary volumes for Docker environment
       - waskita_uploads:/app/uploads
       # Mount models directory for Word2Vec/Naive Bayes (read-write)
-      - models:/app/models:rw
+# Models are built into the container image for production (see Dockerfile)
       # Mount docker helpers for entrypoint scripts (read-only)
       - docker:/app/docker:ro
       # Mount logs directory for application logging
       - waskita_logs:/app/logs
-      # Mount production environment file (read-only)
-      - ../.env.production:/app/.env.production:ro
+
+
     # Do not expose app port publicly in production; access via Nginx
     depends_on:
       - db
@@ -120,18 +117,20 @@ services:
 
   # Nginx Reverse Proxy
   nginx:
-    image: nginx:alpine
+    image: nginx:1.25-alpine
     container_name: waskita-app-nginx
     environment:
       - ENABLE_SSL=true
       - NGINX_SERVER_NAME=waskita.site
+      - SSL_CERT_PATH=/etc/letsencrypt/live/waskita.site/fullchain.pem
+      - SSL_KEY_PATH=/etc/letsencrypt/live/waskita.site/privkey.pem
     ports:
       - "${NGINX_HTTP_PORT:-80}:80"
       - "${NGINX_HTTPS_PORT:-443}:443"
     volumes:
       - ./nginx.conf:/etc/nginx/conf.d/waskita.conf:ro
       - ./nginx.entrypoint.sh:/etc/nginx/entrypoint.sh:ro
-      - static:/var/www/static
+      - ../static:/var/www/static
       # Mount sertifikat langsung dari Let's Encrypt agar pembaruan otomatis berlaku
       - /etc/letsencrypt/live/waskita.site/fullchain.pem:/etc/nginx/ssl/fullchain.pem:ro
       - /etc/letsencrypt/live/waskita.site/privkey.pem:/etc/nginx/ssl/privkey.pem:ro

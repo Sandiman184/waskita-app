@@ -67,11 +67,11 @@ htmlcov/
 # Migration files (optional - uncomment if you want to exclude)
 # migrations/
 
-# Model files (large ML models - uncomment if you want to exclude)
-# models/
-# *.pkl
-# *.joblib
-# *.model
+# Model files (large ML models - exclude from image, will be mounted separately)
+models/
+*.pkl
+*.joblib
+*.model
 
 # Backup files
 *.bak

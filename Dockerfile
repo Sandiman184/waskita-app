@@ -37,13 +37,25 @@ RUN pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir -r requirements.txt
 
 # Copy project files
-COPY . .
+COPY app.py .
+COPY security_middleware.py .
+COPY security_logger.py .
+COPY requirements.txt .
+COPY init_database.py .
+COPY database_schema.sql .
+COPY docker-entrypoint.sh .
+COPY static/ static/
+COPY templates/ templates/
+COPY models/ models/
+COPY utils/ utils/
+COPY services/ services/
+COPY routes/ routes/
 
 # Normalize Windows line-endings and make entrypoint executable
 # Guard init_admin.sh to avoid build failure if the file is omitted
 RUN sed -i 's/\r$//' docker-entrypoint.sh \
-    && chmod +x docker-entrypoint.sh \
-    && if [ -f init_admin.sh ]; then chmod +x init_admin.sh; fi
+    && chmod +x docker-entrypoint.sh
+
 
 # Create necessary directories with proper permissions
 RUN mkdir -p uploads logs static/uploads data \
@@ -59,7 +71,7 @@ EXPOSE 5000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:5000/ || exit 1
+    CMD curl -f http://localhost:5000/api/health || exit 1
 
 
 # Set entrypoint

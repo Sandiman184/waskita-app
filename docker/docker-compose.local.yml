@@ -1,6 +1,8 @@
 services:
   # Override untuk service web agar berjalan dengan konfigurasi development
   web:
+    env_file:
+      - ../.env.docker
     environment:
       - FLASK_CONFIG=development
       - DOTENV_OVERRIDE=False
@@ -13,3 +15,13 @@ services:
     # EntryPoint akan memilih HTTP config karena ENABLE_SSL=false
     environment:
       - ENABLE_SSL=false
+      - NGINX_SERVER_NAME=localhost
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/waskita.conf:ro
+      - ./nginx.entrypoint.sh:/etc/nginx/entrypoint.sh:ro
+      - ../static:/var/www/static
+
+  # Override untuk service database agar memakai .env.docker
+  db:
+    env_file:
+      - ../.env.docker
