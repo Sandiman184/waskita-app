@@ -2,7 +2,24 @@
 
 Panduan lengkap keamanan aplikasi Waskita, termasuk audit keamanan, sistem OTP, dan praktik terbaik.
 
-## 📊 STATUS KEAMANAN APLIKASI SAAT INI (JANUARI 2025)
+> **📚 Dokumentasi Terkait:** 
+> - Untuk panduan setup dan deployment, lihat <mcfile name="SETUP_APPS.md" path="docs/SETUP_APPS.md"></mcfile>
+> - Untuk panduan file statis, lihat <mcfile name="STATIC_FILES_GUIDE.md" path="STATIC_FILES_GUIDE.md"></mcfile>
+
+## 📋 DAFTAR ISI
+
+1. [📊 Status Keamanan](#-status-keamanan)
+2. [📧 Sistem OTP](#-sistem-otp-one-time-password)
+3. [🛡️ Fitur Keamanan Utama](#️-fitur-keamanan-utama)
+4. [🔍 Audit Keamanan](#-audit-keamanan)
+5. [🛠️ Best Practices & Troubleshooting](#️-best-practices--troubleshooting)
+6. [🚀 Deployment Security](#-deployment-security)
+7. [📊 Laporan Audit](#-laporan-audit-keamanan)
+8. [📡 API Security](#-api-security--documentation)
+
+---
+
+## 📊 STATUS KEAMANAN
 
 ### ✅ KEAMANAN BERJALAN DENGAN BAIK
 **Environment**: Development Mode dengan konfigurasi keamanan aktif
@@ -21,15 +38,15 @@ Panduan lengkap keamanan aplikasi Waskita, termasuk audit keamanan, sistem OTP, 
 
 **Status:** ✅ SIAP PRODUCTION dengan tingkat keamanan enterprise-level
 
-### 🚨 KREDENSIAL YANG SEDANG BERJALAN:
-**⚠️ PERINGATAN: Kredensial ini HANYA untuk development!**
+### 🚨 KREDENSIAL DEVELOPMENT (HANYA UNTUK DEVELOPMENT!)
+**⚠️ PERINGATAN: Ganti semua kredensial ini untuk production!**
 - **Admin Login**: [ADMIN_EMAIL] / [ADMIN_PASSWORD]
 - **Database**: [DB_USER] / [DB_PASSWORD] (port 5432)
 - **Email SMTP**: [SMTP_EMAIL] dengan App Password
 - **Secret Key**: [SECRET_KEY]
 - **API Keys**: [API_KEY]
 
-### 🔐 Cara Membuat Kredensial Aman untuk Production
+### 🔐 Generate Kredensial Aman untuk Production
 
 ```bash
 # Generate SECRET_KEY yang lebih kuat (64 bytes)
@@ -201,421 +218,295 @@ bandit -r . -f json -o security_report.json
 
 ## 🛠️ BEST PRACTICES & TROUBLESHOOTING
 
-### 🔧 Best Practices Keamanan
+### Praktik Terbaik Keamanan
 
-#### 1. Password Management
+#### 1. Manajemen Password
+- **Gunakan password yang kuat**: Minimal 12 karakter dengan kombinasi huruf, angka, dan simbol
+- **Jangan gunakan password default**: Selalu ganti password default saat setup production
+- **Rotate password berkala**: Ganti password setiap 3-6 bulan
+- **Gunakan password manager**: Untuk menyimpan kredensial dengan aman
+
+#### 2. Keamanan Environment Variables
+- **Jangan hardcode kredensial**: Selalu gunakan environment variables
+- **Gunakan file .env**: Untuk development, pastikan tidak di-commit ke repository
+- **Encrypt sensitive data**: Untuk production, gunakan encrypted secrets
+- **Restrict file permissions**: Set permission .env file ke 600 (read/write owner only)
+
+#### 3. Praktik Keamanan Database
+- **Enable SSL connections**: Require SSL untuk database connections
+- **Use connection pooling**: Untuk menghindari connection overhead
+- **Regular backups**: Automated daily backups dengan encryption
+- **Monitor database logs**: Untuk deteksi suspicious activities
+
+#### 4. Keamanan Session
+- **Secure cookies**: Set HttpOnly, Secure, SameSite flags
+- **Session timeout**: Set reasonable session timeout (e.g., 24 hours)
+- **Session regeneration**: Regenerate session ID setelah login
+- **Session storage**: Gunakan server-side session storage
+
+### Troubleshooting Umum
+
+#### 1. Email OTP Tidak Terkirim
+**Gejala**: User tidak menerima email OTP
+**Penyebab**:
+- Konfigurasi SMTP salah
+- Email masuk ke spam folder
+- Rate limiting aktif
+- Network issues
+
+**Solusi**:
 ```bash
-# Generate strong password (Python)
-import secrets
-import string
-
-def generate_strong_password(length=32):
-    chars = string.ascii_letters + string.digits + '!@#$%^&*()_+-=[]{}|;:,.<>?'
-    return ''.join(secrets.choice(chars) for _ in range(length))
-
-# Contoh penggunaan
-print("Strong Password:", generate_strong_password())
-```
-
-#### 2. Environment Variables Security
-```bash
-# JANGAN pernah commit .env files
-# Gunakan .env.example untuk template
-# Validasi environment variables saat startup
-
-# Contoh validasi di app.py
-required_env_vars = ['SECRET_KEY', 'DATABASE_URL', 'MAIL_USERNAME']
-for var in required_env_vars:
-    if not os.getenv(var):
-        raise ValueError(f"Environment variable {var} is required!")
-```
-
-#### 3. Database Security Practices
-```bash
-# Enable SSL untuk PostgreSQL production
-# Di .env.prod:
-DATABASE_URL=postgresql://user:pass@host:5432/db?sslmode=require
-
-# Regular backup dengan encryption
-pg_dump -U user db | gzip > backup_$(date +%Y%m%d).sql.gz
-
-# Monitor database access logs
-```
-
-#### 4. Session Security
-```python
-# Konfigurasi session yang aman
-app.config.update(
-    SESSION_COOKIE_SECURE=True,    # Hanya HTTPS
-    SESSION_COOKIE_HTTPONLY=True,  # Tidak bisa diakses JavaScript
-    SESSION_COOKIE_SAMESITE='Lax',  # CSRF protection
-    PERMANENT_SESSION_LIFETIME=3600  # 1 hour timeout
-)
-```
-
-### 🚨 Troubleshooting Umum
-
-#### 1. OTP Email Tidak Terkirim
-```bash
-# Cek konfigurasi SMTP
-docker-compose exec app python -c "
+# 1. Test SMTP configuration
+python -c "
 import smtplib
+from email.mime.text import MIMEText
+
+msg = MIMEText('Test email')
+msg['Subject'] = 'SMTP Test'
+msg['From'] = 'your-email@gmail.com'
+msg['To'] = 'test@example.com'
+
 try:
-    server = smtplib.SMTP('smtp.gmail.com', 587)
-    server.starttls()
-    print('✅ SMTP Connection: SUCCESS')
-    server.quit()
+    with smtplib.SMTP('smtp.gmail.com', 587) as server:
+        server.starttls()
+        server.login('your-email@gmail.com', 'your-app-password')
+        server.send_message(msg)
+        print('SMTP test successful!')
 except Exception as e:
-    print('❌ SMTP Connection: FAILED -', str(e))
+    print(f'SMTP error: {e}')
 "
 
-# Cek App Password Gmail
-# Pastikan menggunakan App Password, bukan password akun
-
-# Cek firewall/port 587 tidak diblokir
+# 2. Check spam folder
+# 3. Verify rate limiting settings
+# 4. Check network connectivity
 ```
 
-#### 2. OTP Tidak Valid atau Expired
-```bash
-# Cek waktu server
-# Pastikan waktu server sync dengan NTP
+#### 2. OTP Tidak Valid/Expired
+**Gejala**: OTP code tidak bekerja atau expired
+**Penyebab**:
+- OTP sudah expired (1 menit)
+- User input wrong code
+- System time sync issues
 
-# Cek OTP storage di database
-docker-compose exec postgres psql -U waskita_user -d waskita_db -c "
-SELECT email, otp_code, created_at, expires_at 
-FROM registration_requests 
-ORDER BY created_at DESC LIMIT 5;
+**Solusi**:
+```bash
+# 1. Check OTP expiry time
+python -c "
+from datetime import datetime, timedelta
+print('Current time:', datetime.now())
+print('1 minute ago:', datetime.now() - timedelta(minutes=1))
 "
+
+# 2. Verify system time sync
+# 3. Check OTP generation logic
 ```
 
 #### 3. Rate Limiting Terlalu Ketat
-```python
-# Adjust rate limiting di app.py
-from flask_limiter import Limiter
-from flask_limiter.util import get_remote_address
+**Gejala**: User mendapatkan error "Too many requests"
+**Penyebab**:
+- Rate limiting thresholds terlalu rendah
+- Multiple requests dari IP yang sama
 
-limiter = Limiter(
-    app,
-    key_func=get_remote_address,
-    default_limits=["500 per day", "200 per hour"]
-)
+**Solusi**:
+```bash
+# Adjust rate limiting in config.py
+# Current settings:
+# - 500 requests/day
+# - 200 requests/hour  
+# - 5 login attempts/15min
+# - 5 OTP requests/hour
 
-# Untuk development, bisa dikurangi:
-# default_limits=["1000 per day", "500 per hour"]
+# Untuk development, bisa di-disable sementara:
+export DISABLE_RATE_LIMITING=true
 ```
 
-#### 4. Database Connection Issues
+#### 4. Masalah Koneksi Database
+**Gejala**: Database connection errors
+**Penyebab**:
+- Database server down
+- Network issues
+- Authentication errors
+- SSL configuration issues
+
+**Solusi**:
 ```bash
-# Test database connection
-docker-compose exec app python -c "
-from app import db
+# 1. Test database connection
+python -c "
+import psycopg2
+import os
+
 try:
-    db.engine.connect()
-    print('✅ Database Connection: SUCCESS')
+    conn = psycopg2.connect(
+        host=os.getenv('DB_HOST', 'localhost'),
+        port=os.getenv('DB_PORT', '5432'),
+        dbname=os.getenv('DB_NAME', 'waskita_db'),
+        user=os.getenv('DB_USER', 'waskita_user'),
+        password=os.getenv('DB_PASSWORD', 'waskita_pass')
+    )
+    print('Database connection successful!')
+    conn.close()
 except Exception as e:
-    print('❌ Database Connection: FAILED -', str(e))
+    print(f'Database error: {e}')
 "
 
-# Cek PostgreSQL logs
-docker-compose logs postgres | grep -i error
+# 2. Check database status
+# 3. Verify network connectivity
+# 4. Check SSL certificates
 ```
 
-#### 5. SSL Certificate Issues
+#### 5. Masalah Sertifikat SSL
+**Gejala**: SSL certificate errors
+**Penyebab**:
+- Self-signed certificates
+- Certificate expiry
+- Chain validation issues
+
+**Solusi**:
 ```bash
-# Test SSL configuration
-curl -v https://your-domain.com
+# 1. Check certificate validity
+openssl s_client -connect your-domain.com:443 -servername your-domain.com
 
-# Check certificate validity
-openssl s_client -connect your-domain.com:443
-
-# Renew Let's Encrypt certificate
-certbot renew --dry-run
+# 2. Untuk development, bisa disable SSL verification sementara:
+export SSL_VERIFY=false
 ```
 
-### 📋 Contoh Implementasi Keamanan
+### Contoh Implementasi Keamanan
 
-#### 🔐 Secure Password Hashing
+#### 1. Hashing Password dengan Bcrypt
 ```python
 from werkzeug.security import generate_password_hash, check_password_hash
 
 # Hash password
-def create_user(username, password):
-    hashed_password = generate_password_hash(
-        password, 
-        method='pbkdf2:sha256', 
-        salt_length=16
-    )
-    # Simpan hashed_password ke database
+password_hash = generate_password_hash('user_password', method='bcrypt')
 
 # Verify password
-def verify_password(stored_hash, provided_password):
-    return check_password_hash(stored_hash, provided_password)
+is_valid = check_password_hash(password_hash, 'user_password')
 ```
 
-#### 🛡️ CSRF Protection
+#### 2. Proteksi CSRF
 ```python
 from flask_wtf.csrf import CSRFProtect
 
-csrf = CSRFProtect(app)
+csrf = CSRFProtect()
+csrf.init_app(app)
 
-# Di form HTML:
-# <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-
-# Di AJAX requests:
-# headers: { 'X-CSRFToken': '{{ csrf_token() }}' }
+# Dalam form template:
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 ```
 
-#### 📧 Secure Email Sending
+#### 3. Pengiriman Email yang Aman
 ```python
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
-def send_secure_email(to_email, subject, body):
+def send_secure_email(recipient, subject, body):
     msg = MIMEMultipart()
     msg['From'] = os.getenv('MAIL_USERNAME')
-    msg['To'] = to_email
+    msg['To'] = recipient
     msg['Subject'] = subject
     msg.attach(MIMEText(body, 'plain'))
     
     with smtplib.SMTP(os.getenv('MAIL_SERVER'), os.getenv('MAIL_PORT')) as server:
-        server.starttls()
+        server.starttls()  # Enable TLS encryption
         server.login(os.getenv('MAIL_USERNAME'), os.getenv('MAIL_PASSWORD'))
         server.send_message(msg)
 ```
 
-### 🚀 Production Security Checklist
+---
 
-#### Pre-Deployment Security Audit
-- [ ] ✅ Semua kredensial menggunakan environment variables
-- [ ] ✅ SECRET_KEY digenerate dengan panjang minimal 64 bytes
-- [ ] ✅ Database menggunakan SSL/TLS encryption
-- [ ] ✅ HTTPS enabled dengan certificate valid
-- [ ] ✅ Rate limiting configured untuk semua endpoints
-- [ ] ✅ File upload validation implemented
-- [ ] ✅ CSRF protection enabled
-- [ ] ✅ XSS protection headers configured
-- [ ] ✅ Session security settings optimized
-- [ ] ✅ Error messages sanitized (no sensitive data leakage)
-- [ ] ✅ Logging configured untuk security events
-- [ ] ✅ Backup system tested dan working
-- [ ] ✅ Monitoring dan alerting setup
-- [ ] ✅ Security headers implemented (CSP, HSTS, etc.)
-- [ ] ✅ Regular security scanning scheduled
-- [ ] ✅ Incident response plan documented
+## 🚀 DEPLOYMENT SECURITY
 
-#### Post-Deployment Security Tasks
-- [ ] ✅ Setup automated security updates
-- [ ] ✅ Configure firewall rules
-- [ ] ✅ Enable intrusion detection system
-- [ ] ✅ Schedule regular security audits
-- [ ] ✅ Monitor access logs untuk suspicious activities
-- [ ] ✅ Regular backup verification
-- [ ] ✅ Security patch management
-- [ ] ✅ User access review (quarterly)
-- [ ] ✅ Penetration testing (annual)
-- [ ] ✅ Compliance checking (GDPR, etc.)
+> **📚 Informasi deployment lengkap tersedia di:** <mcfile name="SETUP_APPS.md" path="docs/SETUP_APPS.md"></mcfile>
 
-## 🚀 DEPLOYMENT WORKFLOW TERBARU
+### Aspek Keamanan untuk Deployment
 
-### Environment Files yang Didukung
-Aplikasi Waskita sekarang mendukung multiple environment files untuk berbagai deployment scenario:
+#### 1. Prinsip Keamanan Deployment
+- **Least Privilege**: Database user dengan permission minimal
+- **Encryption**: SSL/TLS untuk semua komunikasi
+- **Monitoring**: Logging dan alerting untuk aktivitas mencurigakan
+- **Backup**: Automated backup dengan encryption
 
-#### 1. Local Development (`.env`)
-- Untuk development tradisional tanpa Docker
-- Database: `localhost:5432`
-- Tanpa SSL, debug mode enabled
+#### 2. Checklist Keamanan Pra-Deployment
+- [ ] Rotate semua default credentials
+- [ ] Enable SSL untuk database connections
+- [ ] Konfigurasi firewall yang proper
+- [ ] Setup security headers di Nginx
+- [ ] Enable rate limiting dan monitoring
 
-#### 2. Docker Development (`.env.docker`)
-- Untuk Docker development dengan SSL disabled
-- Database: `postgres:5432` (Docker networking)
-- Nginx HTTP configuration
-
-#### 3. Docker Production (`.env.production`)
-- Untuk production deployment dengan SSL enabled
-- Database SSL: `sslmode=require`
-- Nginx SSL configuration dengan HSTS
-
-### Quick Deployment Commands
-
-#### Local Development
-```bash
-cp .env.example .env
-# Edit .env untuk local database
-python -m venv venv
-venv\Scripts\activate
-pip install -r requirements.txt
-python app.py
-```
-
-#### Docker Development (SSL Disabled)
-```bash
-cp .env.example .env.docker
-# .env.docker sudah dikonfigurasi untuk Docker development
-docker-compose -f docker-compose.yml up -d --build
-```
-
-#### Docker Production (SSL Enabled)
-```bash
-cp .env.production.example .env.production
-# Edit .env.production untuk production settings
-docker-compose -f docker/docker-compose.yml --env-file .env.production up -d --build
-```
-
-#### Automated VPS Deployment
-```bash
-# Menggunakan script otomatis
-./deploy-vps.sh
-
-# Atau manual setup
-bash <(curl -s https://raw.githubusercontent.com/Sandiman184/waskita-app/main/scripts/vps-setup.sh)
-```
-
-### Security Configuration untuk Deployment
-
-#### Database Security (Production)
-```bash
-# Wajib di production:
-DB_SSL_MODE=require
-DB_SSL_ROOT_CERT=/path/to/ca-cert.pem
-SESSION_COOKIE_SECURE=true
-SESSION_COOKIE_HTTPONLY=true
-```
-
-#### SSL Configuration
-- `ENABLE_SSL=true` untuk production (Nginx SSL config)
-- `ENABLE_SSL=false` untuk development (Nginx HTTP config)
-- `NGINX_SERVER_NAME` set ke domain production
-
-#### Security Headers (Production)
+#### 3. Best Practices Security Headers
 ```nginx
-# Nginx configuration untuk production
-add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+# Contoh security headers untuk production
 add_header X-Frame-Options "DENY" always;
 add_header X-Content-Type-Options "nosniff" always;
 add_header X-XSS-Protection "1; mode=block" always;
-add_header Content-Security-Policy "default-src 'self'" always;
+add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
 ```
 
-### Monitoring Deployment
 
-#### Health Check
+## 🚨 INCIDENT RESPONSE
+
+### Security Incident Types
+1. **Unauthorized Access Attempts**
+2. **Data Breach Indicators**
+3. **Malicious File Uploads**
+4. **Suspicious User Behavior**
+5. **System Vulnerabilities**
+
+### Response Procedures
+1. **Immediate**: Isolate affected systems
+2. **Assessment**: Determine scope and impact
+3. **Containment**: Stop ongoing threats
+4. **Recovery**: Restore normal operations
+5. **Documentation**: Log incident details
+6. **Prevention**: Update security measures
+
+---
+
+## 📊 LOGGING & MONITORING KEAMANAN
+
+### Jenis Log Keamanan
+- **Authentication Events**: Login/logout, failed attempts
+- **Authorization Events**: Access denied, privilege escalation
+- **Data Access**: Sensitive data queries and modifications
+- **System Events**: Configuration changes, errors
+- **File Operations**: Upload, download, deletion
+
+### Analisis Log Keamanan
 ```bash
-# Check application health
-curl -f http://localhost:5000/health || echo "App unhealthy"
+# Check failed login attempts
+grep "Failed login" logs/security.log | tail -20
 
-# Check database connection
-docker-compose exec postgres pg_isready -U $POSTGRES_USER
+# Monitor suspicious activities
+grep "SECURITY_ALERT" logs/app.log | tail -10
 
-# Check Redis connection
-docker-compose exec app python -c "import redis; redis.Redis(host='redis').ping()"
+# Check rate limiting triggers
+grep "Rate limit exceeded" logs/security.log
 ```
 
-#### Log Monitoring
-```bash
-# Monitor real-time logs
-docker-compose logs -f --tail=50
+---
 
-# Check for errors
-docker-compose logs app | grep -E "(error|exception|fail)"
+## 🔧 KONFIGURASI KEAMANAN PRODUCTION
 
-# Security event monitoring
-docker-compose logs app | grep -E "(login|auth|security|otp)"
+> **📚 Konfigurasi teknis lengkap tersedia di:** <mcfile name="SETUP_APPS.md" path="docs/SETUP_APPS.md"></mcfile>
+
+### Prinsip Konfigurasi Keamanan
+- **Environment Variables**: Gunakan untuk semua kredensial sensitif
+- **SSL/TLS**: Enable untuk semua komunikasi
+- **Firewall**: Blok port yang tidak diperlukan
+- **Monitoring**: Setup comprehensive logging dan alerting
+
+### Best Practices Security Headers
+```nginx
+# Contoh security headers untuk production
+add_header X-Frame-Options "DENY" always;
+add_header X-Content-Type-Options "nosniff" always;
+add_header X-XSS-Protection "1; mode=block" always;
+add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
 ```
 
-### Backup & Recovery
-
-#### Database Backup (Production)
-```bash
-# Automated daily backup
-#!/bin/bash
-DATE=$(date +%Y%m%d_%H%M%S)
-docker-compose exec -T postgres pg_dump -U $POSTGRES_USER $POSTGRES_DB > backup_$DATE.sql
-gzip backup_$DATE.sql
-# Upload to cloud storage
-```
-
-#### Environment Backup
-```bash
-# Backup environment files
-cp .env.production backup/.env.production.$DATE
-cp docker-compose.yml backup/docker-compose.yml.$DATE
-
-# Backup SSL certificates
-tar -czf ssl-backup-$DATE.tar.gz /etc/letsencrypt/live/your-domain.com/
-```
-
-### Incident Response untuk Deployment
-
-#### Deployment Failure
-```bash
-# Rollback to previous version
-git checkout tags/previous-version
-docker-compose down
-docker-compose up -d --build
-
-# Restore from backup
-zcat backup_20241201.sql.gz | docker-compose exec -T postgres psql -U $POSTGRES_USER $POSTGRES_DB
-```
-
-#### Security Incident During Deployment
-```bash
-# Immediate isolation
-docker-compose stop
-
-# Forensic analysis
-docker-compose logs --tail=1000 > security_incident_$DATE.log
-
-# Contact security team
-# Rotate all credentials in .env.production
-```
-
-### 📊 Security Monitoring & Logging
-
-```bash
-# Monitor security events
-docker-compose logs app | grep -E "(failed|error|invalid|unauthorized)"
-
-# Check database access logs
-docker-compose exec postgres psql -U waskita_user -d waskita_db -c "
-SELECT * FROM pg_stat_activity WHERE state = 'active';
-"
-
-# Monitor rate limiting
-docker-compose exec app python -c "
-from flask_limiter import Limiter
-limiter = Limiter()
-print('Rate Limit Info:', limiter.limiter.storage)
-"
-```
-
-### 🔄 Incident Response Plan
-
-#### 1. Security Incident Classification
-- **Level 1**: Minor - Login attempts, failed OTP
-- **Level 2**: Moderate - Multiple failed logins, suspicious patterns  
-- **Level 3**: Critical - Data breach, system compromise
-
-#### 2. Immediate Actions
-```bash
-# Isolate affected systems
-docker-compose stop app
-
-# Preserve logs for investigation
-docker-compose logs --tail=1000 > security_incident_logs.txt
-
-# Notify security team
-# Contact: security@your-company.com
-
-# Begin forensic analysis
-```
-
-#### 3. Recovery Procedures
-- Reset compromised credentials
-- Rotate API keys and certificates  
-- Restore from clean backups
-- Apply security patches
-- Update incident response documentation
 
 ## 🚨 INCIDENT RESPONSE
 

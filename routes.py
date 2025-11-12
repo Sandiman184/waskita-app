@@ -274,6 +274,15 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                 radikal_percentage = (total_radikal / total_classified) * 100
                 non_radikal_percentage = (total_non_radikal / total_classified) * 100
             
+            # Get model status
+            word2vec_model = current_app.config.get('WORD2VEC_MODEL')
+            naive_bayes_models = current_app.config.get('NAIVE_BAYES_MODELS', {})
+            model_status = {
+                'word2vec': 'Loaded' if word2vec_model else 'Error',
+                'naive_bayes_count': len([m for m in naive_bayes_models.values() if m is not None]),
+                'database': 'Connected'
+            }
+            
             return jsonify({
                 'success': True,
                 'total_raw_upload': total_raw_upload,
@@ -285,6 +294,7 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                 'total_non_radikal': total_non_radikal,
                 'radikal_percentage': radikal_percentage,
                 'non_radikal_percentage': non_radikal_percentage,
+                'model_status': model_status,
                 **platform_stats
             })
             
@@ -293,6 +303,36 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
             return jsonify({
                 'success': False,
                 'message': 'Gagal mengambil statistik dashboard',
+                'error': str(e)
+            }), 500
+
+    @app.route('/api/admin/reload-models')
+    @login_required
+    @admin_required
+    def admin_reload_models():
+        """API endpoint untuk memaksa reload semua model machine learning (admin only)"""
+        try:
+            # Import fungsi force_reload_models dari app
+            from app import force_reload_models
+            
+            # Paksa reload models
+            result = force_reload_models()
+            
+            app.logger.info(f"Force reload models result: {result}")
+            
+            return jsonify({
+                'success': result['success'],
+                'message': result['message'],
+                'word2vec_loaded': result['word2vec_loaded'],
+                'naive_bayes_loaded': result['naive_bayes_loaded'],
+                'timestamp': datetime.utcnow().isoformat()
+            })
+            
+        except Exception as e:
+            app.logger.error(f"Error in admin_reload_models: {str(e)}")
+            return jsonify({
+                'success': False,
+                'message': f'Gagal memuat ulang model: {str(e)}',
                 'error': str(e)
             }), 500
 

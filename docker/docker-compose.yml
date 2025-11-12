@@ -29,6 +29,13 @@ services:
     tmpfs:
       - /tmp
       - /var/run/postgresql
+    # Health check for database
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-waskita} -d ${POSTGRES_DB:-waskita_db}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   # Redis for caching
   redis:
@@ -71,11 +78,13 @@ services:
       # Only mount necessary volumes for Docker environment
       - waskita_uploads:/app/uploads
       # Mount models directory for Word2Vec/Naive Bayes (read-write)
-      - ../models:/app/models:rw
+      - models:/app/models:rw
       # Mount docker helpers for entrypoint scripts (read-only)
-      - ../docker:/app/docker:ro
+      - docker:/app/docker:ro
       # Mount logs directory for application logging
       - waskita_logs:/app/logs
+      # Mount production environment file (read-only)
+      - ../.env.production:/app/.env.production:ro
     # Do not expose app port publicly in production; access via Nginx
     depends_on:
       - db
@@ -103,7 +112,7 @@ services:
       - SETGID
       - SETUID
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5000/"]
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -120,11 +129,10 @@ services:
       - "${NGINX_HTTP_PORT:-80}:80"
       - "${NGINX_HTTPS_PORT:-443}:443"
     volumes:
-      - ./nginx.conf:/etc/nginx/waskita.ssl.conf:ro
-      - ./nginx.http.conf:/etc/nginx/waskita.http.conf:ro
+      - ./nginx.conf:/etc/nginx/conf.d/waskita.conf:ro
       - ./nginx.entrypoint.sh:/etc/nginx/entrypoint.sh:ro
-      - ../static:/var/www/static
-      # Mount sertifikat langsung dari Let’s Encrypt agar pembaruan otomatis berlaku
+      - static:/var/www/static
+      # Mount sertifikat langsung dari Let's Encrypt agar pembaruan otomatis berlaku
       - /etc/letsencrypt/live/waskita.site/fullchain.pem:/etc/nginx/ssl/fullchain.pem:ro
       - /etc/letsencrypt/live/waskita.site/privkey.pem:/etc/nginx/ssl/privkey.pem:ro
     depends_on:
@@ -140,6 +148,12 @@ volumes:
   waskita_uploads:
     driver: local
   waskita_logs:
+    driver: local
+  models:
+    driver: local
+  docker:
+    driver: local
+  static:
     driver: local
 
 networks:

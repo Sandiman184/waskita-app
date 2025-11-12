@@ -1,25 +1,27 @@
 #!/bin/sh
 set -eu
 
-# ENABLE_SSL: true/false to choose which Nginx config to use
-# NGINX_SERVER_NAME: optional, override server_name in chosen config
+# NGINX_SERVER_NAME: optional, override server_name in config
 
-SSL="${ENABLE_SSL:-true}"
 CONF_TARGET="/etc/nginx/conf.d/waskita.conf"
-
-if [ "$SSL" = "true" ] || [ "$SSL" = "1" ] || [ "$SSL" = "yes" ]; then
-  cp /etc/nginx/waskita.ssl.conf "$CONF_TARGET"
-  echo "[entrypoint] Using SSL config: /etc/nginx/waskita.ssl.conf"
-else
-  cp /etc/nginx/waskita.http.conf "$CONF_TARGET"
-  echo "[entrypoint] Using HTTP-only config: /etc/nginx/waskita.http.conf"
-fi
 
 # Optional server_name override
 if [ -n "${NGINX_SERVER_NAME:-}" ]; then
-  # Replace the first occurrence of server_name line in the server block
-  sed -i "s/^\s*server_name\s\+.*;/    server_name ${NGINX_SERVER_NAME};/" "$CONF_TARGET"
-  echo "[entrypoint] server_name set to: ${NGINX_SERVER_NAME}"
+  echo "[entrypoint] Overriding server_name to: ${NGINX_SERVER_NAME}"
+  
+  # Create temporary file for sed operation to avoid 'resource busy' error
+  sed "s/server_name localhost;/server_name ${NGINX_SERVER_NAME};/" "${CONF_TARGET}" > "${CONF_TARGET}.tmp"
+  
+  # Only move if the temp file was created successfully and is different
+  if [ -f "${CONF_TARGET}.tmp" ]; then
+    if ! cmp -s "${CONF_TARGET}" "${CONF_TARGET}.tmp"; then
+      mv -f "${CONF_TARGET}.tmp" "${CONF_TARGET}"
+      echo "[entrypoint] Server name updated successfully"
+    else
+      rm -f "${CONF_TARGET}.tmp"
+      echo "[entrypoint] Server name already set correctly"
+    fi
+  fi
 fi
 
 # Remove default server config to avoid shadowing our config

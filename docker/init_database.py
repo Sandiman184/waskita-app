@@ -257,8 +257,12 @@ def main():
         print("✅ Database schema created successfully")
         
         # Create or update admin user with consistent schema and OTP requirement
-        # Use the same password as database for consistency
-        admin_password = os.environ.get('DATABASE_PASSWORD', 'admin12345')
+        # Use environment variables for admin credentials
+        admin_username = os.environ.get('ADMIN_USERNAME', 'admin')
+        admin_email = os.environ.get('ADMIN_EMAIL', 'admin@waskita.com')
+        admin_password = os.environ.get('ADMIN_PASSWORD', os.environ.get('DATABASE_PASSWORD', 'admin12345'))
+        admin_fullname = os.environ.get('ADMIN_FULLNAME', 'Administrator Waskita')
+        
         hashed_password = generate_password_hash(admin_password, method='scrypt')
         cursor.execute(
             """
@@ -266,12 +270,14 @@ def main():
             VALUES (%s, %s, %s, 'admin', %s, TRUE, 'dark', TRUE)
             ON CONFLICT (username) DO UPDATE SET
                 password_hash = EXCLUDED.password_hash,
+                email = EXCLUDED.email,
+                full_name = EXCLUDED.full_name,
                 updated_at = CURRENT_TIMESTAMP,
                 first_login = TRUE
             """,
-            ('admin', 'admin@waskita.com', hashed_password, 'Administrator Waskita')
+            (admin_username, admin_email, hashed_password, admin_fullname)
         )
-        print("✅ Admin user ensured with first_login=TRUE (OTP required)")
+        print(f"✅ Admin user ensured: {admin_username} ({admin_email}) with first_login=TRUE (OTP required)")
         
         cursor.close()
         conn.close()

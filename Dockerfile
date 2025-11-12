@@ -37,8 +37,6 @@ RUN pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir -r requirements.txt
 
 # Copy project files
-# Ensure docker helpers are copied (entrypoint expects /app/docker/init_database.py)
-COPY docker /app/docker
 COPY . .
 
 # Normalize Windows line-endings and make entrypoint executable

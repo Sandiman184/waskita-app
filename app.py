@@ -111,6 +111,15 @@ security_middleware = SecurityMiddleware(app)
 # Initialize CSRF protection
 csrf = CSRFProtect(app)
 
+# Configure CSRF to handle first login scenarios
+@app.before_request
+def ensure_csrf_cookie():
+    """Ensure CSRF cookie is set for first-time visitors to enable login"""
+    # Generate CSRF token for all GET requests to ensure cookie is set
+    if request.method == 'GET':
+        # This ensures CSRF cookie is set for first-time visitors
+        csrf._get_csrf_token()
+
 # Initialize rate limiter
 limiter = Limiter(
     app=app,
@@ -171,6 +180,39 @@ with app.app_context():
 word2vec_model = None
 naive_bayes_models = {}
 models_loaded = False
+
+# Load models on application startup - ensure this runs regardless of how app is started
+def ensure_models_loaded():
+    """Ensure models are loaded when application starts"""
+    global word2vec_model, naive_bayes_models, models_loaded
+    
+    if models_loaded:
+        return  # Models already loaded
+    
+    disable_model_loading = os.environ.get('DISABLE_MODEL_LOADING', 'False').lower() == 'true'
+    if disable_model_loading:
+        logger.info("Model loading is disabled via DISABLE_MODEL_LOADING environment variable")
+        # Explicitly set models to None/empty in app config for route usage
+        app.config['WORD2VEC_MODEL'] = None
+        app.config['NAIVE_BAYES_MODELS'] = {}
+        models_loaded = True
+        return
+    
+    logger.info("Starting model loading on application startup...")
+    load_models()
+
+# Call model loading function during application initialization
+# This will be called when app is imported by gunicorn
+# We'll use a request hook to ensure models are loaded on first request
+@app.before_request
+def load_models_on_first_request():
+    """Load models when the first request is received"""
+    global models_loaded_first_request
+    
+    # Only load models once on first request
+    if not hasattr(app, 'models_loaded_first_request'):
+        ensure_models_loaded()
+        app.models_loaded_first_request = True
 
 # Function to load models within app context with memory optimization
 def load_models():
@@ -255,6 +297,34 @@ def load_models():
             word2vec_model = None
             naive_bayes_models = {}
 
+# Function to force reload models (for admin use)
+def force_reload_models():
+    """Force reload semua model machine learning"""
+    global word2vec_model, naive_bayes_models, models_loaded
+    
+    app.logger.info("Force reloading all ML models...")
+    
+    # Reset loaded status
+    models_loaded = False
+    
+    # Clear existing models from memory
+    word2vec_model = None
+    naive_bayes_models = {}
+    
+    # Force garbage collection
+    import gc
+    gc.collect()
+    
+    # Load models again
+    load_models()
+    
+    return {
+        'success': models_loaded,
+        'word2vec_loaded': word2vec_model is not None,
+        'naive_bayes_loaded': len(naive_bayes_models) > 0,
+        'message': 'Models reloaded successfully' if models_loaded else 'Failed to reload models'
+    }
+
 
 
 # Models already imported above
@@ -299,8 +369,6 @@ def not_found_error(error):
 def load_user(user_id):
     from models import User
     return User.query.get(int(user_id))
-
-# Load models on application startup - moved to __main__ to prevent reloading
 
 # Initialize routes
 from routes import init_routes

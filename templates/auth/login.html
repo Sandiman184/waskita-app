@@ -164,7 +164,7 @@
                     {% endwith %}
                     <form method="post" id="loginForm" aria-labelledby="login-heading" novalidate>
                         <h2 id="login-heading" class="sr-only">Form Login</h2>
-                        {{ form.hidden_tag() if form }}
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <div class="form-group">
                             <label for="username" class="sr-only">Username</label>
                             <div class="input-group mb-3">

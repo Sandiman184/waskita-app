@@ -1,203 +1,100 @@
 # 🚀 PANDUAN SETUP APLIKASI WASKITA
 
-Panduan lengkap untuk menjalankan aplikasi Waskita baik secara lokal maupun dengan Docker.
+Panduan lengkap untuk setup dan deployment aplikasi Waskita.
 
-## 📊 STATUS APLIKASI SAAT INI (JANUARI 2025)
+> **📚 Dokumentasi Terkait:** 
+> - Untuk panduan keamanan lengkap, lihat <mcfile name="SECURITY_GUIDE.md" path="docs/SECURITY_GUIDE.md"></mcfile>
+> - Untuk panduan file statis, lihat <mcfile name="STATIC_FILES_GUIDE.md" path="STATIC_FILES_GUIDE.md"></mcfile>
 
-### ✅ APLIKASI BERJALAN DENGAN BAIK
-**Environment**: Development Mode dengan Docker
-**Status**: Semua service berjalan normal
-**Versi**: Production Ready v2.0
+## 📋 DAFTAR ISI
 
-### 🐳 DOCKER CONTAINERS YANG TERDEPLOY:
-- **waskita-app-postgres**: PostgreSQL 15 (port 5432)
-- **waskita-app-redis**: Redis 7 (port 6379) 
-- **waskita-app-web**: Flask Application (port 5000)
-- **waskita-app-nginx**: Nginx Reverse Proxy (port 80/443)
-
-### 🔧 KONFIGURASI YANG BERJALAN:
-- **Database**: PostgreSQL dengan user `[POSTGRES_USER]` / `[POSTGRES_PASSWORD]`
-- **Application**: Flask dengan secret key yang aman
-- **Email**: Gmail SMTP aktif dengan OTP system
-- **Models**: Word2Vec dan Naive Bayes terload dengan baik
-- **Security**: CSRF protection, JWT, dan rate limiting aktif
+1. [🐳 Setup Docker (Rekomendasi)](#-setup-docker-rekomendasi)
+2. [💻 Setup Lokal (Development)](#-setup-lokal-development)
+3. [🔧 Konfigurasi Environment](#-konfigurasi-environment)
+4. [🗄️ Setup Database](#️-setup-database)
+5. [👤 Pembuatan Admin User](#-pembuatan-admin-user)
+6. [📋 Perintah Berguna](#-perintah-berguna)
+7. [🔍 Troubleshooting](#-troubleshooting)
+8. [🚀 Deployment Workflow](#-deployment-workflow)
 
 ---
 
-## 🚀 DOCKER PRODUCTION SETUP
+## 🐳 SETUP DOCKER (Rekomendasi)
 
-### Persyaratan Production
-- **Docker Engine**: 20.10+
-- **Docker Compose**: v2.0+
-- **Server RAM**: 8GB minimum (16GB recommended)
-- **Storage**: 50GB+ SSD recommended
-- **Network**: Stable internet connection
-- **SSL Certificate**: Untuk HTTPS (recommended)
+### Persyaratan Sistem
+- **Docker Desktop** (Windows/Mac) atau **Docker Engine** (Linux)
+- **Docker Compose** v2.0+
+- **Git** untuk clone repository
+- **4GB RAM** minimum (8GB recommended)
+- **10GB disk space** tersedia
 
-### 1. Persiapan Server Production
+### Quick Start dengan Docker (5 Menit)
 
-#### Update System
-```bash
-# Ubuntu/Debian
-sudo apt update && sudo apt upgrade -y
-
-# Install dependencies
-sudo apt install -y curl wget git htop
-```
-
-#### Install Docker (jika belum ada)
-```bash
-# Install Docker
-curl -fsSL https://get.docker.com -o get-docker.sh
-sudo sh get-docker.sh
-
-# Add user to docker group
-sudo usermod -aG docker $USER
-
-# Install Docker Compose
-sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-sudo chmod +x /usr/local/bin/docker-compose
-```
-
-### 2. Setup Production Environment
-
-#### Clone dan Setup
+#### 1. Persiapan Environment
 ```bash
 # Clone repository
 git clone https://github.com/shidayaturrohman19-dev/waskita-app.git
 cd waskita-app
 
-# Setup production environment
-cp .env.example .env.prod
+# Verifikasi Docker installation
+docker --version
+docker-compose --version
+
+# Test Docker
+docker run hello-world
 ```
 
-#### Konfigurasi .env.prod
+#### 2. Setup Environment
 ```bash
-# Database Production
-POSTGRES_DB=waskita_prod
-POSTGRES_USER=waskita_prod_user
-POSTGRES_PASSWORD=STRONG_PASSWORD_HERE
-DATABASE_URL=postgresql://waskita_prod_user:STRONG_PASSWORD_HERE@postgres:5432/waskita_prod
+# Copy template environment
+cp .env.example .env
 
-# Application Production
-SECRET_KEY=VERY_STRONG_SECRET_KEY_HERE
-FLASK_ENV=production
-WEB_PORT=5000
-
-# Security
-SECURITY_PASSWORD_SALT=RANDOM_SALT_HERE
-
-# Email Production
-MAIL_SERVER=smtp.gmail.com
-MAIL_PORT=587
-MAIL_USE_TLS=True
-MAIL_USERNAME=your-production-email@domain.com
-MAIL_PASSWORD=your-app-password
-
-# Redis Production
-REDIS_URL=redis://redis:6379/0
-
-# Production Settings
-CREATE_SAMPLE_DATA=false
-DEBUG=false
+# File .env sudah dikonfigurasi optimal untuk Docker
+# Edit sesuai kebutuhan jika diperlukan
 ```
 
-### 3. Deploy Production
-
-#### Menggunakan Docker Compose Production
+#### 3. Build dan Deploy
 ```bash
-# Build dan deploy production
-docker-compose -f docker-compose.prod.yml up -d --build
+# Metode 1: Menggunakan Script Installer (Recommended)
+# Windows PowerShell:
+.\install-build.ps1
 
-# Atau menggunakan script
-.\install-build.ps1 -Production
-```
+# Untuk clean install (hapus data lama):
+.\install-build.ps1 -Clean
 
-#### Verifikasi Production Deployment
-```bash
-# Cek status containers
-docker-compose -f docker-compose.prod.yml ps
+# Metode 2: Manual Docker Compose
+docker-compose up -d --build
 
-# Cek logs
-docker-compose -f docker-compose.prod.yml logs -f
-
-# Test aplikasi
-curl -I http://localhost:5000
-```
-
-### 4. SSL/HTTPS Setup (Recommended)
-
-#### Menggunakan Certbot + Nginx
-```bash
-# Install Certbot
-sudo apt install certbot python3-certbot-nginx
-
-# Generate SSL certificate
-sudo certbot --nginx -d yourdomain.com
-
-# Auto-renewal
-sudo crontab -e
-# Add: 0 12 * * * /usr/bin/certbot renew --quiet
-```
-
-### 5. Monitoring & Maintenance
-
-#### Health Checks
-```bash
-# Script health check
-#!/bin/bash
-# health-check.sh
-docker-compose -f docker-compose.prod.yml ps | grep -q "Up" || {
-    echo "Container down, restarting..."
-    docker-compose -f docker-compose.prod.yml restart
-}
-```
-
-#### Backup Database
-```bash
-# Backup script
-#!/bin/bash
-# backup-db.sh
-DATE=$(date +%Y%m%d_%H%M%S)
-docker-compose -f docker-compose.prod.yml exec -T postgres pg_dump -U waskita_prod_user waskita_prod > backup_$DATE.sql
-```
-
-#### Log Management
-```bash
-# Rotate logs
-docker-compose -f docker-compose.prod.yml logs --tail=1000 > app.log
-docker system prune -f
-```
-
----
-
-## 🔧 DOCKER COMMANDS & TROUBLESHOOTING
-
-### Perintah Docker Berguna
-
-#### Container Management
-```bash
-# Lihat semua containers
+# Lihat status containers
 docker-compose ps
-
-# Start/Stop/Restart services
-docker-compose start
-docker-compose stop
-docker-compose restart
-
-# Rebuild specific service
-docker-compose up -d --build app
-
-# Scale services
-docker-compose up -d --scale app=3
 ```
 
-#### Database Operations
+#### 4. Verifikasi Installation
 ```bash
-# Masuk ke database container
-docker-compose exec postgres psql -U waskita_user -d waskita_db
+# Lihat logs semua services
+docker-compose logs
 
-# Backup database
+# Test koneksi database
+docker-compose exec postgres psql -U waskita_user -d waskita_db
+```
+
+#### 5. Akses Aplikasi
+- **🌐 Web Application**: http://localhost:5000
+- **🗄️ PostgreSQL Database**: localhost:5432
+- **🔴 Redis Cache**: localhost:6379
+- **📊 Database Admin** (jika enabled): http://localhost:8080
+
+**🎯 Login Default:**
+- **👨‍💼 Admin**: admin@waskita.com / admin123
+- **👤 User**: user@test.com / user123
+
+**✅ SELESAI!** Aplikasi sudah siap digunakan dengan:
+- ✅ Database PostgreSQL otomatis terkonfigurasi
+- ✅ Admin user otomatis dibuat
+- ✅ Sample data otomatis dimuat
+- ✅ Semua dependencies terinstall
+- ✅ Redis cache aktif
+- ✅ Auto-restart containers
 docker-compose exec postgres pg_dump -U waskita_user waskita_db > backup.sql
 
 # Restore database
