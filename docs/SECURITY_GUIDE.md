@@ -765,3 +765,68 @@ Untuk pertanyaan keamanan atau melaporkan vulnerability:
 ---
 
 **Catatan**: Dokumen ini berlaku untuk lingkungan produksi Waskita. Lakukan peninjauan berkala dan audit keamanan sesuai kebijakan organisasi.
+
+---
+
+## Checklist Keamanan Setup (Production)
+
+- HTTPS/TLS
+  - Aktifkan TLS di reverse proxy (Nginx), minimal TLS 1.2
+  - Terapkan HSTS (`Strict-Transport-Security`) dengan `max-age` yang memadai
+  - Gunakan cipher suite kuat dan non‑deprecated
+
+- Cookies & Session
+  - Set `HttpOnly`, `Secure`, dan `SameSite` pada cookies sesi
+  - Konfigurasikan idle timeout dan absolute session lifetime
+  - Invalidasi sesi saat logout dan rotasi session id
+
+- Password & Autentikasi
+  - Hash password dengan Bcrypt (cost faktor sesuai performa server)
+  - Gunakan salt unik per password (default Bcrypt)
+  - Batasi percobaan login (rate limit) dan deteksi brute force
+
+- CSRF & CORS
+  - Aktifkan proteksi CSRF pada form/endpoint yang memodifikasi state
+  - Konfigurasi CORS hanya untuk origin yang diizinkan, method dan headers terbatas
+  - Nonaktifkan kredensial cross‑origin kecuali diperlukan
+
+- Input Validation & Sanitization
+  - Validasi tipe, panjang, dan pola pada semua input
+  - Sanitasi konten teks untuk mencegah XSS/SQLi
+  - Gunakan prepared statements/ORM untuk akses database
+
+- Header Keamanan
+  - `Content-Security-Policy` untuk membatasi sumber script/style
+  - `X-Frame-Options` / `Frame-Options` untuk klikjacking
+  - `X-Content-Type-Options: nosniff` dan `Referrer-Policy`
+
+- Logging & Audit
+  - Aktifkan `security_logger.py` pada jalur validasi input
+  - Pastikan `security.log` merekam login, upload, scraping, klasifikasi, dan percobaan berbahaya
+  - Rotasi log, simpan aman, dan kirim ke agregator (ELK/Cloudwatch) bila ada
+
+- Health & Observability
+  - Verifikasi endpoint `GET /api/health` tidak membocorkan informasi sensitif
+  - Tambahkan metrik dasar (request/latensi, error rate)
+  - Monitor resource (CPU, memori, disk) dan anomali trafik
+
+- Secrets Management
+  - Simpan secrets di environment, jangan commit `.env`
+  - Batasi akses file konfigurasi dan audit perubahan
+  - Gunakan vault/secret manager jika tersedia
+
+- Database & Network
+  - Least privilege untuk user database, pisahkan user aplikasi dari admin
+  - Nonaktifkan akses publik langsung ke database; gunakan network segmentation
+  - Backup berkala dan uji restore
+
+- Rate Limiting & Proteksi
+  - Terapkan rate limit pada endpoint login dan upload
+  - Deteksi pola mencurigakan (XSS/SQLi) di middleware; blokir/mark suspicious requests
+
+### Langkah Verifikasi Cepat
+
+- Header TLS/HSTS: `curl -I https://yourdomain.com`
+- Health check: `curl -f https://yourdomain.com/api/health`
+- Cookies aman: cek `Set-Cookie` mengandung `HttpOnly; Secure; SameSite`
+- Security log aktif: lakukan input mencurigakan dan pastikan entri muncul di `security.log`
