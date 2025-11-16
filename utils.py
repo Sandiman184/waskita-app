@@ -950,6 +950,20 @@ def get_apify_run_progress(run_id):
             'error': str(e)
         }
 
+def abort_apify_run(run_id):
+    """
+    Abort a running Apify actor run
+    Returns True if abort request was accepted
+    """
+    try:
+        config = get_apify_config()
+        abort_url = f"{config['base_url']}/actor-runs/{run_id}/abort"
+        headers = {'Authorization': f"Bearer {config['api_token']}"}
+        resp = requests.post(abort_url, headers=headers)
+        return resp.status_code in (200, 202)
+    except Exception:
+        return False
+
 
 def scrape_with_apify(platform, keyword, date_from=None, date_to=None, max_results=25, instagram_params=None):
     """

@@ -288,19 +288,23 @@
                                     <select class="form-control" id="scrapingContentColumn" required>
                                         <option value="">Pilih kolom content...</option>
                                     </select>
+                                    <small class="form-text text-muted" id="scrapingContentHint"></small>
                                 </div>
                                 <div class="mb-3">
                                     <label for="scrapingUsernameColumn" class="form-label">Username</label>
                                     <select class="form-control" id="scrapingUsernameColumn">
                                         <option value="">Pilih kolom username...</option>
                                     </select>
+                                    <small class="form-text text-muted" id="scrapingUsernameHint"></small>
                                 </div>
                                 <div class="mb-0">
                                     <label for="scrapingUrlColumn" class="form-label">URL</label>
                                     <select class="form-control" id="scrapingUrlColumn">
                                         <option value="">Pilih kolom URL...</option>
                                     </select>
-                                </div>
+                                    <small class="form-text text-muted" id="scrapingUrlHint"></small>
+                            </div>
+                        <div id="scrapingStatus" class="alert d-none mt-2"></div>
                             </div>
                         </div>
                     </div>
@@ -620,6 +624,8 @@ function trackRealTimeProgress(runId, jobId, responseData, startTime) {
         scrapingInterval = null;
     }
     
+    // Store current run id globally for possible abort
+    window.currentRunId = runId;
     scrapingInterval = setInterval(function() {
         if (!isScrapingActive) {
             clearInterval(scrapingInterval);
@@ -681,7 +687,7 @@ function trackRealTimeProgress(runId, jobId, responseData, startTime) {
                 }
             }
         });
-    }, 2000); // Check every 2 seconds
+    }, 1000); // Check every 1 second
 }
 
 function trackSimulatedProgress(jobId, responseData, startTime) {
@@ -809,6 +815,10 @@ function updateProgressUI(progressData, startTime, jobId, responseData) {
     $('#dataFound').text(itemsProcessed);
     $('#foundCount').text(itemsProcessed);
     $('#successCount').text(itemsProcessed);
+    const dup = progressData.duplicates || progressData.items_duplicate || progressData.duplicate_count || 0;
+    const err = progressData.errors || progressData.items_failed || progressData.error_count || 0;
+    $('#duplicateCount').text(dup);
+    $('#errorCount').text(err);
     
     // Calculate processing rate
     const processingRate = elapsed > 0 ? (itemsProcessed / elapsed).toFixed(1) : '0.0';
@@ -919,6 +929,18 @@ function stopScraping() {
             
             // Reset progress fallback flag
             window.progressFallbackUsed = false;
+            
+            // Attempt to abort server-side scraping run if available
+            if (window.currentRunId) {
+                $.ajax({
+                    url: '/api/scraping/abort/' + window.currentRunId,
+                    type: 'POST',
+                    headers: { 'X-CSRFToken': $('meta[name=csrf-token]').attr('content') },
+                    complete: function() {
+                        window.currentRunId = null;
+                    }
+                });
+            }
             
             // Reset UI
             $('#scrapingBtn').show();
@@ -1336,6 +1358,11 @@ function showScrapingColumnMappingModal(response) {
     
     // Store job data for later use
     window.currentScrapingJobData = response;
+    window.scrapingColumns = response.columns || [];
+    window.scrapingSampleData = response.sample_data || [];
+    updateScrapingTypeHints();
+    bindScrapingMappingChangeHandlers();
+    scheduleScrapingStatusUpdate();
 }
 
 // Function to auto-suggest column mappings
@@ -1411,6 +1438,122 @@ function populateScrapingPreviewTable(sampleData, columns) {
         bodyContainer.append(rowHtml);
     }
 }
+function scrapingIsUrl(v) {
+    var s = String(v || '').trim();
+    return /^https?:\/\//.test(s);
+}
+function scrapingIsUsernameLike(v) {
+    var s = String(v || '').trim();
+    if (s.startsWith('@')) s = s.slice(1);
+    return /^[a-zA-Z0-9_]{3,50}$/.test(s);
+}
+function scrapingIsTextLike(v) {
+    var s = String(v || '').trim();
+    if (!s) return false;
+    if (scrapingIsUrl(s)) return false;
+    return s.length >= 10;
+}
+function scrapingRatioFor(column, predicate) {
+    if (!column || !window.scrapingSampleData) return 0;
+    var items = window.scrapingSampleData.slice(0, 50);
+    var total = items.length || 1;
+    var count = 0;
+    for (var i = 0; i < items.length; i++) {
+        var val = items[i][column] || '';
+        if (predicate(val)) count++;
+    }
+    return count / total;
+}
+function updateScrapingTypeHints() {
+    var c = $('#scrapingContentColumn').val();
+    var u = $('#scrapingUsernameColumn').val();
+    var r = $('#scrapingUrlColumn').val();
+    var cu = scrapingRatioFor(c, scrapingIsUrl);
+    var ct = scrapingRatioFor(c, scrapingIsTextLike);
+    var uu = scrapingRatioFor(u, scrapingIsUrl);
+    var ur = scrapingRatioFor(r, scrapingIsUrl);
+    var ul = scrapingRatioFor(r, scrapingIsUsernameLike);
+    $('#scrapingContentHint').text(c ? ('Deteksi: teks ' + Math.round(ct*100) + '%; URL ' + Math.round(cu*100) + '%') : '');
+    $('#scrapingUsernameHint').text(u ? ('Deteksi: username ' + Math.round(scrapingRatioFor(u, scrapingIsUsernameLike)*100) + '%; URL ' + Math.round(uu*100) + '%') : '');
+    $('#scrapingUrlHint').text(r ? ('Deteksi: URL ' + Math.round(ur*100) + '%; username ' + Math.round(ul*100) + '%') : '');
+}
+function recommendScrapingColumns(role) {
+    var cols = window.scrapingColumns || [];
+    var scored = cols.map(function(col){
+        var score;
+        if (role === 'content') score = scrapingRatioFor(col, scrapingIsTextLike);
+        else if (role === 'username') score = scrapingRatioFor(col, scrapingIsUsernameLike) - scrapingRatioFor(col, scrapingIsUrl);
+        else score = scrapingRatioFor(col, scrapingIsUrl) - scrapingRatioFor(col, scrapingIsUsernameLike);
+        return { col: col, score: score };
+    }).sort(function(a,b){ return b.score - a.score; });
+    return scored.slice(0,3).map(function(x){ return x.col; });
+}
+function analyzeScrapingSelection() {
+    var c = $('#scrapingContentColumn').val();
+    var u = $('#scrapingUsernameColumn').val();
+    var r = $('#scrapingUrlColumn').val();
+    var cu = scrapingRatioFor(c, scrapingIsUrl);
+    var ct = scrapingRatioFor(c, scrapingIsTextLike);
+    var uu = scrapingRatioFor(u, scrapingIsUrl);
+    var ulike = scrapingRatioFor(u, scrapingIsUsernameLike);
+    var ur = scrapingRatioFor(r, scrapingIsUrl);
+    var ul = scrapingRatioFor(r, scrapingIsUsernameLike);
+    var warnings = [];
+    if (c && (ct < 0.5 || cu >= 0.5)) warnings.push('Kolom Content tidak terdeteksi sebagai teks pada mayoritas data');
+    if (u && uu >= 0.7) warnings.push('Kolom Username terdeteksi mayoritas berupa URL');
+    if (u && ulike < 0.5) warnings.push('Kolom Username tidak terdeteksi sebagai username pada mayoritas data');
+    if (r && ur < 0.7) warnings.push('Kolom URL tidak terdeteksi sebagai URL pada mayoritas data');
+    if (r && ul >= 0.7) warnings.push('Kolom URL terdeteksi mayoritas berupa Username');
+    var rec = {
+        content: recommendScrapingColumns('content'),
+        username: recommendScrapingColumns('username'),
+        url: recommendScrapingColumns('url')
+    };
+    return { warnings: warnings, recommendations: rec };
+}
+function bindScrapingMappingChangeHandlers() {
+    $('#scrapingContentColumn, #scrapingUsernameColumn, #scrapingUrlColumn').off('change').on('change', function(){
+        updateScrapingTypeHints();
+        scheduleScrapingStatusUpdate();
+    });
+}
+
+var scrapingStatusTimer = null;
+function scheduleScrapingStatusUpdate() {
+    if (scrapingStatusTimer) {
+        clearTimeout(scrapingStatusTimer);
+    }
+    scrapingStatusTimer = setTimeout(updateScrapingStatus, 300);
+}
+function updateScrapingStatus() {
+    var c = $('#scrapingContentColumn').val();
+    var u = $('#scrapingUsernameColumn').val();
+    var r = $('#scrapingUrlColumn').val();
+    var el = $('#scrapingStatus');
+    if (!c && !u && !r) {
+        el.addClass('d-none');
+        return;
+    }
+    var cu = scrapingRatioFor(c, scrapingIsUrl), ct = scrapingRatioFor(c, scrapingIsTextLike);
+    var uu = scrapingRatioFor(u, scrapingIsUrl), ulike = scrapingRatioFor(u, scrapingIsUsernameLike);
+    var ur = scrapingRatioFor(r, scrapingIsUrl), ul = scrapingRatioFor(r, scrapingIsUsernameLike);
+    var severe = (c && (ct < 0.5 || cu >= 0.5)) || (u && uu >= 0.7) || (r && (ur < 0.7 || ul >= 0.7));
+    var warnings = [];
+    if (c && (ct < 0.5 || cu >= 0.5)) warnings.push('Content bukan teks');
+    if (u && uu >= 0.7) warnings.push('Username tampak URL');
+    if (u && ulike < 0.5) warnings.push('Username bukan username');
+    if (r && ur < 0.7) warnings.push('URL bukan tautan');
+    if (r && ul >= 0.7) warnings.push('URL tampak username');
+    if (!warnings.length) {
+        el.removeClass('d-none alert-warning alert-danger').addClass('alert-success').text('Pemetaan aman').show();
+    } else {
+        var res = analyzeScrapingSelection();
+        var rec = res.recommendations || {};
+        var recText = 'Saran: C ' + ((rec.content||[]).join(', ') || '-') + ' | U ' + ((rec.username||[]).join(', ') || '-') + ' | URL ' + ((rec.url||[]).join(', ') || '-');
+        var msg = warnings.join(' • ');
+        el.removeClass('d-none alert-success').addClass(severe ? 'alert-danger' : 'alert-warning').text((msg ? ('Periksa: ' + msg + ' — ') : '') + recText).show();
+    }
+}
 
 // Handle process scraping mapping button click
 $('#processScrapingMapping').on('click', function() {
@@ -1420,11 +1563,7 @@ $('#processScrapingMapping').on('click', function() {
     
     // Validate required fields
     if (!contentColumn) {
-        Swal.fire({
-            icon: 'warning',
-            title: 'Kolom Content Diperlukan',
-            text: 'Silakan pilih kolom untuk Content'
-        });
+        swalError('Kolom Content Diperlukan', 'Silakan pilih kolom untuk Content');
         return;
     }
     
@@ -1437,10 +1576,41 @@ $('#processScrapingMapping').on('click', function() {
         username_column: usernameColumn || null,
         url_column: urlColumn || null
     };
-    
+    var analysis = analyzeScrapingSelection();
+    if (analysis.warnings.length) {
+        var c = $('#scrapingContentColumn').val();
+        var cu = scrapingRatioFor(c, scrapingIsUrl);
+        var ct = scrapingRatioFor(c, scrapingIsTextLike);
+        var u = $('#scrapingUsernameColumn').val();
+        var uu = scrapingRatioFor(u, scrapingIsUrl);
+        var r = $('#scrapingUrlColumn').val();
+        var ur = scrapingRatioFor(r, scrapingIsUrl);
+        var ul = scrapingRatioFor(r, scrapingIsUsernameLike);
+        var severe = (c && (ct < 0.5 || cu >= 0.5)) || (u && uu >= 0.7) || (r && (ur < 0.7 || ul >= 0.7));
+        var html = '<ul>' + analysis.warnings.map(function(w){ return '<li>'+w+'</li>'; }).join('') + '</ul>' +
+                   '<div>Rekomendasi kolom:</div>' +
+                   '<div>Content: ' + (analysis.recommendations.content.join(', ') || '-') + '</div>' +
+                   '<div>Username: ' + (analysis.recommendations.username.join(', ') || '-') + '</div>' +
+                   '<div>URL: ' + (analysis.recommendations.url.join(', ') || '-') + '</div>';
+        if (severe) {
+            swalError('Validasi Mapping', html);
+            $('#processScrapingMapping').prop('disabled', false).text('Proses Data');
+            return;
+        } else {
+            swalConfirm(html).then(function(result){
+                if (result && result.isConfirmed) {
+                    sendScrapingAjax(mappingData);
+                } else {
+                    $('#processScrapingMapping').prop('disabled', false).text('Proses Data');
+                }
+            });
+            return;
+        }
+    }
+    sendScrapingAjax(mappingData);
+});
 
-    
-    // Send mapping data to backend
+function sendScrapingAjax(mappingData) {
     $.ajax({
         url: '/process_scraping_column_mapping',
         type: 'POST',
@@ -1451,37 +1621,23 @@ $('#processScrapingMapping').on('click', function() {
         },
         success: function(response) {
             if (response.success) {
-                shouldResetScrapingModal = true; // Set flag to reset modal after successful processing
+                shouldResetScrapingModal = true;
                 $('#scrapingColumnMappingModal').modal('hide');
-                
-                // Set lastScrapingDatasetId from response
                 if (response.dataset_id) {
                     lastScrapingDatasetId = response.dataset_id;
                 }
-                
-                // IMMEDIATELY reset scraping UI state
                 isScrapingActive = false;
-                
-                // Clear any running intervals
                 if (scrapingInterval) {
                     clearInterval(scrapingInterval);
                     scrapingInterval = null;
                 }
-                
-                // Reset UI buttons immediately
                 $('#scrapingBtn').show();
                 $('#stopBtn').hide();
-                
-                // Ensure progress bar is hidden immediately after mapping
                 $('#scrapingProgress').addClass('d-none-custom').removeClass('show-progress').hide();
-                
-                // Reset progress bar values
                 $('.custom-progress-bar').css('width', '0%').attr('aria-valuenow', 0);
                 $('.progress-percentage').text('0%');
                 $('.progress-inner-text').text('');
                 $('.progress-text').text('Siap untuk scraping...');
-                
-                // Show success message immediately without progress bar
                 Swal.fire({
                     icon: 'success',
                     title: 'Data Berhasil Disimpan',
@@ -1493,48 +1649,32 @@ $('#processScrapingMapping').on('click', function() {
                     if (result.isConfirmed && response.dataset_id) {
                         window.location.href = `/dataset/${response.dataset_id}/details`;
                     }
-                    
-                    // Reset form and update statistics after dialog
                     resetForm();
                     updateStatistics();
-                    
-                    // Add delay to ensure database transaction is committed before refreshing history
                     setTimeout(function() {
                         loadScrapingHistoryWithoutReinit();
-                    }, 500); // 500ms delay
-                    
+                    }, 500);
                     if (response.dataset_id) {
                         $('#viewResultsBtn').removeClass('d-none');
                     }
                 });
-                
-                // Clear pending data
                 window.pendingScrapingData = null;
             } else {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Error',
-                    text: response.message || 'Gagal memproses mapping kolom'
-                });
+                swalError('Error', response.message || 'Gagal memproses mapping kolom');
             }
         },
         error: function(xhr) {
-            let errorMsg = 'Terjadi kesalahan saat memproses mapping';
+            var errorMsg = 'Terjadi kesalahan saat memproses mapping';
             if (xhr.responseJSON && xhr.responseJSON.message) {
                 errorMsg = xhr.responseJSON.message;
             }
-            
-            Swal.fire({
-                icon: 'error',
-                title: 'Error',
-                text: errorMsg
-            });
+            swalError('Error', errorMsg);
         },
         complete: function() {
             $('#processScrapingMapping').prop('disabled', false).text('Proses Data');
         }
     });
-});
+}
 
 // Variable to track if modal should be reset
 let shouldResetScrapingModal = false;

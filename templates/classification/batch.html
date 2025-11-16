@@ -402,9 +402,8 @@ function startBatchClassification() {
                 });
                 
                 if (typeof swalConfirm === 'function') {
-                    swalConfirm(`Anda akan mengklasifikasi semua ${allData.length} data dalam dataset ini. Apakah Anda yakin ingin melanjutkan?`, {
-                        title: 'Konfirmasi Klasifikasi Batch',
-                        confirmButtonText: 'Ya, Klasifikasi Semua',
+                    swalConfirm(`Klasifikasi ${allData.length} data. Lanjutkan?`, {
+                        confirmButtonText: 'Klasifikasi',
                         cancelButtonText: 'Batal',
                         confirmButtonColor: '#28a745',
                         cancelButtonColor: '#6c757d'
@@ -415,13 +414,13 @@ function startBatchClassification() {
                     });
                 } else {
                     Swal.fire({
-                        title: 'Konfirmasi Klasifikasi Batch',
-                        text: `Anda akan mengklasifikasi semua ${allData.length} data dalam dataset ini. Apakah Anda yakin ingin melanjutkan?`,
+                        title: 'Klasifikasi Batch',
+                        text: `Klasifikasi semua ${allData.length} data. Lanjutkan?`,
                         icon: 'question',
                         showCancelButton: true,
                         confirmButtonColor: '#28a745',
                         cancelButtonColor: '#6c757d',
-                        confirmButtonText: 'Ya, Klasifikasi Semua',
+                        confirmButtonText: 'Klasifikasi',
                         cancelButtonText: 'Batal',
                         customClass: {
                             popup: 'swal2-popup',
@@ -635,14 +634,17 @@ function startOptimizedProgressPolling(datasetId) {
             success: function(response) {
                 if (response.success) {
                     const datasetStatus = response.dataset.status;
-                    
-                    // Update progress text based on status
+                    const totalItems = response.dataset.total_items || 0;
+                    const processedItems = response.dataset.processed_items || 0;
+                    const pct = Math.max(0, Math.min(100, parseInt(response.dataset.progress_percentage || (totalItems ? Math.floor((processedItems/totalItems)*100) : 0))));
+
+                    $('#progressBar').css('width', pct + '%').text(pct + '%');
                     $('#progressText').html(`
                         <i class="fas fa-sync-alt fa-spin mr-1"></i>
-                        Status: ${datasetStatus}
+                        Status: ${datasetStatus} · ${processedItems}/${totalItems}
                     `);
                     
-                    if (datasetStatus === 'Terklasifikasi') {
+                    if (datasetStatus === 'Terklasifikasi' || pct === 100) {
                         // Klasifikasi selesai, redirect ke hasil klasifikasi
                         setTimeout(() => {
                             if (typeof swalSuccess === 'function') {

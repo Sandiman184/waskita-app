@@ -3164,6 +3164,41 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                     'success': False,
                     'message': f'Kolom {content_column} tidak ditemukan dalam file'
                 }), 400
+
+            def _is_url(v):
+                s = str(v).strip()
+                return bool(re.match(r'^https?://', s))
+
+            def _is_username_like(v):
+                s = str(v).strip()
+                if s.startswith('@'):
+                    s = s[1:]
+                ok, _val = SecurityValidator.validate_username(s)
+                return ok
+
+            def _is_text_like(v):
+                s = str(v).strip()
+                return (len(s) >= 10) and (not _is_url(s))
+
+            try:
+                sample_cols = [c for c in [content_column, username_column, url_column] if c and c in df.columns]
+                sample_df = df[sample_cols].head(50).fillna('') if sample_cols else pd.DataFrame()
+                if not sample_df.empty:
+                    cu = sample_df[content_column].apply(_is_url).mean() if content_column in sample_df.columns else 0
+                    ct = sample_df[content_column].apply(_is_text_like).mean() if content_column in sample_df.columns else 0
+                    uu = sample_df[username_column].apply(_is_url).mean() if username_column and username_column in sample_df.columns else 0
+                    ur = sample_df[url_column].apply(_is_url).mean() if url_column and url_column in sample_df.columns else 0
+                    ul = sample_df[url_column].apply(_is_username_like).mean() if url_column and url_column in sample_df.columns else 0
+                    if ct < 0.5 or cu >= 0.5:
+                        return jsonify({'success': False, 'message': 'Kolom content tidak terdeteksi sebagai teks pada mayoritas data'}), 400
+                    if username_column and uu >= 0.7:
+                        return jsonify({'success': False, 'message': 'Kolom username terdeteksi mayoritas berupa URL. Periksa pemetaan kolom.'}), 400
+                    if url_column and ur < 0.7:
+                        return jsonify({'success': False, 'message': 'Kolom url tidak terdeteksi sebagai URL pada mayoritas data. Periksa pemetaan kolom.'}), 400
+                    if url_column and ul >= 0.7:
+                        return jsonify({'success': False, 'message': 'Kolom url terdeteksi mayoritas berupa username. Periksa pemetaan kolom.'}), 400
+            except Exception as _e:
+                pass
             
             # Create or get existing dataset
             dataset = Dataset.query.filter_by(name=dataset_name, uploaded_by=current_user.id).first()
@@ -3178,6 +3213,22 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
             
             # Save data to database
             records_added = 0
+            def _extract_username(u):
+                s = str(u).strip()
+                if s.startswith('@'):
+                    s = s[1:]
+                if _is_url(s):
+                    m = re.search(r'(?:twitter|x)\.com/([^/?#]+)', s)
+                    if not m:
+                        m = re.search(r'instagram\.com/([^/?#]+)', s)
+                    if not m:
+                        m = re.search(r'tiktok\.com/@([^/?#]+)', s) or re.search(r'tiktok\.com/([^/?#]+)/', s)
+                    if not m:
+                        m = re.search(r'facebook\.com/([^/?#]+)', s)
+                    if m:
+                        return m.group(1)
+                    return ''
+                return s
             for _, row in df.iterrows():
                 if pd.notna(row[content_column]) and str(row[content_column]).strip():
                     content_text = str(row[content_column]).strip()
@@ -3185,6 +3236,7 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                     # Get mapped values
                     url_value = row.get(url_column, '') if url_column and url_column in df.columns else ''
                     username_value = row.get(username_column, 'unknown') if username_column and username_column in df.columns else 'unknown'
+                    username_value = _extract_username(username_value) or 'unknown'
                     
                     # Ensure username is not empty
                     if not username_value or not str(username_value).strip():
@@ -3378,6 +3430,35 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                         'success': False,
                         'message': f'Kolom {content_column} tidak ditemukan dalam data scraping'
                     }), 400
+            def _is_url(v):
+                s = str(v).strip()
+                return bool(re.match(r'^https?://', s))
+            def _is_username_like(v):
+                s = str(v).strip()
+                if s.startswith('@'):
+                    s = s[1:]
+                ok, _val = SecurityValidator.validate_username(s)
+                return ok
+            def _is_text_like(v):
+                s = str(v).strip()
+                return (len(s) >= 10) and (not _is_url(s))
+            try:
+                sample = scraped_data[:50]
+                cu = sum(1 for d in sample if _is_url(d.get(content_column,'')))/len(sample) if sample else 0
+                ct = sum(1 for d in sample if _is_text_like(d.get(content_column,'')))/len(sample) if sample else 0
+                uu = sum(1 for d in sample if _is_url(d.get(username_column,'')))/len(sample) if sample and username_column else 0
+                ur = sum(1 for d in sample if _is_url(d.get(url_column,'')))/len(sample) if sample and url_column else 0
+                ul = sum(1 for d in sample if _is_username_like(d.get(url_column,'')))/len(sample) if sample and url_column else 0
+                if ct < 0.5 or cu >= 0.5:
+                    return jsonify({'success': False, 'message': 'Kolom content tidak terdeteksi sebagai teks pada mayoritas data'}), 400
+                if username_column and uu >= 0.7:
+                    return jsonify({'success': False, 'message': 'Kolom username terdeteksi mayoritas berupa URL. Periksa pemetaan kolom.'}), 400
+                if url_column and ur < 0.7:
+                    return jsonify({'success': False, 'message': 'Kolom url tidak terdeteksi sebagai URL pada mayoritas data. Periksa pemetaan kolom.'}), 400
+                if url_column and ul >= 0.7:
+                    return jsonify({'success': False, 'message': 'Kolom url terdeteksi mayoritas berupa username. Periksa pemetaan kolom.'}), 400
+            except Exception as _e:
+                pass
             
             # Get dataset
             dataset = Dataset.query.get(dataset_id)
@@ -3404,6 +3485,23 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                     continue
                 
                 # Ensure username is not empty
+                def _extract_username(u):
+                    s = str(u).strip()
+                    if s.startswith('@'):
+                        s = s[1:]
+                    if _is_url(s):
+                        m = re.search(r'(?:twitter|x)\.com/([^/?#]+)', s)
+                        if not m:
+                            m = re.search(r'instagram\.com/([^/?#]+)', s)
+                        if not m:
+                            m = re.search(r'tiktok\.com/@([^/?#]+)', s) or re.search(r'tiktok\.com/([^/?#]+)/', s)
+                        if not m:
+                            m = re.search(r'facebook\.com/([^/?#]+)', s)
+                        if m:
+                            return m.group(1)
+                        return ''
+                    return s
+                username_value = _extract_username(username_value) or username_value
                 if not username_value or not str(username_value).strip():
                     username_value = 'unknown'
                 
@@ -4896,14 +4994,32 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
             if not has_permission:
                 return jsonify({'success': False, 'error': message}), http_status
             
-            # Return dataset status in JSON format
+            total_upload = db.session.query(func.count(CleanDataUpload.id)).filter(CleanDataUpload.dataset_id == dataset_id).scalar() or 0
+            total_scraper = db.session.query(func.count(CleanDataScraper.id)).filter(CleanDataScraper.dataset_id == dataset_id).scalar() or 0
+            total_items = int(total_upload) + int(total_scraper)
+
+            processed_upload = db.session.query(func.count(func.distinct(ClassificationResult.data_id))).join(CleanDataUpload, ClassificationResult.data_id == CleanDataUpload.id).filter(ClassificationResult.data_type == 'upload', CleanDataUpload.dataset_id == dataset_id, ClassificationResult.classified_by == current_user.id).scalar() or 0
+            processed_scraper = db.session.query(func.count(func.distinct(ClassificationResult.data_id))).join(CleanDataScraper, ClassificationResult.data_id == CleanDataScraper.id).filter(ClassificationResult.data_type == 'scraper', CleanDataScraper.dataset_id == dataset_id, ClassificationResult.classified_by == current_user.id).scalar() or 0
+            processed_items = int(processed_upload) + int(processed_scraper)
+
+            progress_percentage = 0
+            if total_items > 0:
+                progress_percentage = int((processed_items / total_items) * 100)
+                if progress_percentage > 100:
+                    progress_percentage = 100
+                if progress_percentage < 0:
+                    progress_percentage = 0
+
             return jsonify({
                 'success': True,
                 'dataset': {
                     'id': dataset.id,
                     'name': dataset.name,
                     'status': dataset.status,
-                    'updated_at': dataset.updated_at.isoformat() if dataset.updated_at else None
+                    'updated_at': dataset.updated_at.isoformat() if dataset.updated_at else None,
+                    'total_items': total_items,
+                    'processed_items': processed_items,
+                    'progress_percentage': progress_percentage
                 }
             })
             
@@ -5376,6 +5492,11 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                 else:
                     progress_info['time_remaining_formatted'] = f"{remaining_seconds}s"
             
+            # Logging setiap perubahan progress
+            try:
+                app.logger.info(f"Scraping progress run={run_id} status={progress_info.get('status')} pct={round(float(progress_info.get('progress_percentage', 0)), 2)} items={progress_info.get('items_processed', 0)}")
+            except Exception:
+                pass
             return jsonify(progress_info)
             
         except Exception as e:
@@ -5386,6 +5507,19 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                 'status_message': 'Terjadi kesalahan saat mengecek progress.',
                 'error': str(e)
             }), 500
+
+    @app.route('/api/scraping/abort/<run_id>', methods=['POST'])
+    @login_required
+    def abort_scraping_run(run_id):
+        """Abort Apify actor run for scraping"""
+        try:
+            from utils import abort_apify_run
+            ok = abort_apify_run(run_id)
+            app.logger.info(f"Abort request for run {run_id}: {'OK' if ok else 'FAILED'}")
+            return jsonify({'success': ok, 'run_id': run_id})
+        except Exception as e:
+            app.logger.error(f"Error aborting run {run_id}: {e}")
+            return jsonify({'success': False, 'error': str(e)}), 500
     
     @app.route('/api/scraping/statistics')
     @login_required

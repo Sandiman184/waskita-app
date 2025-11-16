@@ -183,6 +183,7 @@
                                     <select class="form-control" id="contentColumnSelect" required>
                                         <option value="">-- Pilih Kolom Content --</option>
                                     </select>
+                                <small class="form-text text-muted" id="contentTypeHint"></small>
                                 </div>
                                 
                                 <div class="form-group">
@@ -190,6 +191,7 @@
                                     <select class="form-control" id="usernameColumnSelect">
                                         <option value="">-- Pilih Kolom Username --</option>
                                     </select>
+                                <small class="form-text text-muted" id="usernameTypeHint"></small>
                                 </div>
                                 
                                 <div class="form-group mb-0">
@@ -197,7 +199,9 @@
                                     <select class="form-control" id="urlColumnSelect">
                                         <option value="">-- Pilih Kolom URL --</option>
                                     </select>
+                                <small class="form-text text-muted" id="urlTypeHint"></small>
                                 </div>
+                                <div id="mappingStatus" class="alert d-none mt-2"></div>
                             </div>
                         </div>
                     </div>
@@ -686,6 +690,11 @@ function showColumnMappingModal(columns, sampleData, filename) {
         // Restore wrapper state after modal is completely hidden
         $('.wrapper').removeAttr('aria-hidden');
     });
+    window.currentColumns = columns;
+    window.currentSampleData = sampleData;
+    updateTypeHints();
+    bindMappingChangeHandlers();
+    scheduleStatusUpdate();
 }
 
 function autoSuggestColumns(columns) {
@@ -744,6 +753,132 @@ function populatePreviewTable(columns, sampleData) {
         $('#previewTableBody').append(rowHtml);
     });
 }
+function isUrl(v) {
+    var s = String(v || '').trim();
+    return /^https?:\/\//.test(s);
+}
+function isUsernameLike(v) {
+    var s = String(v || '').trim();
+    if (s.startsWith('@')) s = s.slice(1);
+    return /^[a-zA-Z0-9_]{3,50}$/.test(s);
+}
+function isTextLike(v) {
+    var s = String(v || '').trim();
+    if (!s) return false;
+    if (isUrl(s)) return false;
+    return s.length >= 10;
+}
+function ratioFor(column, predicate) {
+    if (!column || !window.currentSampleData) return 0;
+    var items = window.currentSampleData.slice(0, 50);
+    var total = items.length || 1;
+    var count = 0;
+    for (var i = 0; i < items.length; i++) {
+        var val = items[i][column] || '';
+        if (predicate(val)) count++;
+    }
+    return count / total;
+}
+function updateTypeHints() {
+    var c = $('#contentColumnSelect').val();
+    var u = $('#usernameColumnSelect').val();
+    var r = $('#urlColumnSelect').val();
+    var cu = ratioFor(c, isUrl);
+    var ct = ratioFor(c, isTextLike);
+    var uu = ratioFor(u, isUrl);
+    var ur = ratioFor(r, isUrl);
+    var ul = ratioFor(r, isUsernameLike);
+    $('#contentTypeHint').text(c ? ('Deteksi: teks ' + Math.round(ct*100) + '%; URL ' + Math.round(cu*100) + '%') : '');
+    $('#usernameTypeHint').text(u ? ('Deteksi: username ' + Math.round(ratioFor(u, isUsernameLike)*100) + '%; URL ' + Math.round(uu*100) + '%') : '');
+    $('#urlTypeHint').text(r ? ('Deteksi: URL ' + Math.round(ur*100) + '%; username ' + Math.round(ul*100) + '%') : '');
+}
+function recommendColumns(role) {
+    var cols = window.currentColumns || [];
+    var scored = cols.map(function(col){
+        var score;
+        if (role === 'content') score = ratioFor(col, isTextLike);
+        else if (role === 'username') score = ratioFor(col, isUsernameLike) - ratioFor(col, isUrl);
+        else score = ratioFor(col, isUrl) - ratioFor(col, isUsernameLike);
+        return { col: col, score: score };
+    }).sort(function(a,b){ return b.score - a.score; });
+    return scored.slice(0,3).map(function(x){ return x.col; });
+}
+function analyzeSelection() {
+    var c = $('#contentColumnSelect').val();
+    var u = $('#usernameColumnSelect').val();
+    var r = $('#urlColumnSelect').val();
+    var cu = ratioFor(c, isUrl);
+    var ct = ratioFor(c, isTextLike);
+    var uu = ratioFor(u, isUrl);
+    var ulike = ratioFor(u, isUsernameLike);
+    var ur = ratioFor(r, isUrl);
+    var ul = ratioFor(r, isUsernameLike);
+    var warnings = [];
+    if (c && (ct < 0.5 || cu >= 0.5)) warnings.push('Kolom Content tidak terdeteksi sebagai teks pada mayoritas data');
+    if (u && uu >= 0.7) warnings.push('Kolom Username terdeteksi mayoritas berupa URL');
+    if (u && ulike < 0.5) warnings.push('Kolom Username tidak terdeteksi sebagai username pada mayoritas data');
+    if (r && ur < 0.7) warnings.push('Kolom URL tidak terdeteksi sebagai URL pada mayoritas data');
+    if (r && ul >= 0.7) warnings.push('Kolom URL terdeteksi mayoritas berupa Username');
+    var rec = {
+        content: recommendColumns('content'),
+        username: recommendColumns('username'),
+        url: recommendColumns('url')
+    };
+    return { warnings: warnings, recommendations: rec };
+}
+function showMappingWarningsInteractive() {
+    var res = analyzeSelection();
+    if (!res.warnings.length) return;
+    var html = '<ul>' + res.warnings.map(function(w){ return '<li>'+w+'</li>'; }).join('') + '</ul>' +
+               '<div>Rekomendasi kolom:</div>' +
+               '<div>Content: ' + (res.recommendations.content.join(', ') || '-') + '</div>' +
+               '<div>Username: ' + (res.recommendations.username.join(', ') || '-') + '</div>' +
+               '<div>URL: ' + (res.recommendations.url.join(', ') || '-') + '</div>';
+    swalWarning(html, { title: 'Peringatan Mapping' });
+}
+function bindMappingChangeHandlers() {
+    $('#contentColumnSelect, #usernameColumnSelect, #urlColumnSelect').off('change').on('change', function(){
+        updateTypeHints();
+        scheduleStatusUpdate();
+    });
+}
+
+var mappingStatusTimer = null;
+function scheduleStatusUpdate() {
+    if (mappingStatusTimer) {
+        clearTimeout(mappingStatusTimer);
+    }
+    mappingStatusTimer = setTimeout(updateMappingStatus, 300);
+}
+function updateMappingStatus() {
+    var c = $('#contentColumnSelect').val();
+    var u = $('#usernameColumnSelect').val();
+    var r = $('#urlColumnSelect').val();
+    var el = $('#mappingStatus');
+    if (!c && !u && !r) {
+        el.addClass('d-none');
+        return;
+    }
+    var res = analyzeSelection();
+    var cUrl = ratioFor(c, isUrl), cText = ratioFor(c, isTextLike);
+    var uUrl = ratioFor(u, isUrl), uLike = ratioFor(u, isUsernameLike);
+    var rUrl = ratioFor(r, isUrl), rLike = ratioFor(r, isUsernameLike);
+    var severe = (c && (cText < 0.5 || cUrl >= 0.5)) || (u && uUrl >= 0.7) || (r && (rUrl < 0.7 || rLike >= 0.7));
+    if (!res.warnings.length) {
+        el.removeClass('d-none alert-warning alert-danger').addClass('alert-success').text('Pemetaan aman').show();
+    } else {
+        var shortMsgs = [];
+        if (c && (cText < 0.5 || cUrl >= 0.5)) shortMsgs.push('Content bukan teks');
+        if (u && uUrl >= 0.7) shortMsgs.push('Username tampak URL');
+        if (u && uLike < 0.5) shortMsgs.push('Username bukan username');
+        if (r && rUrl < 0.7) shortMsgs.push('URL bukan tautan');
+        if (r && rLike >= 0.7) shortMsgs.push('URL tampak username');
+        var rec = analyzeSelection().recommendations;
+        var recText = 'Saran: C ' + ((rec.content||[]).join(', ') || '-') + ' | U ' + ((rec.username||[]).join(', ') || '-') + ' | URL ' + ((rec.url||[]).join(', ') || '-');
+        var msg = shortMsgs.join(' • ');
+        el.removeClass('d-none alert-success').addClass(severe ? 'alert-danger' : 'alert-warning').text((msg ? ('Periksa: ' + msg + ' — ') : '') + recText).show();
+    }
+}
 
 // Handle process mapping button click (guard against missing jQuery)
 if (typeof $ !== 'undefined') {
@@ -756,9 +891,40 @@ $(document).on('click', '#processMappingBtn', function() {
         swalError('Error', 'Kolom Content harus dipilih');
         return;
     }
-    
+    var analysis = analyzeSelection();
+    if (analysis.warnings.length) {
+        var severe = false;
+        var c = $('#contentColumnSelect').val();
+        var cu = ratioFor(c, isUrl);
+        var ct = ratioFor(c, isTextLike);
+        var u = $('#usernameColumnSelect').val();
+        var uu = ratioFor(u, isUrl);
+        var r = $('#urlColumnSelect').val();
+        var ur = ratioFor(r, isUrl);
+        var ul = ratioFor(r, isUsernameLike);
+        if ((c && (ct < 0.5 || cu >= 0.5)) || (u && uu >= 0.7) || (r && (ur < 0.7 || ul >= 0.7))) severe = true;
+        var html = '<ul>' + analysis.warnings.map(function(w){ return '<li>'+w+'</li>'; }).join('') + '</ul>' +
+                   '<div>Rekomendasi kolom:</div>' +
+                   '<div>Content: ' + (analysis.recommendations.content.join(', ') || '-') + '</div>' +
+                   '<div>Username: ' + (analysis.recommendations.username.join(', ') || '-') + '</div>' +
+                   '<div>URL: ' + (analysis.recommendations.url.join(', ') || '-') + '</div>';
+        if (severe) {
+            swalError('Validasi Mapping', html);
+            return;
+        } else {
+            swalConfirm(html).then(function(result){
+                if (result && result.isConfirmed) {
+                    submitMapping(contentColumn, usernameColumn, urlColumn);
+                }
+            });
+            return;
+        }
+    }
+    submitMapping(contentColumn, usernameColumn, urlColumn);
+});
+
+function submitMapping(contentColumn, usernameColumn, urlColumn) {
     showLoading();
-    
     $.ajax({
         url: '/process_column_mapping',
         type: 'POST',
@@ -774,7 +940,6 @@ $(document).on('click', '#processMappingBtn', function() {
         success: function(response) {
             hideLoading();
             $('#columnMappingModal').modal('hide');
-            
             if (response.success) {
                 swalSuccess('Berhasil', response.message);
                 resetForm();
@@ -784,12 +949,12 @@ $(document).on('click', '#processMappingBtn', function() {
                 swalError('Error', response.message);
             }
         },
-        error: function(xhr, status, error) {
+        error: function() {
             hideLoading();
             swalError('Error', 'Terjadi kesalahan saat memproses data');
         }
     });
-});
+}
 
 // Handle modal close - clean up session if needed
 $('#columnMappingModal').on('hidden.bs.modal', function() {
