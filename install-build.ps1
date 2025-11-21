@@ -73,6 +73,7 @@ if ($Clean) {
     Write-Host "=== MEMBERSIHKAN INSTALASI LAMA ===" -ForegroundColor Yellow
     Write-Host "Menghentikan container yang berjalan..." -ForegroundColor Gray
     $downArgs = @('-f', 'docker/docker-compose.yml')
+    if (Test-Path 'docker/docker-compose.http-only.yml') { $downArgs += @('-f', 'docker/docker-compose.http-only.yml') }
     if (Test-Path 'docker/docker-compose.local.yml') { $downArgs += @('-f', 'docker/docker-compose.local.yml') }
     $downArgs += @('down', '--volumes', '--remove-orphans')
     & $compose.exe $compose.sub @downArgs 2>$null
@@ -101,27 +102,66 @@ function Get-EnvValue {
 # Determine environment & compose files
 $envFile = ".env"
 $useDockerEnv = $false
-$composeFiles = @("docker/docker-compose.yml")
+$composeFiles = @()
 
 if ($Production) {
     Write-Host "" 
     Write-Host "=== PRODUCTION BUILD (SSL ON) ===" -ForegroundColor Magenta
     $envFile = ".env.production"
+    $composeFiles = @("docker/docker-compose.yml")
     if (-not (Test-Path $envFile)) {
-        Write-Host "Error: File $envFile tidak ditemukan!" -ForegroundColor Red
-        Write-Host "Buat file .env.production atau salin dari .env.docker sesuai kebutuhan." -ForegroundColor Yellow
-        exit 1
+        Write-Host "Warning: File $envFile tidak ditemukan!" -ForegroundColor Yellow
+        Write-Host "Mencoba menggunakan .env.docker sebagai alternatif..." -ForegroundColor Yellow
+        
+        if (Test-Path ".env.docker") {
+            # Salin .env.docker ke .env.production untuk build Docker
+            Copy-Item ".env.docker" ".env.production" -Force
+            Write-Host "File .env.production berhasil dibuat dari .env.docker" -ForegroundColor Green
+            $envFile = ".env.production"
+        } else {
+            Write-Host "Error: Tidak ada file environment yang tersedia!" -ForegroundColor Red
+            Write-Host "Buat file .env.production atau .env.docker terlebih dahulu." -ForegroundColor Yellow
+            Write-Host "Anda bisa menyalin dari .env.example dan menyesuaikan konfigurasi." -ForegroundColor Yellow
+            exit 1
+        }
     }
 
     # Validasi sertifikat SSL untuk produksi
     if (-not (Test-Path "ssl/fullchain.pem") -or -not (Test-Path "ssl/privkey.pem")) {
-        Write-Host "Error: Sertifikat SSL tidak ditemukan di folder 'ssl/'!" -ForegroundColor Red
-        Write-Host "Pastikan 'ssl/fullchain.pem' dan 'ssl/privkey.pem' tersedia sebelum deploy produksi." -ForegroundColor Yellow
-        Write-Host "Lihat panduan di 'ssl/README.md'." -ForegroundColor Gray
-        exit 1
+        Write-Host "Warning: Sertifikat SSL tidak ditemukan di folder 'ssl/'!" -ForegroundColor Yellow
+        Write-Host "Pilihan:" -ForegroundColor Cyan
+        Write-Host "  1. Gunakan mode development (HTTP-only)" -ForegroundColor Yellow
+        Write-Host "  2. Buat sertifikat self-signed untuk testing" -ForegroundColor Yellow
+        Write-Host "  3. Keluar dan siapkan sertifikat SSL terlebih dahulu" -ForegroundColor Yellow
+        
+        $choice = Read-Host "Pilih opsi (1/2/3) [default: 1]"
+        
+        if ($choice -eq "2") {
+            Write-Host "Membuat sertifikat self-signed untuk testing..." -ForegroundColor Green
+            
+            # Buat folder ssl jika belum ada
+            if (-not (Test-Path "ssl")) {
+                New-Item -ItemType Directory -Path "ssl" -Force | Out-Null
+            }
+            
+            # Generate self-signed certificate menggunakan OpenSSL
+            Write-Host "Generating self-signed certificate..." -ForegroundColor Yellow
+            try {
+                openssl req -x509 -newkey rsa:4096 -keyout ssl/privkey.pem -out ssl/fullchain.pem -days 365 -nodes -subj "/CN=localhost" 2>$null
+                Write-Host "Self-signed certificate berhasil dibuat!" -ForegroundColor Green
+            } catch {
+                Write-Host "Error: Gagal membuat sertifikat self-signed. Pastikan OpenSSL terinstall." -ForegroundColor Red
+                Write-Host "Fallback ke mode development..." -ForegroundColor Yellow
+                $env:ENABLE_SSL = "false"
+            }
+        } elseif ($choice -eq "3") {
+            Write-Host "Keluar. Silakan siapkan sertifikat SSL terlebih dahulu." -ForegroundColor Yellow
+            exit 1
+        } else {
+            Write-Host "Menggunakan mode development (HTTP-only)..." -ForegroundColor Green
+            $env:ENABLE_SSL = "false"
+        }
     }
-    # Pastikan SSL aktif untuk produksi
-    $env:ENABLE_SSL = "true"
 } else {
     Write-Host "" 
     Write-Host "=== DEVELOPMENT BUILD (HTTP-ONLY) ===" -ForegroundColor Blue
@@ -132,11 +172,16 @@ if ($Production) {
     } else {
         Write-Host "Menggunakan .env untuk environment lokal" -ForegroundColor Yellow
     }
-    # Tambahkan override agar Nginx berjalan HTTP-only
-    if (Test-Path "docker/docker-compose.local.yml") {
-        $composeFiles += "docker/docker-compose.local.yml"
+    # Gunakan file HTTP-only untuk development (BUKAN ditambahkan ke file production)
+    if (Test-Path "docker/docker-compose.http-only.yml") {
+        $composeFiles = @("docker/docker-compose.http-only.yml")
+        Write-Host "Menggunakan konfigurasi HTTP-only khusus untuk development" -ForegroundColor Green
+    } elseif (Test-Path "docker/docker-compose.local.yml") {
+        $composeFiles = @("docker/docker-compose.local.yml")
+        Write-Host "Menggunakan konfigurasi local override untuk development" -ForegroundColor Yellow
     } else {
-        Write-Host "Warning: 'docker/docker-compose.local.yml' tidak ditemukan. Nginx akan tetap mencoba HTTPS." -ForegroundColor Yellow
+        Write-Host "Warning: Konfigurasi HTTP-only tidak ditemukan. Menggunakan file production default." -ForegroundColor Yellow
+        $composeFiles = @("docker/docker-compose.yml")
     }
     # Nonaktifkan SSL untuk lokal
     $env:ENABLE_SSL = "false"
@@ -249,7 +294,13 @@ Start-Sleep -Seconds 10
 # Check if services are running
 Write-Host "Memeriksa status services..." -ForegroundColor Yellow
 $psArgs = @('-f', 'docker/docker-compose.yml')
-if (-not $Production -and (Test-Path 'docker/docker-compose.local.yml')) { $psArgs += @('-f', 'docker/docker-compose.local.yml') }
+if (-not $Production) {
+    if (Test-Path 'docker/docker-compose.http-only.yml') { 
+        $psArgs += @('-f', 'docker/docker-compose.http-only.yml')
+    } elseif (Test-Path 'docker/docker-compose.local.yml') { 
+        $psArgs += @('-f', 'docker/docker-compose.local.yml')
+    }
+}
 if (Test-Path $envFile) { $psArgs += @('--env-file', $envFile) }
 $psArgs += @('ps', '--services', '--filter', 'status=running')
 

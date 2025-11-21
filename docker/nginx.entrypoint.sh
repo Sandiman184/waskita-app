@@ -1,5 +1,5 @@
 #!/bin/sh
-set -eu
+# set -e  # Disabled for Alpine Linux compatibility
 
 # Environment variables for SSL certificate paths
 SSL_CERT_PATH="${SSL_CERT_PATH:-/etc/letsencrypt/live/waskita.site/fullchain.pem}"

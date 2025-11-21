@@ -1,0 +1,152 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:15-alpine
+    env_file:
+      - ../.env.docker
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      waskita_network:
+        aliases:
+          - db
+    restart: unless-stopped
+    # Resource limits for database
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '2'
+        reservations:
+          memory: 512M
+          cpus: '1'
+    # Security improvements (handled in main docker-compose.yml)
+    tmpfs:
+      - /tmp
+      - /var/run/postgresql
+    # Health check for database
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-waskita} -d ${POSTGRES_DB:-waskita_db}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Redis for caching
+  redis:
+    image: redis:7-alpine
+    container_name: waskita-app-redis
+    networks:
+      - waskita_network
+    restart: unless-stopped
+    # Resource limits for Redis
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '1'
+        reservations:
+          memory: 128M
+          cpus: '0.5'
+    # Security improvements (handled in main docker-compose.yml)
+    tmpfs:
+      - /tmp
+      - /var/run/redis
+    # Health check for Redis
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Flask Web Application
+  web:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: waskita-app-web
+    env_file:
+      - ../.env.docker
+    environment:
+      - FLASK_CONFIG=development
+      - DOTENV_OVERRIDE=False
+      - DISABLE_MODEL_LOADING=True
+    volumes:
+      - ../uploads:/app/uploads
+      - ../logs:/app/logs
+      - ../data:/app/data
+      - ../static:/app/static
+      - ../models:/app/models
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - waskita_network
+    restart: unless-stopped
+    # Expose port for development access
+    ports:
+      - "5000:5000"
+    
+    # Resource limits for web app
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '2'
+        reservations:
+          memory: 1G
+          cpus: '1'
+    # Security improvements (handled in main docker-compose.yml)
+    tmpfs:
+      - /tmp
+    # Drop capabilities for security
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Nginx Reverse Proxy (HTTP-only)
+  nginx:
+    build:
+      context: .
+      dockerfile: Dockerfile.nginx.dev
+    container_name: waskita-app-nginx
+    environment:
+      - ENABLE_SSL=false
+      - NGINX_SERVER_NAME=localhost
+    ports:
+      - "8080:80"
+    volumes:
+      - ../static:/var/www/static
+    depends_on:
+      - web
+    networks:
+      - waskita_network
+    restart: unless-stopped
+
+networks:
+  waskita_network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local
+  waskita_uploads:
+    driver: local
+  waskita_logs:
+    driver: local
+  models:
+    driver: local

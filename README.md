@@ -94,6 +94,31 @@ docker-compose -f docker/docker-compose.yml up --build -d
 ./install-build.ps1 -Production
 ```
 
+## 📖 Dokumentasi Lengkap
+
+Untuk konfigurasi SSL yang lengkap, setup production, dan troubleshooting, silakan lihat dokumentasi detail:
+
+- **[Konfigurasi SSL untuk Production](docs/SETUP_APPS.md#8-konfigurasi-ssl-untuk-production)** - Panduan lengkap setup SSL dengan Let's Encrypt dan self-signed certificates
+- **[Script install-build.ps1](docs/SETUP_APPS.md#9-script-install-buildps1)** - Dokumentasi parameter dan penggunaan script deployment otomatis
+- **[Troubleshooting](docs/SETUP_APPS.md#10-troubleshooting)** - Solusi untuk masalah umum selama deployment
+
+### Konfigurasi SSL Penting:
+- **Let's Encrypt**: Untuk production dengan domain nyata
+- **Self-signed**: Untuk testing production di localhost
+- **Environment Variables**: `ENABLE_SSL=true`, `NGINX_SERVER_NAME=yourdomain.com`
+
+### Script install-build.ps1:
+```powershell
+# Development mode (HTTP-only)
+.\install-build.ps1 -Clean
+
+# Production mode (SSL enabled)  
+.\install-build.ps1 -Production -Clean
+
+# Help information
+.\install-build.ps1 -Help
+```
+
 ## Konfigurasi Penting
 
 ### Database Configuration:

@@ -9,17 +9,20 @@ services:
       - DISABLE_MODEL_LOADING=True
 
   nginx:
+    # Build image khusus untuk development (HTTP-only)
+    build:
+      context: .
+      dockerfile: Dockerfile.nginx.dev
     # Override ports: pakai 8080 di host untuk lokal (hard-code untuk hindari variabel env)
     ports:
       - "8080:80"
-    # EntryPoint akan memilih HTTP config karena ENABLE_SSL=false
+    # Gunakan konfigurasi HTTP-only
     environment:
       - ENABLE_SSL=false
       - NGINX_SERVER_NAME=localhost
     volumes:
-      - ./nginx.conf:/etc/nginx/conf.d/waskita.conf:ro
-      - ./nginx.entrypoint.sh:/etc/nginx/entrypoint.sh:ro
       - ../static:/var/www/static
+    # Jangan gunakan volume mounts dari base compose file
 
   # Override untuk service database agar memakai .env.docker
   db:

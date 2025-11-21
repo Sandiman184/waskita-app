@@ -1,0 +1,17 @@
+FROM nginx:1.25-alpine
+
+# Hapus semua konfigurasi default
+RUN rm -rf /etc/nginx/conf.d/*
+
+# Copy konfigurasi HTTP-only kita
+COPY nginx.http.conf /etc/nginx/conf.d/default.conf
+
+# Gunakan entrypoint khusus untuk HTTP-only
+COPY nginx.http.entrypoint.sh /etc/nginx/entrypoint.sh
+RUN chmod +x /etc/nginx/entrypoint.sh
+
+# Expose port 80 untuk HTTP
+EXPOSE 80
+
+# Entrypoint khusus untuk development
+ENTRYPOINT ["/bin/sh", "/etc/nginx/entrypoint.sh"]
