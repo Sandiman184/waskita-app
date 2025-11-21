@@ -2,7 +2,7 @@
 
 Aplikasi web Flask untuk klasifikasi konten media sosial (Radikal/Non‑Radikal) dengan Naive Bayes dan UI Soft UI Dashboard. Aplikasi ini dikembangkan untuk penelitian akademis dalam bidang analisis sentimen dan deteksi konten radikal pada media sosial.
 
-Versi Dokumen: 1.0 — Diperbarui: 2025-11-13
+Versi Dokumen: 1.3 — Diperbarui: 2025-01-15
 
 ## Tujuan Akademis
 - **Domain Penelitian**: Analisis sentimen dan klasifikasi teks untuk deteksi konten radikal

@@ -2,7 +2,7 @@
 
 Dokumen ini menjelaskan langkah instalasi dan persiapan awal aplikasi Waskita untuk keperluan pengembangan (development) dan produksi (production) tanpa duplikasi, sesuai outline yang diinginkan.
 
-Versi Dokumen: 1.1 — Diperbarui: 2025-11-13
+Versi Dokumen: 1.3 — Diperbarui: 2025-01-15
 
 ## Daftar Isi
 
@@ -232,3 +232,25 @@ docker-compose -f docker/docker-compose.yml exec web python create_admin.py
   - Health endpoint (`/api/health`) untuk monitoring dan readiness
   - Migrasi database (Flask‑Migrate) memudahkan evolusi skema
   - Notifikasi SweetAlert2 untuk feedback aksi penting
+
+## 10. Static Files Management
+
+### File Statis yang Disertakan:
+- **CSS/JS**: File static untuk Soft UI Dashboard theme
+- **Images**: Logo dan ikon aplikasi
+- **Templates**: File HTML dengan integrasi Flask
+
+### Konfigurasi:
+- Static files disimpan di direktori `static/`
+- Template files disimpan di direktori `templates/`
+- Cache control diatur melalui Nginx untuk production
+- Versioning untuk assets CSS/JS untuk menghindari cache issues
+
+### Development:
+- File static dilayani secara otomatis oleh Flask development server
+- Perubahan pada file static langsung terlihat tanpa restart
+
+### Production:
+- Nginx meng-handle static files untuk performa optimal
+- Compression (gzip/brotli) diaktifkan untuk CSS/JS
+- Cache headers dioptimalkan untuk static assets

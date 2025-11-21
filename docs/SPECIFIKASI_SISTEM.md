@@ -1,6 +1,6 @@
 # 📘 Spesifikasi Sistem Aplikasi Waskita
 
-Versi Dokumen: 1.0 — Diperbarui: 2025-11-13
+Versi Dokumen: 1.3 — Diperbarui: 2025-01-15
 
 ## 1. Persyaratan Fungsional (Functional Requirement)
 
