@@ -2,6 +2,50 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.3.0] - 2025-01-15
+
+### 🚀 Deployment & Production
+- **VPS Deployment**: Full production-ready deployment configuration
+- **Nginx Configuration**: Immutable entrypoint and reverse proxy setup
+- **API Endpoints**: Added `/api/models-status` for production monitoring
+- **Security Hardening**: Enhanced production security configurations
+
+### 📊 Data Processing
+- **CSV Upload**: Improved format detection and fallback mechanisms
+- **Data Validation**: Enhanced error handling for malformed CSV files
+- **Performance**: Optimized data processing pipelines
+
+### 🔒 Security
+- **CSRF Protection**: Fixed token missing issue on first login
+- **Session Management**: Improved session configuration and security
+- **Production Checklist**: Comprehensive security audit and hardening
+
+### 📚 Documentation
+- **Deployment Guides**: Complete VPS deployment documentation
+- **Security Guidelines**: OWASP compliance and production security
+- **Setup Recommendations**: Structured setup applications and best practices
+
+---
+
+## [1.2.0] - 2025-01-10
+
+### 🛠️ Infrastructure
+- **Docker Optimization**: Enhanced Docker configurations for production
+- **Nginx Setup**: Complete reverse proxy configuration
+- **Deployment Scripts**: PowerShell deployment scripts for VPS
+
+### 📝 Documentation
+- **Workflow Diagrams**: End-to-end sequence and flowcharts
+- **Security References**: Comprehensive logging and security guidelines
+- **Setup Structure**: Restructured setup applications per outline
+
+### 🐛 Bug Fixes
+- **CSV Handling**: Fixed format detection issues
+- **Upload Reliability**: Improved fallback mechanisms for various CSV formats
+- **Documentation**: Updated setup and security guides
+
+---
+
 ## [1.1.0] - 2024-12-19
 
 ### 🔧 Fixed
