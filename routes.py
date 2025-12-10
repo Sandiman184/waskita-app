@@ -1790,11 +1790,7 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                 total_non_radikal = 0
             
             # Calculate model-wise statistics - only for the latest dataset
-            model_stats = {
-                'model1': {'radikal': 0, 'non_radikal': 0},
-                'model2': {'radikal': 0, 'non_radikal': 0},
-                'model3': {'radikal': 0, 'non_radikal': 0}
-            }
+            model_stats = {}
             
             if final_datasets:
                 latest_dataset_id = final_datasets[0]['dataset_id']
@@ -1807,12 +1803,21 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
                         result_dataset_id = result._mapping['dataset_id']
                     
                     if result_dataset_id == latest_dataset_id:
+                        # Initialize model stats if not exists
+                        if result.model_name not in model_stats:
+                            model_stats[result.model_name] = {'radikal': 0, 'non_radikal': 0}
+                            
                         if result.prediction == 'radikal':
                             model_stats[result.model_name]['radikal'] += 1
                         else:
                             model_stats[result.model_name]['non_radikal'] += 1
             
-            return render_template('classification/results.html', 
+            # Ensure default models exist for template compatibility
+            for model in ['model1', 'model2', 'model3']:
+                if model not in model_stats:
+                    model_stats[model] = {'radikal': 0, 'non_radikal': 0}
+
+            return render_template('classification/results.html',  
                                  datasets=final_datasets, 
                                  total_classifications=total_classifications,
                                  total_data_items=total_data_items,
@@ -2050,17 +2055,22 @@ def init_routes(app, word2vec_model_param, naive_bayes_models_param):
             total_classifications = len(results)
             
             # Count predictions by model
-            model_stats = {
-                'model1': {'radikal': 0, 'non_radikal': 0},
-                'model2': {'radikal': 0, 'non_radikal': 0},
-                'model3': {'radikal': 0, 'non_radikal': 0}
-            }
+            model_stats = {}
             
             for result in results:
+                # Initialize model stats if not exists
+                if result.model_name not in model_stats:
+                    model_stats[result.model_name] = {'radikal': 0, 'non_radikal': 0}
+                    
                 if result.prediction == 'radikal':
                     model_stats[result.model_name]['radikal'] += 1
                 else:
                     model_stats[result.model_name]['non_radikal'] += 1
+            
+            # Ensure default models exist for template compatibility
+            for model in ['model1', 'model2', 'model3']:
+                if model not in model_stats:
+                    model_stats[model] = {'radikal': 0, 'non_radikal': 0}
             
             # Calculate totals
             total_radikal = sum(stats['radikal'] for stats in model_stats.values())

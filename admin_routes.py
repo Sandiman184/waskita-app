@@ -1,7 +1,8 @@
 from flask import render_template, request, flash, redirect, url_for, jsonify, current_app
 from flask_login import login_required
+from sqlalchemy import text
 from utils import admin_required
-from models import db, User, Dataset, RawData, RawDataScraper, ClassificationResult
+from models import db, User, Dataset, RawData, RawDataScraper, ClassificationResult, DatasetStatistics
 
 def init_admin_routes(app):
     @app.route('/admin/classification/settings', methods=['GET', 'POST'])
@@ -141,8 +142,57 @@ def init_admin_routes(app):
     @login_required
     @admin_required
     def admin_database_reset():
-        """Reset database (delete all data except current admin)"""
-        # TODO: Implement actual database reset
-        flash('Fitur reset database belum diimplementasikan', 'info')
+        """Reset database (delete all data except users)"""
+        try:
+            # Delete all data from tables (except User)
+            # Order matters due to foreign keys
+            
+            # 1. Delete classification results
+            ClassificationResult.query.delete()
+            
+            # 2. Delete clean data
+            CleanDataUpload.query.delete()
+            CleanDataScraper.query.delete()
+            
+            # 3. Delete raw data
+            RawData.query.delete()
+            RawDataScraper.query.delete()
+            
+            # 4. Delete datasets
+            Dataset.query.delete()
+            
+            # 5. Delete user activities (optional, but good for full reset)
+            from models import UserActivity
+            UserActivity.query.delete()
+            
+            # 6. Reset statistics
+            from models import DatasetStatistics
+            stats = DatasetStatistics.query.first()
+            if stats:
+                stats.total_raw_upload = 0
+                stats.total_raw_scraper = 0
+                stats.total_clean_upload = 0
+                stats.total_clean_scraper = 0
+                stats.total_classified = 0
+                stats.total_radikal = 0
+                stats.total_non_radikal = 0
+            
+            # Commit changes
+            db.session.commit()
+            
+            # Try to reset auto-increment counters (SQLite specific)
+            try:
+                db.session.execute(text("DELETE FROM sqlite_sequence WHERE name IN ('classification_results', 'clean_data_upload', 'clean_data_scraper', 'raw_data', 'raw_data_scraper', 'datasets', 'user_activities')"))
+                db.session.commit()
+            except Exception as e:
+                current_app.logger.warning(f"Could not reset sqlite_sequence: {e}")
+            
+            flash('Database berhasil direset! Semua data dataset, klasifikasi, dan aktivitas telah dihapus.', 'success')
+            
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.error(f"Error resetting database: {e}")
+            flash(f'Gagal mereset database: {str(e)}', 'error')
+            
         return redirect(url_for('admin_database_management'))
 
