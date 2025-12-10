@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.3.1] - 2025-12-10
+
+### 🚀 Deployment & Production
+- **Nginx (Dev)**: Tambah `docker/Dockerfile.nginx.dev` untuk mode HTTP-only development
+- **Docker**: Perbaikan konfigurasi Docker dan Nginx untuk alur dev/production
+
+### 📚 Documentation
+- **README**: Tambahkan referensi konfigurasi SSL, penggunaan `install-build.ps1`, dan troubleshooting
+- **Setup Docs**: Penjelasan lebih jelas untuk SSL dan parameter skrip deployment
+
+### 🧹 Maintenance
+- **Version**: Bump versi aplikasi menjadi `1.3.1`
+
 ## [1.3.0] - 2025-01-15
 
 ### 🚀 Deployment & Production
