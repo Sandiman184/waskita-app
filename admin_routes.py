@@ -1,6 +1,7 @@
 from flask import render_template, request, flash, redirect, url_for, jsonify, current_app
 from flask_login import login_required
 from utils import admin_required
+from models import db, User, Dataset, RawData, RawDataScraper, ClassificationResult
 
 def init_admin_routes(app):
     @app.route('/admin/classification/settings', methods=['GET', 'POST'])
@@ -85,7 +86,20 @@ def init_admin_routes(app):
     @admin_required
     def admin_database_management():
         """Halaman manajemen database"""
-        return render_template('admin/database.html')
+        # Calculate statistics
+        users_count = User.query.count()
+        datasets_count = Dataset.query.count()
+        raw_data_count = RawData.query.count() + RawDataScraper.query.count()
+        classifications_count = ClassificationResult.query.count()
+        
+        stats = {
+            'users': users_count,
+            'datasets': datasets_count,
+            'raw_data': raw_data_count,
+            'classifications': classifications_count
+        }
+        
+        return render_template('admin/database.html', stats=stats)
 
     @app.route('/admin/database/backup', methods=['GET'])
     @login_required
