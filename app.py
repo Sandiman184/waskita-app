@@ -374,6 +374,10 @@ def load_user(user_id):
 from routes import init_routes
 init_routes(app, word2vec_model, naive_bayes_models)
 
+# Initialize admin routes
+from admin_routes import init_admin_routes
+init_admin_routes(app)
+
 # Register OTP blueprint
 app.register_blueprint(otp_bp, url_prefix='/otp')
 

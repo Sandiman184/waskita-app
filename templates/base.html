@@ -552,11 +552,11 @@
                                     </a>
                                 </li>
                                 {% if current_user.is_admin() %}
-                                    <li class="nav-item {{ 'menu-open' if request.endpoint in ['admin_panel', 'otp.pending_registrations', 'otp.registration_history'] }}" role="none">
+                                    <li class="nav-item {{ 'menu-open' if request.endpoint in ['admin_panel', 'otp.pending_registrations', 'otp.registration_history', 'admin_classification_settings', 'admin_retrain_model', 'admin_database_management'] }}" role="none">
                                         <a href="#"
-                                           class="nav-link {{ 'active' if request.endpoint in ['admin_panel', 'otp.pending_registrations', 'otp.registration_history'] }}"
+                                           class="nav-link {{ 'active' if request.endpoint in ['admin_panel', 'otp.pending_registrations', 'otp.registration_history', 'admin_classification_settings', 'admin_retrain_model', 'admin_database_management'] }}"
                                            role="menuitem"
-                                           aria-expanded="{{ 'true' if request.endpoint in ['admin_panel', 'otp.pending_registrations', 'otp.registration_history'] else 'false' }}"
+                                           aria-expanded="{{ 'true' if request.endpoint in ['admin_panel', 'otp.pending_registrations', 'otp.registration_history', 'admin_classification_settings', 'admin_retrain_model', 'admin_database_management'] else 'false' }}"
                                            aria-haspopup="true">
                                             <i class="nav-icon fas fa-users-cog" aria-hidden="true"></i>
                                             <p>
@@ -581,6 +581,33 @@
                                                    aria-current="{{ 'page' if request.endpoint == 'otp.pending_registrations' else 'false' }}">
                                                     <i class="far fa-circle nav-icon" aria-hidden="true"></i>
                                                     <p>Pending Registrasi</p>
+                                                </a>
+                                            </li>
+                                            <li class="nav-item" role="none">
+                                                <a href="{{ url_for('admin_classification_settings') }}"
+                                                   class="nav-link {{ 'active' if request.endpoint == 'admin_classification_settings' }}"
+                                                   role="menuitem"
+                                                   aria-current="{{ 'page' if request.endpoint == 'admin_classification_settings' else 'false' }}">
+                                                    <i class="far fa-circle nav-icon" aria-hidden="true"></i>
+                                                    <p>Pengaturan Klasifikasi</p>
+                                                </a>
+                                            </li>
+                                            <li class="nav-item" role="none">
+                                                <a href="{{ url_for('admin_retrain_model') }}"
+                                                   class="nav-link {{ 'active' if request.endpoint == 'admin_retrain_model' }}"
+                                                   role="menuitem"
+                                                   aria-current="{{ 'page' if request.endpoint == 'admin_retrain_model' else 'false' }}">
+                                                    <i class="far fa-circle nav-icon" aria-hidden="true"></i>
+                                                    <p>Retrain Model</p>
+                                                </a>
+                                            </li>
+                                            <li class="nav-item" role="none">
+                                                <a href="{{ url_for('admin_database_management') }}"
+                                                   class="nav-link {{ 'active' if request.endpoint == 'admin_database_management' }}"
+                                                   role="menuitem"
+                                                   aria-current="{{ 'page' if request.endpoint == 'admin_database_management' else 'false' }}">
+                                                    <i class="far fa-circle nav-icon" aria-hidden="true"></i>
+                                                    <p>Database</p>
                                                 </a>
                                             </li>
                                         </ul>
