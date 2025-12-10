@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.4.0] - 2025-12-10
+
+### ✨ Features
+- **Admin Templates**: Halaman `classification_settings`, `database`, dan `retrain` ditambahkan
+- **ML Utilities**: `IndoBERTClassifier` dan utilitas pelatihan model ditambahkan
+- **Training History**: Migrasi Alembic untuk tabel riwayat pelatihan dan metrik
+
+### 📚 Documentation
+- Update dokumentasi terkait setup dan referensi komponen baru
+
+### 🧹 Maintenance
+- **Version**: Naikkan versi aplikasi menjadi `1.4.0`
+
 ## [1.3.1] - 2025-12-10
 
 ### 🚀 Deployment & Production
