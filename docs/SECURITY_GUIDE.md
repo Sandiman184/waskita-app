@@ -476,12 +476,14 @@ add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" alway
 - **File Operations**: Upload, download, deletion
 
 ### Analisis Log Keamanan
+Log keamanan disimpan secara terpusat di direktori root proyek (`logs/`) untuk memastikan konsistensi path di semua lingkungan (development/production).
+
 ```bash
 # Check failed login attempts
 grep "Failed login" logs/security.log | tail -20
 
 # Monitor suspicious activities
-grep "SECURITY_ALERT" logs/app.log | tail -10
+grep "SECURITY_ALERT" logs/waskita.log | tail -10
 
 # Check rate limiting triggers
 grep "Rate limit exceeded" logs/security.log
@@ -673,6 +675,7 @@ openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365
 - ✅ **Adaptive Rate Limiting:** Dynamic adjustment berdasarkan load
 - ✅ **IP Whitelisting:** Support untuk trusted IPs
 - ✅ **Request Throttling:** Gradual slowdown untuk suspicious activity
+- ✅ **Security Middleware:** Aktif memblokir IP berbahaya dan pola serangan (SQLi/XSS)
 
 ---
 

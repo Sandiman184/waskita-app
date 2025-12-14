@@ -1,0 +1,977 @@
+{% extends "base.html" %}
+{% block title %}
+    Data Classification - Waskita
+{% endblock title %}
+{% block page_title %}
+    Data Classification
+{% endblock page_title %}
+{% block breadcrumb %}
+    <li class="breadcrumb-item">
+        <a href="{{ url_for("main.dashboard") }}">Home</a>
+    </li>
+    <li class="breadcrumb-item active">Classification</li>
+{% endblock breadcrumb %}
+{% block content %}
+        <!-- Main content -->
+        <section class="content">
+            <div class="container-fluid">
+
+                <!-- Model Status -->
+                <div class="row">
+                    <div class="col-md-12">
+                        <div class="card card-info">
+                            <div class="card-header">
+                                <h3 class="card-title">
+                                    <i class="fas fa-brain mr-2"></i>AI Model Status
+                                </h3>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-3">
+                                        <div class="info-box bg-gradient-info">
+                                            <span class="info-box-icon"><i class="fas fa-vector-square"></i></span>
+                                            <div class="info-box-content">
+                                                <span class="info-box-text">Word2Vec Model</span>
+                                                <span class="info-box-number">{{ 'Active' if word2vec_status else 'Inactive' }}</span>
+                                                <div class="progress">
+                                                    <div class="progress-bar bg-info"
+                                                         style="width: {{ '100' if word2vec_status else '0' }}%"></div>
+                                                </div>
+                                                <span class="progress-description">{{ word2vec_info if word2vec_status else 'Model not found' }}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% for model_name, status in models_status.items() %}
+                                    <div class="col-md-3">
+                                        <div class="info-box bg-gradient-info">
+                                            <span class="info-box-icon"><i class="fas fa-brain"></i></span>
+                                            <div class="info-box-content">
+                                                <span class="info-box-text">{{ model_name.replace('_', ' ').title() }}</span>
+                                                <span class="info-box-number">{{ 'Active' if status.status else 'Inactive' }}</span>
+                                                <div class="progress">
+                                                    <div class="progress-bar bg-info"
+                                                         style="width: {{ '100' if status.status else '0' }}%"></div>
+                                                </div>
+                                                <span class="progress-description">{{ status.info }}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Classification Interface -->
+                <div class="row">
+                    <div class="col-md-8">
+                        <div class="card card-primary">
+                            <div class="card-header">
+                                <h3 class="card-title">
+                                    <i class="fas fa-cogs mr-2"></i>Data Classification
+                                </h3>
+                            </div>
+                            <div class="card-body">
+                                <!-- Single Text Classification -->
+                                <div class="mt-2">
+                                    <h5>
+                                        <i class="fas fa-edit mr-2"></i>Text Input
+                                    </h5>
+                                    <div class="form-group">
+                                        <label for="manualText">Enter Text:</label>
+                                        <textarea class="form-control"
+                                                  id="manualText"
+                                                  rows="6"
+                                                  placeholder="Enter text to classify..."></textarea>
+                                    </div>
+                                    <button class="btn btn-info btn-block" onclick="classifyManualText()">
+                                        <i class="fas fa-search mr-2"></i>Classify Text
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Manual Classification History Removed as requested -->
+                    </div>
+                    <!-- Classification Results -->
+                    <div class="col-md-4">
+                        <div class="card card-success">
+                            <div class="card-header">
+                                <h3 class="card-title">
+                                    <i class="fas fa-chart-bar mr-2"></i>Classification Results
+                                </h3>
+                            </div>
+                            <div class="card-body p-3">
+                                <canvas id="classificationResultsChart" 
+                                        class="chart-canvas-300" 
+                                        role="img" 
+                                        aria-label="Bar chart showing radical and non-radical classification results"
+                                        aria-describedby="classification-results-description">
+                                </canvas>
+                                <div id="classification-results-description" class="sr-only">
+                                    Bar chart displaying classification results: Radical and Non-Radical
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </section>
+{% endblock content %}
+{% block scripts %}
+    <script>
+let currentDataSource = '';
+let classificationInProgress = false;
+let classificationResultsChart = null;
+
+$(document).ready(function() {
+    // Initialize classification results chart
+    initializeClassificationChart();
+    // Initialize tooltips
+    $('[data-toggle="tooltip"]').tooltip();
+    
+    // Select all checkbox handler
+    $('#selectAllData').change(function() {
+        $('#classificationTable .row-checkbox').prop('checked', this.checked);
+    });
+
+    // Listen to theme changes
+    window.addEventListener('themeChanged', function(e) {
+        updateClassificationChartTheme(e.detail.theme);
+    });
+});
+
+function getChartColors() {
+    const isDark = document.body.classList.contains('dark-mode');
+    return {
+        textColor: isDark ? '#f8f9fa' : '#212529',
+        gridColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'
+    };
+}
+
+function updateClassificationChartTheme(theme) {
+    if (!classificationResultsChart) return;
+    const colors = getChartColors();
+    
+    if (classificationResultsChart.options.plugins.legend) {
+        classificationResultsChart.options.plugins.legend.labels = classificationResultsChart.options.plugins.legend.labels || {};
+        classificationResultsChart.options.plugins.legend.labels.color = colors.textColor;
+    }
+    
+    if (classificationResultsChart.options.scales.x) {
+        classificationResultsChart.options.scales.x.ticks = classificationResultsChart.options.scales.x.ticks || {};
+        classificationResultsChart.options.scales.x.ticks.color = colors.textColor;
+        classificationResultsChart.options.scales.x.grid = classificationResultsChart.options.scales.x.grid || {};
+        classificationResultsChart.options.scales.x.grid.color = colors.gridColor;
+    }
+    
+    if (classificationResultsChart.options.scales.y) {
+        classificationResultsChart.options.scales.y.ticks = classificationResultsChart.options.scales.y.ticks || {};
+        classificationResultsChart.options.scales.y.ticks.color = colors.textColor;
+        classificationResultsChart.options.scales.y.grid = classificationResultsChart.options.scales.y.grid || {};
+        classificationResultsChart.options.scales.y.grid.color = colors.gridColor;
+    }
+    
+    classificationResultsChart.update();
+}
+
+function initializeClassificationChart() {
+    const ctx = document.getElementById('classificationResultsChart').getContext('2d');
+    
+    // Use actual data from backend
+    const radicalCount = {{ radical_count|default(0) }};
+    const nonRadicalCount = {{ non_radical_count|default(0) }};
+    const colors = getChartColors();
+    
+    classificationResultsChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: ["{{ t('Radikal') }}", "{{ t('Non-Radikal') }}"],
+            datasets: [{
+                data: [radicalCount, nonRadicalCount],
+                backgroundColor: [
+                    'rgba(220, 53, 69, 0.8)',
+                    'rgba(40, 167, 69, 0.8)'
+                ],
+                borderColor: [
+                    'rgba(220, 53, 69, 1)',
+                    'rgba(40, 167, 69, 1)'
+                ],
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false,
+                    labels: { color: colors.textColor }
+                },
+                title: {
+                    display: false
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: false
+                    },
+                    ticks: { color: colors.textColor },
+                    grid: { color: colors.gridColor }
+                },
+                x: {
+                    title: {
+                        display: false
+                    },
+                    ticks: { color: colors.textColor },
+                    grid: { color: colors.gridColor }
+                }
+            }
+        }
+    });
+}
+
+function updateClassificationChart(radicalCount, nonRadicalCount) {
+    if (classificationResultsChart) {
+        classificationResultsChart.data.datasets[0].data = [radicalCount, nonRadicalCount];
+        classificationResultsChart.update();
+    }
+}
+
+function loadDataBySource() {
+    const dataSource = $('#dataSource').val();
+    if (!dataSource) {
+        $('#dataTableContainer').hide();
+        return;
+    }
+    
+    currentDataSource = dataSource;
+    
+    // Show loading
+    $('#dataTableContainer').show();
+    $('#dataTableTitle').text('Loading data...');
+    $('#classificationTableBody').html('<tr><td colspan="7" class="text-center"><i class="fas fa-spinner fa-spin mr-2"></i>Loading data...</td></tr>');
+    
+    // Simulate loading data
+    setTimeout(() => {
+        loadMockData(dataSource);
+    }, 1000);
+}
+
+function loadMockData(dataSource) {
+    const mockData = [
+        {
+            id: 1,
+            platform: 'twitter',
+            username: 'user1',
+            content: 'this is a sample content that has been cleaned',
+            classified: false
+        },
+        {
+            id: 2,
+            platform: 'facebook',
+            username: 'user2',
+            content: 'another sample content ready for classification',
+            classified: true
+        },
+        {
+            id: 3,
+            platform: 'tiktok',
+            username: 'user3',
+            content: 'third cleaned data for classification process',
+            classified: false
+        }
+    ];
+    
+    let tableHtml = '';
+    mockData.forEach(data => {
+        const platformBadge = data.platform === 'twitter' ? 'primary' : data.platform === 'facebook' ? 'info' : 'dark';
+        const statusBadge = data.classified ? 'success' : 'warning';
+        const statusText = data.classified ? 'Classified' : 'Not Classified';
+        
+        tableHtml += `
+            <tr>
+                <td>
+                    <input type="checkbox" class="row-checkbox" value="${data.id}" ${data.classified ? 'disabled' : ''}>
+                </td>
+                <td>${data.id}</td>
+                <td>
+                    <span class="badge badge-${platformBadge}">
+                        <i class="fab fa-${data.platform}"></i> ${data.platform.charAt(0).toUpperCase() + data.platform.slice(1)}
+                    </span>
+                </td>
+                <td>${data.username}</td>
+                <td>
+                    <span class="content-preview" data-toggle="tooltip" title="${data.content}">
+                        ${data.content.substring(0, 40)}${data.content.length > 40 ? '...' : ''}
+                    </span>
+                </td>
+                <td>
+                    <span class="badge badge-${statusBadge}">${statusText}</span>
+                </td>
+                <td>
+                    <div class="btn-group" role="group">
+                        ${!data.classified ? `
+                            <button class="btn btn-sm btn-primary" onclick="classifySingle(${data.id})" title="Classify">
+                                <i class="fas fa-brain"></i>
+                            </button>
+                        ` : `
+                            <button class="btn btn-sm btn-info" onclick="viewClassificationResult(${data.id})" title="View Result">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        `}
+                        <button class="btn btn-sm btn-secondary" onclick="viewDataDetail(${data.id})" title="Detail">
+                            <i class="fas fa-info-circle"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `;
+    });
+    
+    $('#dataTableTitle').text(`Clean ${dataSource === 'clean-upload' ? 'Upload' : 'Scraper'} Data`);
+    $('#classificationTableBody').html(tableHtml);
+    
+    // Reinitialize tooltips
+    $('[data-toggle="tooltip"]').tooltip();
+}
+
+function classifySelected() {
+    const selectedIds = [];
+    $('#classificationTable .row-checkbox:checked:not(:disabled)').each(function() {
+        selectedIds.push($(this).val());
+    });
+    
+    if (selectedIds.length === 0) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'No Data Selected',
+            text: 'Please select data to classify'
+        });
+        return;
+    }
+    
+    startClassification(selectedIds);
+}
+
+function classifyAll() {
+    const allIds = [];
+    $('#classificationTable .row-checkbox:not(:disabled)').each(function() {
+        allIds.push($(this).val());
+    });
+    
+    if (allIds.length === 0) {
+        Swal.fire({
+            icon: 'info',
+            title: 'No Data',
+            text: 'All data has been classified or no data available'
+        });
+        return;
+    }
+    
+    startClassification(allIds);
+}
+
+function classifySingle(dataId) {
+    startClassification([dataId]);
+}
+
+function startClassification(dataIds) {
+    if (classificationInProgress) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'Classification In Progress',
+            text: 'Please wait until the process is finished'
+        });
+        return;
+    }
+    
+    Swal.fire({
+        title: 'Start Classification?',
+        text: `${dataIds.length} data will be classified using active AI models`,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Yes, Start',
+        cancelButtonText: 'Cancel'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            processClassification(dataIds);
+        }
+    });
+}
+
+function processClassification(dataIds) {
+    classificationInProgress = true;
+    
+    // Show progress modal
+    Swal.fire({
+        title: 'Starting Classification...',
+        html: `
+            <div class="text-center">
+                <div class="progress mb-4">
+                    <div id="overallProgress" class="progress-bar progress-bar-striped progress-bar-animated" 
+                         role="progressbar" style="width: 0%"></div>
+                </div>
+                <p id="progressText" class="mb-3">Preparing classification process...</p>
+                <div class="row">
+                    <div class="col-6">
+                        <div class="info-box bg-gradient-danger mb-2">
+                            <span class="info-box-icon"><i class="fas fa-exclamation-triangle"></i></span>
+                            <div class="info-box-content">
+                                <span class="info-box-text">Radical</span>
+                                <span class="info-box-number" id="modalRadical">0</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="info-box bg-gradient-success mb-2">
+                            <span class="info-box-icon"><i class="fas fa-check-circle"></i></span>
+                            <div class="info-box-content">
+                                <span class="info-box-text">Non-Radical</span>
+                                <span class="info-box-number" id="modalNonRadical">0</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `,
+        allowOutsideClick: false,
+        showConfirmButton: false,
+        width: 600
+    });
+    
+    // Start actual classification process
+    const csrfToken = $('meta[name=csrf-token]').attr('content');
+    $.ajax({
+        url: '/api/classification/start',
+        method: 'POST',
+        contentType: 'application/json',
+        headers: {
+            'X-CSRFToken': csrfToken
+        },
+        data: JSON.stringify({ 
+            dataset_id: datasetId
+        }),
+        xhrFields: {
+            withCredentials: true  // Send session cookies
+        },
+        success: function(response) {
+            
+            if (response.success) {
+                // Classification started successfully, start polling to check status
+                const datasetId = response.dataset_id;
+                checkClassificationStatus(datasetId);
+            } else {
+                classificationInProgress = false;
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: response.message || 'Failed to start classification process'
+                });
+            }
+        },
+        error: function(xhr, status, error) {
+            classificationInProgress = false;
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'An error occurred while starting classification: ' + error
+            });
+        }
+    });
+}
+
+function checkClassificationStatus(datasetId) {
+    // Show loading modal while checking status
+    Swal.fire({
+        title: 'Checking Classification Status...',
+        html: 'Waiting for classification process to finish...',
+        allowOutsideClick: false,
+        showConfirmButton: false,
+        didOpen: () => {
+            Swal.showLoading();
+        }
+    });
+    
+    // Polling to check dataset status
+    
+    const checkInterval = setInterval(() => {
+
+        $.ajax({
+            url: `/api/classification/status/${datasetId}`,
+            method: 'GET',
+            xhrFields: {
+                withCredentials: true  // Send session cookies
+            },
+            success: function(datasetResponse) {
+
+                if (datasetResponse.success && datasetResponse.dataset) {
+                    const dataset = datasetResponse.dataset;
+                    
+                    // If dataset status is 'Terklasifikasi', redirect to results
+                    if (dataset.status === 'Terklasifikasi') {
+
+                        clearInterval(checkInterval);
+                        classificationInProgress = false;
+                        
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Classification Completed',
+                            text: 'Classification process has been successfully completed.',
+                            confirmButtonText: 'View Results'
+                        }).then(() => {
+                            window.location.href = `/classification/results/${datasetId}`;
+                        });
+                    }
+                    // If status is still 'Terkirim', continue polling
+                    else if (dataset.status === 'Terkirim') {
+                        // Continue polling
+                    }
+                    // If status is error or other, show error
+                    else {
+                        clearInterval(checkInterval);
+                        classificationInProgress = false;
+                        
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Error',
+                            text: `Invalid dataset status: ${dataset.status}`
+                        });
+                    }
+                }
+            },
+            error: function() {
+                // Error checking status, continue polling
+            }
+        });
+    }, 3000); // Check every 3 seconds
+    
+    // Timeout after 5 minutes
+    setTimeout(() => {
+        clearInterval(checkInterval);
+        classificationInProgress = false;
+        
+        Swal.fire({
+            icon: 'warning',
+            title: 'Timeout',
+            text: 'Classification process is taking too long. Please check results manually.'
+        });
+    }, 300000); // 5 minutes timeout
+}
+
+
+function classifyManualText() {
+    const text = $('#manualText').val().trim();
+    if (!text) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'Empty Text',
+            text: 'Please enter text to classify'
+        });
+        return;
+    }
+    
+    // Show loading
+    Swal.fire({
+        title: 'Classifying Text...',
+        html: 'Processing with AI model...',
+        allowOutsideClick: false,
+        didOpen: () => {
+            Swal.showLoading();
+        }
+    });
+    
+    // Call API to classify text
+    const csrfToken = $('meta[name=csrf-token]').attr('content');
+    $.ajax({
+        url: '/api/classify_manual_text',
+        method: 'POST',
+        contentType: 'application/json',
+        headers: {
+            'X-CSRFToken': csrfToken
+        },
+        data: JSON.stringify({ text: text }),
+        success: function(response) {
+            if (response.success && response.results.length > 0) {
+                const results = response.results;
+                
+                // Count predictions
+                const predictions = results.map(r => r.prediction);
+                const radicalCount = predictions.filter(p => p.toLowerCase() === 'radikal').length;
+                const nonRadicalCount = predictions.filter(p => p.toLowerCase() === 'non-radikal').length;
+                
+                let modelCards = '';
+                results.forEach((res, index) => {
+                    const isRadical = res.prediction.toLowerCase() === 'radikal';
+                    // Fix color: use standard Bootstrap danger (red) for radical, success (green) for non-radical
+                    const badgeClass = isRadical ? 'danger' : 'success';
+                    const borderClass = isRadical ? 'danger' : 'success';
+                    
+                    modelCards += `
+                        <div class="col-md-4 mb-3">
+                            <div class="card h-100 shadow-sm border-${borderClass}">
+                                <div class="card-header bg-${badgeClass} text-white text-center py-2">
+                                    <h6 class="mb-0 fw-bold"><i class="fas fa-cog mr-1"></i>${res.model_name.replace('_', ' ').toUpperCase()}</h6>
+                                </div>
+                                <div class="card-body text-center p-3">
+                                    <span class="badge badge-${badgeClass} badge-lg fs-6 mb-2 px-3 py-2">
+                                        ${res.prediction.toUpperCase()}
+                                    </span>
+                                    <div class="mt-3">
+                                        <div class="d-flex justify-content-between align-items-center mb-1">
+                                            <small class="text-danger fw-bold">Radical:</small>
+                                            <strong class="text-danger">${(res.probability_radikal * 100).toFixed(1)}%</strong>
+                                        </div>
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <small class="text-success fw-bold">Non-Radical:</small>
+                                            <strong class="text-success">${(res.probability_non_radikal * 100).toFixed(1)}%</strong>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                // Add to history table (Client-side only for this session)
+                // NOTE: User requested NOT to record manual classification in the history table.
+                // Keeping this code commented out in case requirements change back.
+                /*
+                const historyTableBody = document.querySelector('.table-striped tbody');
+                if (historyTableBody) {
+                    const now = new Date();
+                    const day = now.getDate().toString().padStart(2, '0');
+                    const month = (now.getMonth() + 1).toString().padStart(2, '0');
+                    const year = now.getFullYear();
+                    const hours = now.getHours().toString().padStart(2, '0');
+                    const minutes = now.getMinutes().toString().padStart(2, '0');
+                    
+                    const timeString = `${day}/${month}/${year} ${hours}:${minutes}`;
+                    
+                    // Create rows for each model
+                    results.forEach(res => {
+                        const itemData = {
+                            timestamp: timeString,
+                            type: 'Manual',
+                            model: res.model_name,
+                            prediction: res.prediction,
+                            probability_radikal: res.probability_radikal,
+                            probability_non_radikal: res.probability_non_radikal,
+                            content: text
+                        };
+                        
+                        // Escape quotes for JSON in attribute
+                        const itemJson = JSON.stringify(itemData).replace(/'/g, "&#39;").replace(/"/g, "&quot;");
+
+                        const row = `
+                            <tr class="clickable-row" onclick='viewHistoryDetail(${itemJson})' style="cursor: pointer;">
+                                <td>${timeString}</td>
+                                <td><span class="badge badge-secondary">Manual</span></td>
+                                <td>${res.model_name.replace('_', ' ').toUpperCase()}</td>
+                                <td>
+                                    <span class="badge badge-${res.prediction === 'radikal' ? 'danger' : 'success'}">
+                                        ${res.prediction === 'radikal' ? 'Radical' : 'Non-Radical'}
+                                    </span>
+                                </td>
+                                <td>${(res.probability_radikal * 100).toFixed(1)}%</td>
+                            </tr>
+                        `;
+                        // Insert as first row
+                        historyTableBody.insertAdjacentHTML('afterbegin', row);
+                    });
+                    
+                    // Remove "No history" if exists
+                    const emptyRow = historyTableBody.querySelector('td[colspan="5"]');
+                    if (emptyRow) {
+                        emptyRow.parentElement.remove();
+                    }
+                }
+                */
+
+                Swal.fire({
+                    title: 'Classification Result',
+                    html: `
+                        <div class="text-left">
+                            <div class="mb-4 p-3 bg-light rounded">
+                                <h6 class="mb-2 text-primary"><i class="fas fa-quote-left mr-2"></i>Original Text:</h6>
+                                <p class="mb-3 text-dark font-italic border-bottom pb-2">"${response.text}"</p>
+                                
+                                <h6 class="mb-2 text-info"><i class="fas fa-filter mr-2"></i>Preprocessed Text:</h6>
+                                <p class="mb-0 text-muted font-monospace small bg-white p-2 rounded">"${response.preprocessed_text}"</p>
+                            </div>
+                            
+                            <div class="mb-4">
+                                <h5 class="text-center mb-3 text-primary"><i class="fas fa-brain mr-2"></i>Results Per Model</h5>
+                                <div class="row g-3 justify-content-center">
+                                    ${modelCards}
+                                </div>
+                            </div>
+                            
+                            <div class="text-center p-4 bg-light rounded">
+                                <h5 class="mb-3 text-primary"><i class="fas fa-chart-pie mr-2"></i>Overall Classification Result</h5>
+                                <div class="row justify-content-center">
+                                    <div class="col-auto mb-2">
+                                        <span class="badge bg-danger fs-5 px-4 py-2 rounded-pill">
+                                            <i class="fas fa-exclamation-triangle mr-2"></i>Radical: ${radicalCount}
+                                        </span>
+                                    </div>
+                                    <div class="col-auto mb-2">
+                                        <span class="badge bg-success fs-5 px-4 py-2 rounded-pill">
+                                            <i class="fas fa-check-circle mr-2"></i>Non-Radical: ${nonRadicalCount}
+                                        </span>
+                                    </div>
+                                </div>
+                                <div class="mt-3">
+                                    <span class="badge bg-primary fs-6 px-3 py-1">
+                                        Total: ${radicalCount + nonRadicalCount} predictions from ${results.length} models
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    `,
+                    width: '90%', // Responsive width for standard laptops
+                    padding: '2rem',
+                    showCloseButton: true,
+                    showConfirmButton: true, // Show a button
+                    confirmButtonText: 'Close', // Label it Close
+                    confirmButtonColor: '#6c757d', // Grey color like secondary
+                    customClass: {
+                        popup: 'rounded-4 swal2-popup-xwide',
+                        htmlContainer: 'text-left' // Ensure left alignment
+                    },
+                    didOpen: () => {
+                        // Ensure modal content is scrollable if too tall
+                        const content = Swal.getHtmlContainer();
+                        if (content) {
+                            content.style.maxHeight = '70vh';
+                            content.style.overflowY = 'auto';
+                        }
+                    }
+                });
+            } else {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: response.message || 'Cannot classify text'
+                });
+            }
+        },
+        error: function(xhr, status, error) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'An error occurred while classifying text'
+            });
+        },
+        complete: function() {
+            $('#manualText').val('');
+        }
+    });
+}
+
+function viewClassificationResult(dataId) {
+    // Mock classification result
+    Swal.fire({
+        title: 'Classification Result',
+        html: `
+            <div class="text-left">
+                <p><strong>Data ID:</strong> ${dataId}</p>
+                <p><strong>Content:</strong> "This is a sample content that has been classified"</p>
+                <hr>
+                <div class="row">
+                    <div class="col-4 text-center">
+                        <h6>Model 1</h6>
+                        <span class="badge bg-success badge-lg">NON-RADICAL</span>
+                    </div>
+                    <div class="col-4 text-center">
+                        <h6>Model 2</h6>
+                        <span class="badge badge-success badge-lg">NON-RADICAL</span>
+                    </div>
+                    <div class="col-4 text-center">
+                        <h6>Model 3</h6>
+                        <span class="badge bg-danger badge-lg">RADICAL</span>
+                    </div>
+                </div>
+                <hr>
+                <div class="text-center">
+                    <h5>Final Prediction:</h5>
+                    <span class="badge bg-success" style="font-size: 1.2em; padding: 10px 20px;">NON-RADICAL</span>
+                </div>
+            </div>
+        `,
+        width: 600,
+        showCloseButton: true,
+        showConfirmButton: false
+    });
+}
+
+function viewDataDetail(dataId) {
+    Swal.fire({
+        title: 'Data Detail',
+        html: `
+            <div class="text-left">
+                <p><strong>ID:</strong> ${dataId}</p>
+                <p><strong>Platform:</strong> Twitter</p>
+                <p><strong>Username:</strong> user_example</p>
+                <p><strong>Original Content:</strong> "This is a sample original content with emoji 😀"</p>
+                <p><strong>Clean Content:</strong> "this is a sample original content with emoji"</p>
+                <p><strong>Date:</strong> 2024-01-15 10:30:00</p>
+            </div>
+        `,
+        width: 600,
+        showCloseButton: true,
+        showConfirmButton: false
+    });
+}
+
+function viewHistoryDetail(item) {
+    // Format timestamp if it's not already formatted (e.g. from server)
+    let timeDisplay = item.timestamp;
+    
+    Swal.fire({
+        title: 'Classification Detail',
+        html: `
+            <div class="text-left">
+                <div class="mb-3">
+                    <strong>Time:</strong> ${timeDisplay}<br>
+                    <strong>Type:</strong> <span class="badge badge-secondary">${item.type}</span><br>
+                    <strong>Model:</strong> ${item.model.replace(/_/g, ' ').toUpperCase()}
+                </div>
+                
+                <div class="mb-3 p-3 bg-light rounded">
+                    <h6 class="text-primary"><i class="fas fa-quote-left mr-2"></i>Content:</h6>
+                    <p class="mb-0 font-italic" style="max-height: 150px; overflow-y: auto;">"${item.content || 'Content not available'}"</p>
+                </div>
+                
+                <div class="text-center p-3 border rounded">
+                    <h5 class="mb-2">Prediction Result</h5>
+                    
+                    ${item.is_batch ? `
+                        <div class="mb-3">
+                            <span class="badge badge-info fs-5 px-4 py-2">
+                                ${item.prediction}
+                            </span>
+                        </div>
+                        <p class="text-muted small">Batch classification result summary</p>
+                    ` : `
+                        <span class="badge badge-${item.prediction.toLowerCase() === 'radikal' ? 'danger' : 'success'} fs-5 px-4 py-2 mb-3">
+                            ${item.prediction.toUpperCase().replace('RADIKAL', 'RADICAL')}
+                        </span>
+                        
+                        <div class="row mt-2">
+                            <div class="col-6 text-right border-right">
+                                <small class="text-danger fw-bold d-block">Radical</small>
+                                <span class="h5 text-danger">${(item.probability_radikal * 100).toFixed(1)}%</span>
+                            </div>
+                            <div class="col-6 text-left">
+                                <small class="text-success fw-bold d-block">Non-Radical</small>
+                                <span class="h5 text-success">${(item.probability_non_radikal * 100).toFixed(1)}%</span>
+                            </div>
+                        </div>
+                    `}
+                </div>
+                
+                ${item.dataset_id ? `
+                    <div class="mt-3 text-center">
+                        <a href="/classification/results?dataset_id=${item.dataset_id}" class="btn btn-primary btn-block">
+                            <i class="fas fa-list-alt mr-2"></i>View Full Dataset Results
+                        </a>
+                         ${item.dataset_name ? `<small class="text-muted mt-1 d-block">Dataset: ${item.dataset_name}</small>` : ''}
+                    </div>
+                ` : ''}
+            </div>
+        `,
+        width: 600,
+        showCloseButton: true,
+        showConfirmButton: false
+    });
+}
+    </script>
+    <style>
+.info-box {
+    margin-bottom: 15px;
+}
+
+.progress-group {
+    margin-bottom: 15px;
+}
+
+.content-preview {
+    cursor: help;
+}
+
+.badge-lg {
+    font-size: 0.9em;
+    padding: 8px 12px;
+}
+
+.card-body .row .card {
+    margin-bottom: 10px;
+}
+
+.list-group-item {
+    border-left: none;
+    border-right: none;
+}
+
+.list-group-item:first-child {
+    border-top: none;
+}
+
+.list-group-item:last-child {
+    border-bottom: none;
+}
+
+.progress-bar-animated {
+    animation: progress-bar-stripes 1s linear infinite;
+}
+
+@keyframes progress-bar-stripes {
+    0% {
+        background-position: 1rem 0;
+    }
+    100% {
+        background-position: 0 0;
+    }
+}
+
+/* Dark Mode Overrides */
+body.dark-mode .info-box {
+    background: #343a40;
+    color: #fff;
+}
+body.dark-mode .bg-light {
+    background-color: #3a4047 !important;
+    color: #e9ecef !important;
+}
+body.dark-mode .text-dark {
+    color: #e9ecef !important;
+}
+body.dark-mode .form-control {
+    background-color: #3a4047;
+    border-color: #4b545c;
+    color: #e9ecef;
+}
+body.dark-mode .form-control::placeholder {
+    color: #adb5bd;
+}
+body.dark-mode .card {
+    background-color: #343a40;
+    border-color: #454d55;
+}
+body.dark-mode .card-header {
+    border-bottom-color: #454d55;
+}
+
+/* Font Consistency */
+.card-title { font-size: 1.1rem !important; font-weight: 600; }
+.info-box-text { font-size: 0.9rem !important; }
+.info-box-number { font-size: 1.5rem !important; font-weight: 700; }
+.btn { font-size: 0.9rem !important; }
+h5 { font-size: 1.1rem !important; font-weight: 600; }
+h6 { font-size: 1rem !important; font-weight: 600; }
+    </style>
+{% endblock scripts %}

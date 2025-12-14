@@ -1,0 +1,303 @@
+{% extends "base.html" %}
+{% block title %}
+    AI Model Management - Waskita
+{% endblock title %}
+{% block page_title %}
+    AI Model Management
+{% endblock page_title %}
+{% block breadcrumb %}
+    <li class="breadcrumb-item">
+        <a href="{{ url_for("main.dashboard") }}">Home</a>
+    </li>
+    <li class="breadcrumb-item active">AI Model Management</li>
+{% endblock breadcrumb %}
+{% block extra_css %}
+<style>
+    /* Standardized Font Sizes */
+    .card-title { font-size: 1.1rem !important; font-weight: 600; }
+    .nav-link { font-size: 0.95rem !important; font-weight: 500; }
+    .form-group label { font-size: 0.95rem !important; font-weight: 500; }
+    .custom-control-label { font-size: 0.9rem !important; }
+    .form-text.text-muted { font-size: 0.85rem !important; }
+    .btn { font-size: 0.9rem !important; font-weight: 500; }
+    
+    /* Table Fonts */
+    .table th { font-size: 0.9rem !important; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+    .table td { font-size: 0.9rem !important; }
+
+    /* Dark Mode Enhancements for AI Model Management */
+    body.dark-mode .card-tabs .nav-tabs .nav-item.show .nav-link, 
+    body.dark-mode .card-tabs .nav-tabs .nav-link.active {
+        background-color: var(--card-bg);
+        color: var(--white);
+        border-color: transparent transparent var(--primary) transparent;
+        border-bottom-width: 2px;
+    }
+
+    body.dark-mode .nav-tabs .nav-link {
+        color: var(--text-muted);
+    }
+    
+    body.dark-mode .nav-tabs .nav-link:hover {
+        color: var(--white);
+    }
+
+    body.dark-mode .custom-file-label {
+        background-color: var(--input-bg);
+        color: var(--input-color);
+        border-color: var(--input-border);
+    }
+
+    body.dark-mode .custom-file-label::after {
+        background-color: var(--body-bg);
+        color: var(--white);
+    }
+
+    body.dark-mode .custom-control-label::before {
+        background-color: var(--input-bg);
+        border-color: var(--input-border);
+    }
+
+    body.dark-mode .custom-range::-webkit-slider-runnable-track {
+        background-color: #495057;
+    }
+
+    body.dark-mode .table-striped tbody tr:nth-of-type(odd) {
+        background-color: rgba(255, 255, 255, 0.05);
+    }
+
+    body.dark-mode .table td {
+        border-color: var(--table-border-color);
+        color: var(--white);
+    }
+
+    body.dark-mode .text-muted {
+        color: #adb5bd !important;
+    }
+    
+    /* Ensure cards in dark mode are consistent */
+    body.dark-mode .card {
+        background-color: var(--card-bg);
+        color: var(--white);
+    }
+</style>
+{% endblock extra_css %}
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card card-primary card-outline card-tabs">
+            <div class="card-header p-0 pt-1 border-bottom-0">
+                <ul class="nav nav-tabs" id="custom-tabs-three-tab" role="tablist">
+                    <li class="nav-item">
+                        <a class="nav-link active" id="custom-tabs-three-settings-tab" data-toggle="pill" href="#custom-tabs-three-settings" role="tab" aria-controls="custom-tabs-three-settings" aria-selected="true">Algorithm Settings</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" id="custom-tabs-three-models-tab" data-toggle="pill" href="#custom-tabs-three-models" role="tab" aria-controls="custom-tabs-three-models" aria-selected="false">Model Management</a>
+                    </li>
+                </ul>
+            </div>
+            <div class="card-body">
+                <div class="tab-content" id="custom-tabs-three-tabContent">
+                    <!-- Settings Tab -->
+                    <div class="tab-pane fade show active" id="custom-tabs-three-settings" role="tabpanel" aria-labelledby="custom-tabs-three-settings-tab">
+                        <form id="settingsForm" method="POST" action="{{ url_for('admin.classification_settings') }}">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <input type="hidden" name="action" value="save_settings">
+                            
+                            <div class="form-group">
+                                <label class="mb-3">Algorithms Used</label>
+                                <div class="row">
+                                    {% if all_models %}
+                                        {% for model in all_models %}
+                                        <div class="col-md-3 col-sm-6">
+                                            <div class="custom-control custom-checkbox mb-2">
+                                                <input class="custom-control-input" type="checkbox" name="algorithms" value="{{ model.key }}" id="alg_{{ model.key }}"
+                                                {% if config.visible_algorithms and model.key in config.visible_algorithms %}checked{% endif %}>
+                                                <label class="custom-control-label" for="alg_{{ model.key }}">
+                                                    {{ model.name }}
+                                                </label>
+                                            </div>
+                                        </div>
+                                        {% endfor %}
+                                    {% else %}
+                                        <div class="col-12">
+                                            <div class="alert alert-warning">No models available.</div>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                                <small class="form-text text-muted mt-2">Select algorithms to be used in the classification process and displayed in results.</small>
+                            </div>
+                            
+                            <hr>
+                            
+                            <div class="form-group">
+                                <label for="classification_threshold">Classification Threshold: <span id="threshold_val" class="font-weight-bold">{{ config.classification_threshold }}</span></label>
+                                <input type="range" class="custom-range" id="classification_threshold" name="classification_threshold" min="0" max="1" step="0.05" value="{{ config.classification_threshold }}">
+                                <div class="d-flex justify-content-between">
+                                    <small>Non-Radical (0.0)</small>
+                                    <small>Radical (1.0)</small>
+                                </div>
+                                <small class="form-text text-muted">Probabilities above this threshold will be classified as <strong>Radical</strong>.</small>
+                            </div>
+                            
+                            <div class="text-right">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-save mr-1"></i> Save Changes
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                    
+                    <!-- Model Management Tab -->
+                    <div class="tab-pane fade" id="custom-tabs-three-models" role="tabpanel" aria-labelledby="custom-tabs-three-models-tab">
+                        <div class="row">
+                            <!-- IndoBERT -->
+                            <div class="col-md-4">
+                                <div class="card card-outline card-info h-100">
+                                    <div class="card-header">
+                                        <h3 class="card-title"><i class="fas fa-brain mr-2"></i>IndoBERT Model</h3>
+                                    </div>
+                                    <div class="card-body">
+                                        <p class="text-muted small">Upload a .zip file containing the complete IndoBERT model (config.json, pytorch_model.bin, etc). The system will extract it automatically.</p>
+                                        <form method="POST" action="{{ url_for('admin.classification_settings') }}" enctype="multipart/form-data">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                            <input type="hidden" name="action" value="upload_model">
+                                            <input type="hidden" name="model_type" value="indobert">
+                                            <div class="form-group">
+                                                <div class="custom-file">
+                                                    <input type="file" class="custom-file-input" id="indobertFile" name="model_file" accept=".zip" required>
+                                                    <label class="custom-file-label" for="indobertFile">Choose .zip file</label>
+                                                </div>
+                                            </div>
+                                            <button type="submit" class="btn btn-info btn-block"><i class="fas fa-upload mr-1"></i> Replace IndoBERT</button>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Word2Vec & Label Encoder -->
+                            <div class="col-md-4">
+                                <div class="card card-outline card-success h-100">
+                                    <div class="card-header">
+                                        <h3 class="card-title"><i class="fas fa-cubes mr-2"></i>Helper Models</h3>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="mb-4">
+                                            <h6><i class="fas fa-vector-square mr-1"></i> Word2Vec (.joblib)</h6>
+                                            <form method="POST" action="{{ url_for('admin.classification_settings') }}" enctype="multipart/form-data">
+                                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                                <input type="hidden" name="action" value="upload_model">
+                                                <input type="hidden" name="model_type" value="word2vec">
+                                                <div class="input-group input-group-sm">
+                                                    <div class="custom-file">
+                                                        <input type="file" class="custom-file-input" id="w2vFile" name="model_file" accept=".joblib" required>
+                                                        <label class="custom-file-label" for="w2vFile">Choose file</label>
+                                                    </div>
+                                                    <div class="input-group-append">
+                                                        <button class="btn btn-success" type="submit">Upload</button>
+                                                    </div>
+                                                </div>
+                                            </form>
+                                        </div>
+                                        <hr>
+                                        <div>
+                                            <h6><i class="fas fa-tags mr-1"></i> Label Encoder (.joblib)</h6>
+                                            <form method="POST" action="{{ url_for('admin.classification_settings') }}" enctype="multipart/form-data">
+                                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                                <input type="hidden" name="action" value="upload_model">
+                                                <input type="hidden" name="model_type" value="label_encoder">
+                                                <div class="input-group input-group-sm">
+                                                    <div class="custom-file">
+                                                        <input type="file" class="custom-file-input" id="leFile" name="model_file" accept=".joblib" required>
+                                                        <label class="custom-file-label" for="leFile">Choose file</label>
+                                                    </div>
+                                                    <div class="input-group-append">
+                                                        <button class="btn btn-success" type="submit">Upload</button>
+                                                    </div>
+                                                </div>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Classifiers -->
+                            <div class="col-md-4">
+                                <div class="card card-outline card-warning h-100">
+                                    <div class="card-header">
+                                        <h3 class="card-title"><i class="fas fa-project-diagram mr-2"></i>Classifiers (.joblib)</h3>
+                                    </div>
+                                    <div class="card-body p-0 table-responsive">
+                                        <table class="table table-striped table-valign-middle">
+                                            <thead>
+                                                <tr>
+                                                    <th>Model</th>
+                                                    <th class="text-right">Action</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for model in all_models %}
+                                                    {% if model.key != 'indobert' %}
+                                                    <tr>
+                                                        <td>{{ model.name }}</td>
+                                                        <td class="text-right">
+                                                            <form method="POST" action="{{ url_for('admin.classification_settings') }}" enctype="multipart/form-data" class="d-inline">
+                                                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                                                <input type="hidden" name="action" value="upload_model">
+                                                                <input type="hidden" name="model_type" value="{{ model.key }}">
+                                                                <input type="file" name="model_file" accept=".joblib" style="display: none;" onchange="if(confirm('Replace {{ model.name }}?')) this.form.submit()">
+                                                                <button type="button" class="btn btn-xs btn-outline-warning" onclick="this.previousElementSibling.click()" title="Replace Model">
+                                                                    <i class="fas fa-upload"></i>
+                                                                </button>
+                                                            </form>
+                                                        </td>
+                                                    </tr>
+                                                    {% endif %}
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock content %}
+
+{% block extra_js %}
+<script>
+    $(document).ready(function() {
+        // Custom file input label update
+        $('.custom-file-input').on('change', function() {
+            var fileName = $(this).val().split('\\').pop();
+            $(this).next('.custom-file-label').addClass("selected").html(fileName);
+        });
+        
+        // Threshold slider
+        $('#classification_threshold').on('input', function() {
+            var val = $(this).val();
+            $('#threshold_val').text(val);
+        });
+
+        // Form validation
+        $('#settingsForm').on('submit', function(e) {
+            const checkedAlgorithms = $('input[name="algorithms"]:checked').length;
+            
+            if (checkedAlgorithms === 0) {
+                e.preventDefault();
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Validation Failed',
+                    text: 'Please select at least one algorithm to use.',
+                    confirmButtonText: 'OK',
+                    confirmButtonColor: '#d33'
+                });
+            }
+        });
+    });
+</script>
+{% endblock extra_js %}

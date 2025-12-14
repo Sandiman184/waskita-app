@@ -1,0 +1,745 @@
+{% extends "base.html" %}
+
+{% block title %}Detail Dataset - {{ dataset.name }}{% endblock title %}
+
+{% block page_title %}Dataset Management{% endblock page_title %}
+
+{% block breadcrumb %}
+    <li class="breadcrumb-item">
+        <a href="{{ url_for('main.dashboard') }}">Home</a>
+    </li>
+    <li class="breadcrumb-item">
+        <a href="{{ url_for('dataset.management_table') }}">Dataset Management</a>
+    </li>
+    <li class="breadcrumb-item active">Detail Dataset</li>
+{% endblock breadcrumb %}
+
+{% block extra_css %}
+<style>
+/* Consistent styling with existing application design */
+
+/* Stats Card Styling - consistent with dashboard info-box */
+.stats-card {
+    text-align: center;
+    padding: 1rem;
+    background: white;
+    border-radius: 0.25rem;
+    border: 1px solid #dee2e6;
+    margin-bottom: 1rem;
+}
+
+.stats-number {
+    font-size: 2rem;
+    font-weight: bold;
+    color: #495057;
+    display: block;
+    line-height: 1.2;
+}
+
+.stats-label {
+    font-size: 0.875rem;
+    color: #6c757d;
+    text-transform: uppercase;
+    font-weight: 500;
+    margin-top: 0.5rem;
+}
+
+/* Badge Styling - consistent with existing badges */
+.badge-professional {
+    font-size: 0.75rem;
+    padding: 0.375rem 0.75rem;
+    border-radius: 0.25rem;
+    font-weight: 500;
+}
+
+.badge-upload {
+    background-color: #e3f2fd;
+    color: #0d6efd;
+}
+
+.badge-scraping {
+    background-color: #f3e5f5;
+    color: #7b1fa2;
+}
+
+.badge-status-raw {
+    background-color: #6c757d;
+    color: white;
+}
+
+.badge-status-clean {
+    background-color: #ffc107;
+    color: #212529;
+}
+
+.badge-status-classified {
+    background-color: #28a745;
+    color: white;
+}
+
+.badge-prediction-radikal {
+    background-color: #dc3545;
+    color: white;
+}
+
+.badge-prediction-nonradikal {
+    background-color: #28a745;
+    color: white;
+}
+
+/* Table styling - consistent with existing tables */
+.table thead th {
+    background-color: #f8f9fa;
+    border-bottom: 2px solid #dee2e6;
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: #495057;
+    padding: 0.75rem;
+}
+
+.table tbody tr:hover {
+    background-color: rgba(0, 0, 0, 0.02);
+}
+
+.table td {
+    padding: 0.75rem;
+    font-size: 0.875rem;
+    vertical-align: middle;
+}
+
+/* Button styling - consistent with existing buttons */
+.btn-outline-secondary {
+    color: #6c757d;
+    border-color: #6c757d;
+}
+
+.btn-outline-secondary:hover {
+    color: #fff;
+    background-color: #6c757d;
+    border-color: #6c757d;
+}
+
+/* Probability Display Enhancement */
+.probability-text {
+    font-size: 0.75rem;
+    color: #6c757d;
+    font-weight: 500;
+    background: #f8f9fa;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    border: 1px solid #dee2e6;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .stats-card {
+        margin-bottom: 0.5rem;
+    }
+    
+    .stats-number {
+        font-size: 1.5rem;
+    }
+    
+    .table td {
+        padding: 0.5rem;
+        font-size: 0.8rem;
+    }
+}
+
+/* Dark Mode Overrides */
+body.dark-mode .stats-card {
+    background-color: #343a40;
+    border-color: #454d55;
+}
+body.dark-mode .stats-number {
+    color: #f8f9fa;
+}
+body.dark-mode .table thead th {
+    background-color: #343a40;
+    color: #e9ecef;
+    border-bottom-color: #4b545c;
+}
+body.dark-mode .probability-text {
+    background-color: #3a4047;
+    border-color: #4b545c;
+    color: #adb5bd;
+}
+body.dark-mode .detail-row {
+    background-color: #2b3035 !important;
+}
+body.dark-mode .text-dark {
+    color: #e9ecef !important;
+}
+body.dark-mode .card {
+    background-color: #343a40;
+    border-color: #454d55;
+}
+body.dark-mode .card-header {
+    background-color: #343a40;
+    border-bottom-color: #454d55;
+}
+body.dark-mode .bg-secondary {
+    background-color: #4e555b !important;
+}
+body.dark-mode .bg-warning {
+    background-color: #e0a800 !important;
+    color: #212529 !important;
+}
+body.dark-mode .bg-success {
+    background-color: #1e7e34 !important;
+}
+body.dark-mode .text-muted {
+    color: #adb5bd !important;
+}
+
+/* Font Consistency */
+h4 { font-size: 1.5rem !important; font-weight: 600; }
+h6 { font-size: 1.1rem !important; font-weight: 600; }
+.stats-number { font-size: 2rem !important; }
+.table td, .table th { font-size: 0.9rem !important; }
+.btn-sm { font-size: 0.85rem !important; }
+</style>
+{% endblock extra_css %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row">
+        <div class="col-12">
+            <!-- Breadcrumb Navigation -->
+            <nav aria-label="breadcrumb" class="mb-3">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">Dashboard</a></li>
+                    <li class="breadcrumb-item"><a href="{{ url_for('dataset.management_table') }}">Dataset Management</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Detail Dataset</li>
+                </ol>
+            </nav>
+
+            <!-- Header -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <div class="d-flex justify-content-between align-items-center">
+                <h6 class="mb-0">
+                    <i class="fas fa-database mr-2"></i>
+                    Detail Dataset: {{ dataset.name }}
+                </h6>
+                <a href="{{ url_for('dataset.management_table') }}" class="btn btn-sm btn-outline-secondary">
+                    <i class="fas fa-arrow-left mr-1"></i>
+                    Back
+                </a>
+            </div>
+        </div>
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-md-8">
+                            <h4 class="mb-2">{{ dataset.name }}</h4>
+                            <p class="text-muted mb-0">
+                                <i class="fas fa-calendar mr-1"></i>
+                                Created at {{ dataset.created_at|format_datetime('display') if dataset.created_at else '-' }}
+                            </p>
+                        </div>
+                        <div class="col-md-4 text-right">
+                            {% if total_classified_items > 0 %}
+                                <span class="badge badge-professional badge-status-classified">
+                                    <i class="fas fa-check-circle mr-1"></i>Classified
+                                </span>
+                            {% elif total_clean_items > 0 %}
+                                <span class="badge badge-professional badge-status-clean">
+                                    <i class="fas fa-broom mr-1"></i>Cleaned
+                                </span>
+                            {% else %}
+                                <span class="badge badge-professional badge-status-raw">
+                                    <i class="fas fa-file-alt mr-1"></i>Raw
+                                </span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Dataset Information -->
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <div class="card h-100">
+                            <div class="card-header">
+                                <h6 class="mb-0">
+                                    <i class="fas fa-info-circle mr-2"></i>
+                                    Dataset Information
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="row mb-2">
+                                    <div class="col-sm-4">
+                                        <strong>Dataset Name:</strong>
+                                    </div>
+                                    <div class="col-sm-8">
+                                        {{ dataset.name }}
+                                    </div>
+                                </div>
+                                <div class="row mb-2">
+                                    <div class="col-sm-4">
+                                        <strong>Description:</strong>
+                                    </div>
+                                    <div class="col-sm-8">
+                                        {{ dataset.description if dataset.description else 'No description' }}
+                                    </div>
+                                </div>
+                                <div class="row mb-2">
+                                    <div class="col-sm-4">
+                                        <strong>Date Created:</strong>
+                                    </div>
+                                    <div class="col-sm-8">
+                                        {{ dataset.created_at|format_datetime('display') if dataset.created_at else '-' }}
+                                    </div>
+                                </div>
+                                <div class="row mb-2">
+                                    <div class="col-sm-4">
+                                        <strong>Status:</strong>
+                                    </div>
+                                    <div class="col-sm-8">
+                                        {% if total_classified_items > 0 %}
+                                            <span class="badge badge-professional badge-status-classified">{{ t('Classified') }}</span>
+                                        {% elif total_clean_items > 0 %}
+                                            <span class="badge badge-professional badge-status-clean">{{ t('Cleaned') }}</span>
+                                        {% else %}
+                                            <span class="badge badge-professional badge-status-raw">{{ t('Raw') }}</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div class="card h-100">
+                        <div class="card-header">
+                            <h6 class="mb-0">
+                                <i class="fas fa-chart-bar mr-2"></i>
+                                Data Statistics
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row mb-2">
+                                <div class="col-sm-6">
+                                    <strong>Total Raw Data:</strong>
+                                </div>
+                                <div class="col-sm-6">
+                                    {{ total_raw_items }}
+                                </div>
+                            </div>
+                            <div class="row mb-2">
+                                <div class="col-sm-6">
+                                    <strong>Total Cleaned Data:</strong>
+                                </div>
+                                <div class="col-sm-6">
+                                    {{ total_clean_items }}
+                                </div>
+                            </div>
+                            <div class="row mb-2">
+                                <div class="col-sm-6">
+                                    <strong>Total Classified Data:</strong>
+                                </div>
+                                <div class="col-sm-6">
+                                    {{ total_classified_items }}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Data Tables -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h6 class="mb-0">
+                                <i class="fas fa-tags mr-2"></i>
+                                Classification Results & Comparison
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-striped table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th class="text-center" style="width: 50px;">ACTION</th>
+                                            <th>
+                                                <a href="?classified_page={{ classified_page }}&sort_by=id&sort_order={{ 'asc' if sort_by == 'id' and sort_order == 'desc' else 'desc' }}" class="text-dark text-decoration-none">
+                                                    ID
+                                                    {% if sort_by == 'id' %}
+                                                        <i class="fas fa-sort-{{ 'down' if sort_order == 'desc' else 'up' }}"></i>
+                                                    {% else %}
+                                                        <i class="fas fa-sort text-muted small"></i>
+                                                    {% endif %}
+                                                </a>
+                                            </th>
+                                            <th class="text-center">URL</th>
+                                            <th>
+                                                <a href="?classified_page={{ classified_page }}&sort_by=username&sort_order={{ 'asc' if sort_by == 'username' and sort_order == 'desc' else 'desc' }}" class="text-dark text-decoration-none">
+                                                    USERNAME
+                                                    {% if sort_by == 'username' %}
+                                                        <i class="fas fa-sort-{{ 'down' if sort_order == 'desc' else 'up' }}"></i>
+                                                    {% else %}
+                                                        <i class="fas fa-sort text-muted small"></i>
+                                                    {% endif %}
+                                                </a>
+                                            </th>
+                                            <th>CONTENT</th>
+                                            <th>DATA TYPE</th>
+                                            {% for model_name in visible_algorithms %}
+                                            <th>{{ model_name.replace('_', ' ').upper() }}</th>
+                                            {% endfor %}
+                                            <th>DATE</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for data in classified_upload_data %}
+                                        <tr>
+                                            <td class="text-center">
+                                                <button class="btn btn-sm btn-info btn-icon-only shadow-sm toggle-detail" type="button" data-target="#detail-upload-{{ data.id }}" title="View Full Analysis">
+                                                    <i class="fas fa-eye"></i>
+                                                </button>
+                                            </td>
+                                            <td>{{ data.id }}</td>
+                                            <td class="text-center">
+                                                {% if data.url and data.url|string|lower != 'nan' and data.url|length > 0 %}
+                                                    {% if data.url.startswith('http://') or data.url.startswith('https://') %}
+                                                        <a href="{{ data.url }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-primary" title="{{ data.url }}" style="padding: 0.25rem 0.5rem;">
+                                                            <i class="fas fa-external-link-alt"></i>
+                                                        </a>
+                                                    {% else %}
+                                                        <span class="text-muted" title="{{ data.url }}"><i class="fas fa-link"></i></span>
+                                                    {% endif %}
+                                                {% else %}
+                                                    -
+                                                {% endif %}
+                                            </td>
+                                            <td>{{ data.username if data.username and data.username|string|lower != 'nan' else '-' }}</td>
+                                            <td 
+                                                data-full-content="{{ data.content }}"
+                                                data-original-content="{{ data.raw_content or '' }}">
+                                                {{ data.content[:100] if data.content and data.content|string|lower != 'nan' else '-' }}{% if data.content and data.content|length > 100 and data.content|string|lower != 'nan' %}...{% endif %}
+                                            </td>
+                                            <td><span class="badge badge-professional badge-upload">Upload</span></td>
+                                            
+                                            {% for model_name in visible_algorithms %}
+                                            <td>
+                                                {% if data.models.get(model_name) %}
+                                                    {% set model_result = data.models[model_name] %}
+                                                    {% if model_result.prediction|lower == 'radikal' %}
+                                                <span class="badge badge-professional badge-prediction-radikal">RADICAL</span>
+                                                <br><small class="probability-text">{{ "%.2f"|format(model_result.probability_radikal * 100) }}%</small>
+                                            {% else %}
+                                                <span class="badge badge-professional badge-prediction-nonradikal">NON-RADICAL</span>
+                                                <br><small class="probability-text">{{ "%.2f"|format(model_result.probability_non_radikal * 100) }}%</small>
+                                            {% endif %}
+                                                {% else %}
+                                                    <span class="badge badge-secondary">-</span>
+                                                {% endif %}
+                                            </td>
+                                            {% endfor %}
+                                            
+                                            <td>{{ data.created_at|format_datetime('short') if data.created_at else '-' }}</td>
+                                        </tr>
+                                        <tr id="detail-upload-{{ data.id }}" class="detail-row" style="display: none; background-color: #f8f9fa;">
+                                            <td colspan="{{ 7 + visible_algorithms|length }}">
+                                                <div class="p-3">
+                                                    <h6 class="text-primary mb-3"><i class="fas fa-microscope mr-2"></i>Content Analysis & Comparison</h6>
+                                                    
+                                                    {% set show_clean = data.cleaned_content is not none %}
+                                                    {% set show_classified = data.models|length > 0 %}
+                                                    {% set col_class = 'col-md-12' %}
+                                                    {% if show_classified %}
+                                                        {% set col_class = 'col-md-4' %}
+                                                    {% elif show_clean %}
+                                                        {% set col_class = 'col-md-6' %}
+                                                    {% endif %}
+                                                    
+                                                    <div class="row">
+                                                        <div class="{{ col_class }}">
+                                                            <div class="card shadow-sm h-100">
+                                                                <div class="card-header bg-secondary text-white py-2">
+                                                                    <h6 class="mb-0 text-sm"><i class="fas fa-file-alt mr-2"></i>Raw Data</h6>
+                                                                </div>
+                                                                <div class="card-body p-3" style="max-height: 300px; overflow-y: auto;">
+                                                                    <p class="text-sm text-break mb-0">
+                                                                        {{ data.raw_data.content if data.raw_data else data.content }}
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        
+                                                        {% if show_clean or show_classified %}
+                                                        <div class="{{ col_class }}">
+                                                            <div class="card shadow-sm h-100">
+                                                                <div class="card-header bg-warning text-dark py-2">
+                                                                    <h6 class="mb-0 text-sm"><i class="fas fa-broom mr-2"></i>Cleaned Data</h6>
+                                                                </div>
+                                                                <div class="card-body p-3" style="max-height: 300px; overflow-y: auto;">
+                                                                    <p class="text-sm text-break mb-0">
+                                                                        {{ data.cleaned_content }}
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        {% endif %}
+                                                        
+                                                        {% if show_classified %}
+                                                        <div class="{{ col_class }}">
+                                                            <div class="card shadow-sm h-100">
+                                                                <div class="card-header bg-success text-white py-2">
+                                                                    <h6 class="mb-0 text-sm"><i class="fas fa-robot mr-2"></i>Classification Result</h6>
+                                                                </div>
+                                                                <div class="card-body p-3">
+                                                                    <div class="table-responsive">
+                                                                        <table class="table table-sm table-borderless mb-0">
+                                                                            {% for model_name in visible_algorithms %}
+                                                                            {% if data.models is defined and data.models.get(model_name) %}
+                                                                            {% set model_result = data.models[model_name] %}
+                                                                            <tr>
+                                                                                <td class="text-sm"><strong>{{ model_name.replace('_', ' ').upper() }}</strong></td>
+                                                                                <td class="text-right">
+                                                                                    {% if model_result.prediction|lower == 'radikal' %}
+                                                                                        <span class="badge badge-prediction-radikal">RADICAL</span>
+                                                                                    {% else %}
+                                                                                        <span class="badge badge-prediction-nonradikal">NON-RADICAL</span>
+                                                                                    {% endif %}
+                                                                                    <div class="text-xs text-muted mt-1">
+                                                                                        Probability: {{ "%.1f"|format(model_result.probability_radikal * 100) }}% (R)
+                                                                                    </div>
+                                                                                </td>
+                                                                            </tr>
+                                                                            {% endif %}
+                                                                            {% endfor %}
+                                                                        </table>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        {% endif %}
+                                                    </div>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                        {% for data in classified_scraper_data %}
+                                        <tr>
+                                            <td class="text-center">
+                                                <button class="btn btn-sm btn-info btn-icon-only shadow-sm toggle-detail" type="button" data-target="#detail-scraper-{{ data.id }}" title="View Full Analysis">
+                                                    <i class="fas fa-eye"></i>
+                                                </button>
+                                            </td>
+                                            <td>{{ data.id }}</td>
+                                            <td class="text-center">
+                                                {% if data.url and data.url|string|lower != 'nan' and data.url|length > 0 %}
+                                                    {% if data.url.startswith('http://') or data.url.startswith('https://') %}
+                                                        <a href="{{ data.url }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-primary" title="{{ data.url }}" style="padding: 0.25rem 0.5rem;">
+                                                            <i class="fas fa-external-link-alt"></i>
+                                                        </a>
+                                                    {% else %}
+                                                        <span class="text-muted" title="{{ data.url }}"><i class="fas fa-link"></i></span>
+                                                    {% endif %}
+                                                {% else %}
+                                                    -
+                                                {% endif %}
+                                            </td>
+                                            <td>{{ data.username if data.username and data.username|string|lower != 'nan' else '-' }}</td>
+                                            <td 
+                                                data-full-content="{{ data.content }}"
+                                                data-original-content="{{ data.raw_content or '' }}">
+                                                {{ data.content[:100] if data.content and data.content|string|lower != 'nan' else '-' }}{% if data.content and data.content|length > 100 and data.content|string|lower != 'nan' %}...{% endif %}
+                                            </td>
+                                            <td><span class="badge badge-professional badge-scraping">Scraping</span></td>
+                                            
+                                            {% for model_name in visible_algorithms %}
+                                            <td>
+                                                {% if data.models.get(model_name) %}
+                                                    {% set model_result = data.models[model_name] %}
+                                                    {% if model_result.prediction|lower == 'radikal' %}
+                                                <span class="badge badge-professional badge-prediction-radikal">RADICAL</span>
+                                                <br><small class="probability-text">{{ "%.2f"|format(model_result.probability_radikal * 100) }}%</small>
+                                            {% else %}
+                                                <span class="badge badge-professional badge-prediction-nonradikal">NON-RADICAL</span>
+                                                <br><small class="probability-text">{{ "%.2f"|format(model_result.probability_non_radikal * 100) }}%</small>
+                                            {% endif %}
+                                                {% else %}
+                                                    <span class="badge badge-secondary">-</span>
+                                                {% endif %}
+                                            </td>
+                                            {% endfor %}
+                                            
+                                            <td>{{ data.created_at|format_datetime('short') if data.created_at else '-' }}</td>
+                                        </tr>
+                                        <tr id="detail-scraper-{{ data.id }}" class="detail-row" style="display: none; background-color: #f8f9fa;">
+                                            <td colspan="{{ 7 + visible_algorithms|length }}">
+                                                <div class="p-3">
+                                                    <h6 class="text-primary mb-3"><i class="fas fa-microscope mr-2"></i>Content Analysis & Comparison</h6>
+                                                    
+                                                    {% set show_clean = data.cleaned_content is not none %}
+                                                    {% set show_classified = data.models|length > 0 %}
+                                                    {% set col_class = 'col-md-12' %}
+                                                    {% if show_classified %}
+                                                        {% set col_class = 'col-md-4' %}
+                                                    {% elif show_clean %}
+                                                        {% set col_class = 'col-md-6' %}
+                                                    {% endif %}
+                                                    
+                                                    <div class="row">
+                                                        <div class="{{ col_class }}">
+                                                            <div class="card shadow-sm h-100">
+                                                                <div class="card-header bg-secondary text-white py-2">
+                                                                    <h6 class="mb-0 text-sm"><i class="fas fa-file-alt mr-2"></i>Raw Data</h6>
+                                                                </div>
+                                                                <div class="card-body p-3" style="max-height: 300px; overflow-y: auto;">
+                                                                    <p class="text-sm text-break mb-0">
+                                                                        {{ data.raw_data.content if data.raw_data else data.content }}
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        
+                                                        {% if show_clean or show_classified %}
+                                                        <div class="{{ col_class }}">
+                                                            <div class="card shadow-sm h-100">
+                                                                <div class="card-header bg-warning text-dark py-2">
+                                                                    <h6 class="mb-0 text-sm"><i class="fas fa-broom mr-2"></i>Cleaned Data</h6>
+                                                                </div>
+                                                                <div class="card-body p-3" style="max-height: 300px; overflow-y: auto;">
+                                                                    <p class="text-sm text-break mb-0">
+                                                                        {{ data.cleaned_content }}
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        {% endif %}
+                                                        
+                                                        {% if show_classified %}
+                                                        <div class="{{ col_class }}">
+                                                            <div class="card shadow-sm h-100">
+                                                                <div class="card-header bg-success text-white py-2">
+                                                                    <h6 class="mb-0 text-sm"><i class="fas fa-robot mr-2"></i>Classification Result</h6>
+                                                                </div>
+                                                                <div class="card-body p-3">
+                                                                    <div class="table-responsive">
+                                                                        <table class="table table-sm table-borderless mb-0">
+                                                                            {% for model_name in visible_algorithms %}
+                                                                            {% if data.models is defined and data.models.get(model_name) %}
+                                                                            {% set model_result = data.models[model_name] %}
+                                                                            <tr>
+                                                                                <td class="text-sm"><strong>{{ model_name.replace('_', ' ').upper() }}</strong></td>
+                                                                                <td class="text-right">
+                                                                                    {% if model_result.prediction|lower == 'radikal' %}
+                                                                                        <span class="badge badge-prediction-radikal">RADICAL</span>
+                                                                                    {% else %}
+                                                                                        <span class="badge badge-prediction-nonradikal">NON-RADICAL</span>
+                                                                                    {% endif %}
+                                                                                    <div class="text-xs text-muted mt-1">
+                                                                                        Probability: {{ "%.1f"|format(model_result.probability_radikal * 100) }}% (R)
+                                                                                    </div>
+                                                                                </td>
+                                                                            </tr>
+                                                                            {% endif %}
+                                                                            {% endfor %}
+                                                                        </table>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        {% endif %}
+                                                    </div>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                                
+                                <!-- Pagination for Classification Results -->
+                                {% if classified_total_pages > 1 %}
+                                <nav aria-label="Classification results pagination">
+                                    <ul class="pagination pagination-sm justify-content-center mt-3">
+                                        {% if classified_page > 1 %}
+                                        <li class="page-item">
+                                            <a class="page-link" href="?classified_page={{ classified_page - 1 }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}" tabindex="-1">Previous</a>
+                                        </li>
+                                        {% else %}
+                                        <li class="page-item disabled">
+                                            <span class="page-link">Previous</span>
+                                        </li>
+                                        {% endif %}
+                                        
+                                        {% set start_page = [classified_page - 2, 1]|max %}
+                                        {% set end_page = [start_page + 4, classified_total_pages]|min %}
+                                        {% if start_page > 1 %}
+                                        <li class="page-item disabled">
+                                            <span class="page-link">...</span>
+                                        </li>
+                                        {% endif %}
+                                        
+                                        {% for p in range(start_page, end_page + 1) %}
+                                        <li class="page-item {% if p == classified_page %}active{% endif %}">
+                                            <a class="page-link" href="?classified_page={{ p }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}">{{ p }}</a>
+                                        </li>
+                                        {% endfor %}
+                                        
+                                        {% if end_page < classified_total_pages %}
+                                        <li class="page-item disabled">
+                                            <span class="page-link">...</span>
+                                        </li>
+                                        {% endif %}
+                                        
+                                        {% if classified_page < classified_total_pages %}
+                                        <li class="page-item">
+                                            <a class="page-link" href="?classified_page={{ classified_page + 1 }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}">Next</a>
+                                        </li>
+                                        {% else %}
+                                        <li class="page-item disabled">
+                                            <span class="page-link">Next</span>
+                                        </li>
+                                        {% endif %}
+                                    </ul>
+                                    <p class="text-center text-muted small mb-0">
+                                        Showing {{ (classified_page - 1) * per_page + 1 }} - {{ [classified_page * per_page, total_classified_items]|min }} of {{ total_classified_items }} classification results
+                                    </p>
+                                    <p class="text-center text-muted small mt-1">
+                                        {% if classified_upload_total_pages > 0 and classified_scraper_total_pages > 0 %}
+                                            UPLOAD Data: page {{ classified_page }} of {{ classified_upload_total_pages }} | SCRAPING Data: page {{ classified_page }} of {{ classified_scraper_total_pages }}
+                                        {% elif classified_upload_total_pages > 0 %}
+                                            UPLOAD Data: page {{ classified_page }} of {{ classified_upload_total_pages }}
+                                        {% elif classified_scraper_total_pages > 0 %}
+                                            SCRAPING Data: page {{ classified_page }} of {{ classified_scraper_total_pages }}
+                                        {% endif %}
+                                    </p>
+                                </nav>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock content %}
+
+
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // Toggle detail row
+    $('.toggle-detail').on('click', function() {
+        var target = $(this).data('target');
+        $(target).toggle();
+        
+        // Toggle icon
+        var icon = $(this).find('i');
+        if ($(target).is(':visible')) {
+            icon.removeClass('fa-eye').addClass('fa-eye-slash');
+        } else {
+            icon.removeClass('fa-eye-slash').addClass('fa-eye');
+        }
+    });
+});
+</script>
+{% endblock extra_js %}

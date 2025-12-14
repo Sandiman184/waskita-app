@@ -1,0 +1,1593 @@
+{% extends "base.html" %}
+{% block title %}
+    User Management - Waskita
+{% endblock title %}
+{% block page_title %}
+    User Management
+{% endblock page_title %}
+{% block breadcrumb %}
+    <li class="breadcrumb-item">
+        <a href="{{ url_for("main.dashboard") }}">Home</a>
+    </li>
+    <li class="breadcrumb-item active">User Management</li>
+{% endblock breadcrumb %}
+{% block extra_css %}
+<style>
+/* Dropdown fixes for Role and Status */
+.card-body {
+    overflow: visible !important;
+    position: relative !important;
+    z-index: 1 !important;
+}
+
+.form-group {
+    overflow: visible !important;
+    position: relative !important;
+    z-index: 2 !important;
+}
+
+/* Size consistency for all form elements */
+.form-control, .btn {
+    height: 38px !important;
+    min-height: 38px !important;
+    line-height: 1.5 !important;
+    padding: 6px 12px !important;
+    font-size: 14px !important;
+    border-radius: 4px !important;
+}
+
+/* Specific for input group */
+.input-group .form-control {
+    border-top-right-radius: 0 !important;
+    border-bottom-right-radius: 0 !important;
+}
+
+.input-group .btn {
+    border-top-left-radius: 0 !important;
+    border-bottom-left-radius: 0 !important;
+    height: 38px !important;
+    padding: 6px 12px !important;
+}
+
+/* Dropdown styling */
+select.form-control {
+    position: relative !important;
+    z-index: 9999 !important;
+    background-color: #fff !important;
+    border: 1px solid #ced4da !important;
+    appearance: menulist !important;
+    -webkit-appearance: menulist !important;
+    -moz-appearance: menulist !important;
+    height: 38px !important;
+    padding: 6px 12px !important;
+    color: #495057 !important;
+}
+
+body.dark-mode select.form-control {
+    background-color: #343a40 !important;
+    border-color: #6c757d !important;
+    color: #fff !important;
+}
+
+select.form-control:focus {
+    border-color: #80bdff !important;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25) !important;
+    z-index: 10000 !important;
+}
+
+body.dark-mode select.form-control:focus {
+    border-color: #007bff !important;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.5) !important;
+}
+
+select.form-control option {
+    background-color: #fff !important;
+    color: #495057 !important;
+    padding: 8px 12px !important;
+}
+
+body.dark-mode select.form-control option {
+    background-color: #343a40 !important;
+    color: #fff !important;
+}
+
+/* Button consistency */
+.btn-block {
+    width: 100% !important;
+    height: 38px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+/* Label spacing */
+.invisible-label {
+    visibility: hidden !important;
+    margin-bottom: 0.5rem !important;
+}
+
+/* Enhanced User Management Table Styling */
+.user-management-table {
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    background-color: #fff;
+}
+
+body.dark-mode .user-management-table {
+    box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+    background-color: #343a40;
+}
+
+.user-management-table .table {
+    margin-bottom: 0;
+    font-size: 14px;
+}
+
+.user-management-table .table thead th {
+    background: #ffffff;
+    color: #333333;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 12px;
+    letter-spacing: 0.5px;
+    border: 1px solid #dee2e6;
+    border-bottom: 2px solid #dee2e6;
+    padding: 15px 12px;
+    vertical-align: middle;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+body.dark-mode .user-management-table .table thead th {
+    background: #343a40;
+    color: #ffffff;
+    border-color: #454d55;
+}
+
+.user-management-table .table tbody tr {
+    transition: all 0.3s ease;
+    border-bottom: 1px solid #e9ecef;
+}
+
+body.dark-mode .user-management-table .table tbody tr {
+    border-bottom-color: #454d55;
+}
+
+.user-management-table .table tbody tr:hover {
+    background-color: #f8f9ff;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+body.dark-mode .user-management-table .table tbody tr:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+.user-management-table .table tbody td {
+    padding: 12px;
+    vertical-align: middle;
+    border-top: none;
+}
+
+/* Column specific styling */
+.user-management-table .table tbody td:first-child {
+    font-weight: 600;
+    color: #6c757d;
+    font-size: 13px;
+}
+
+body.dark-mode .user-management-table .table tbody td:first-child {
+    color: #adb5bd;
+}
+
+.user-management-table .table tbody td:nth-child(2) {
+    font-weight: 600;
+    color: #495057;
+}
+
+body.dark-mode .user-management-table .table tbody td:nth-child(2) {
+    color: #e0e0e0;
+}
+
+.user-management-table .table tbody td:nth-child(3) {
+    color: #6c757d;
+    font-size: 13px;
+}
+
+body.dark-mode .user-management-table .table tbody td:nth-child(3) {
+    color: #adb5bd;
+}
+
+/* Badge improvements */
+.badge {
+    font-size: 11px;
+    padding: 6px 10px;
+    border-radius: 20px;
+    font-weight: 500;
+    letter-spacing: 0.3px;
+    background: #ffffff !important;
+    color: #333333 !important;
+    border: 1px solid #dee2e6;
+}
+
+body.dark-mode .badge {
+    background-color: #343a40 !important;
+    color: #e0e0e0 !important;
+    border-color: #454d55;
+}
+
+.badge.bg-danger {
+    background: #ffffff !important;
+    color: #dc3545 !important;
+    border: 1px solid #dc3545;
+}
+
+body.dark-mode .badge.bg-danger {
+    background-color: rgba(220, 53, 69, 0.2) !important;
+    color: #ff6b6b !important;
+    border-color: #dc3545;
+}
+
+.badge.bg-primary {
+    background: #ffffff !important;
+    color: #007bff !important;
+    border: 1px solid #007bff;
+}
+
+body.dark-mode .badge.bg-primary {
+    background-color: rgba(0, 123, 255, 0.2) !important;
+    color: #5c9eff !important;
+    border-color: #007bff;
+}
+
+.badge.bg-success {
+    background: #ffffff !important;
+    color: #28a745 !important;
+    border: 1px solid #28a745;
+}
+
+body.dark-mode .badge.bg-success {
+    background-color: rgba(40, 167, 69, 0.2) !important;
+    color: #5cd65c !important;
+    border-color: #28a745;
+}
+
+.badge.bg-secondary {
+    background: #ffffff !important;
+    color: #6c757d !important;
+    border: 1px solid #6c757d;
+}
+
+body.dark-mode .badge.bg-secondary {
+    background-color: rgba(108, 117, 125, 0.2) !important;
+    color: #adb5bd !important;
+    border-color: #6c757d;
+}
+
+.badge.bg-info {
+    background: #ffffff !important;
+    color: #17a2b8 !important;
+    border: 1px solid #17a2b8;
+}
+
+body.dark-mode .badge.bg-info {
+    background-color: rgba(23, 162, 184, 0.2) !important;
+    color: #4dd0e1 !important;
+    border-color: #17a2b8;
+}
+
+/* Action buttons styling */
+.btn-group .btn {
+    margin: 0 1px;
+    border-radius: 6px !important;
+    padding: 6px 10px;
+    font-size: 12px;
+    transition: all 0.3s ease;
+}
+
+.btn-group .btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.btn-sm {
+    padding: 6px 10px !important;
+    font-size: 12px !important;
+    line-height: 1.2 !important;
+}
+
+/* Responsive improvements */
+@media (max-width: 768px) {
+    .user-management-table .table-responsive {
+        border-radius: 8px;
+    }
+    
+    .user-management-table .table thead th {
+        font-size: 11px;
+        padding: 10px 8px;
+    }
+    
+    .user-management-table .table tbody td {
+        padding: 8px;
+        font-size: 13px;
+    }
+    
+    .btn-group {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 2px;
+    }
+    
+    .btn-group .btn {
+        margin: 1px;
+        padding: 4px 8px;
+        font-size: 11px;
+    }
+}
+
+/* Empty state styling */
+.empty-state {
+    padding: 60px 20px;
+    text-align: center;
+    color: #6c757d;
+}
+
+body.dark-mode .empty-state {
+    color: #adb5bd;
+}
+
+.empty-state i {
+    color: #dee2e6;
+    margin-bottom: 20px;
+}
+
+body.dark-mode .empty-state i {
+    color: #495057;
+}
+
+.empty-state h5 {
+    color: #495057;
+    margin-bottom: 10px;
+    font-weight: 600;
+}
+
+body.dark-mode .empty-state h5 {
+    color: #e0e0e0;
+}
+
+.empty-state p {
+    color: #6c757d;
+    margin-bottom: 0;
+}
+
+body.dark-mode .empty-state p {
+    color: #adb5bd;
+}
+
+/* Card header improvements */
+.card-header {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-bottom: 2px solid #dee2e6;
+}
+
+body.dark-mode .card-header {
+    background: rgba(0, 0, 0, 0.2);
+    border-bottom-color: var(--border-color);
+}
+
+.card-header .card-title {
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 0;
+}
+
+body.dark-mode .card-header .card-title {
+    color: #e0e0e0;
+}
+
+/* Card header enhanced styling */
+.card-header-enhanced {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-bottom: 2px solid #dee2e6;
+}
+
+body.dark-mode .card-header-enhanced {
+    background: rgba(0, 0, 0, 0.2);
+    border-bottom-color: var(--border-color);
+}
+
+.card-header-enhanced .card-title {
+    margin: 0;
+    font-weight: 600;
+    color: #495057;
+}
+
+/* Modal Styling */
+.modal-content {
+    border-radius: 8px;
+    border: none;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+}
+
+.modal-header {
+    background: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+    border-radius: 8px 8px 0 0;
+}
+
+body.dark-mode .modal-header {
+    background: #343a40;
+    border-bottom-color: #454d55;
+}
+
+.modal-title {
+    font-weight: 600;
+    color: #333;
+}
+
+body.dark-mode .modal-title {
+    color: #fff;
+}
+
+.modal-body {
+    padding: 20px;
+}
+
+.modal-footer {
+    border-top: 1px solid #dee2e6;
+    padding: 15px 20px;
+    background: #f8f9fa;
+    border-radius: 0 0 8px 8px;
+}
+
+body.dark-mode .modal-footer {
+    background: #343a40;
+    border-top-color: #454d55;
+}
+
+/* Statistics refresh styling */
+.stats-refresh {
+    position: relative;
+    overflow: hidden;
+}
+
+.stats-refresh.shimmer::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+    animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+    0% { left: -100%; }
+    100% { left: 100%; }
+}
+
+/* Statistics boxes improvements */
+.small-box {
+    border-radius: 10px;
+    overflow: hidden;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+body.dark-mode .small-box {
+    box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+}
+
+.small-box:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+}
+
+body.dark-mode .small-box:hover {
+    box-shadow: 0 8px 25px rgba(0,0,0,0.4);
+}
+
+.small-box .inner {
+    padding: 20px;
+}
+
+.small-box .inner h3 {
+    font-size: 2.2rem;
+    font-weight: 700;
+    margin-bottom: 5px;
+    color: #fff;
+}
+
+.small-box .inner p {
+    font-size: 14px;
+    font-weight: 500;
+    margin-bottom: 0;
+    opacity: 0.9;
+    color: #fff;
+}
+
+.small-box .icon {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    font-size: 3rem;
+    opacity: 0.8;
+    color: rgba(0, 0, 0, 0.15);
+}
+
+body.dark-mode .small-box .icon {
+    color: rgba(255, 255, 255, 0.15);
+}
+
+/* Responsive table handling and mobile optimizations */
+.user-management-table { overflow: hidden !important; }
+.user-management-table .table-responsive {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+}
+
+.user-management-table .table {
+    table-layout: auto;
+    border-collapse: separate;
+    border-spacing: 0;
+    min-width: 900px; /* ensure horizontal scroll appears when screen is narrow */
+}
+
+/* Min/Max width per column for stable control */
+.user-management-table .table thead th.col-id { min-width: 56px; max-width: 72px; }
+.user-management-table .table thead th.col-username { min-width: 150px; }
+.user-management-table .table thead th.col-email { min-width: 180px; }
+.user-management-table .table thead th.col-role { min-width: 110px; }
+.user-management-table .table thead th.col-status { min-width: 100px; }
+.user-management-table .table thead th.col-last-login { min-width: 160px; }
+.user-management-table .table thead th.col-created { min-width: 160px; }
+.user-management-table .table thead th.col-actions { min-width: 160px; }
+
+@media (max-width: 992px) {
+    .user-management-table .table { min-width: 820px; }
+    .user-management-table .table thead th { font-size: 12px; }
+    .user-management-table .table tbody td { font-size: 13px; }
+}
+
+@media (max-width: 768px) {
+    .user-management-table .table { min-width: 780px; }
+    /* allow content wrap to avoid forced overflow */
+    .user-management-table .table.text-nowrap tbody td { white-space: normal !important; }
+    .user-management-table .table thead th { white-space: nowrap !important; }
+    .user-management-table .table tbody td { padding: 8px 10px; font-size: 12.5px; }
+    .user-management-table .btn-group .btn { padding: 4px 8px; font-size: 11px; }
+}
+
+@media (max-width: 576px) {
+    .user-management-table .table { min-width: 720px; }
+    /* hide non-critical column: last login */
+    .user-management-table .table thead th.col-last-login,
+    .user-management-table .table tbody td.col-last-login { display: none; }
+    /* truncation for username and email to keep neat */
+    .user-management-table .table tbody td.col-username .username-text,
+    .user-management-table .table tbody td.col-email .email-text { display: inline-block; max-width: 160px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+}
+
+@media (max-width: 480px) {
+    .user-management-table .table { min-width: 640px; }
+    /* hide additional optional columns: role and registration date */
+    .user-management-table .table thead th.col-role,
+    .user-management-table .table tbody td.col-role { display: none; }
+    .user-management-table .table thead th.col-created,
+    .user-management-table .table tbody td.col-created { display: none; }
+    .user-management-table .table tbody td, .user-management-table .table thead th { padding: 6px 8px; font-size: 11.5px; }
+}
+
+@media (max-width: 360px) {
+    .user-management-table .table { min-width: 580px; }
+    .user-management-table .btn-group .btn { padding: 3px 6px; font-size: 10px; }
+}
+/* Hard containment to prevent any bleed of scroll content */
+.card.user-management-table {
+    position: relative !important;
+    overflow: hidden !important; /* clip children within rounded corners */
+    /* additional clipping for browsers that ignore overflow on complex children */
+    clip-path: inset(0 round 8px);
+}
+.card.user-management-table .table-responsive {
+    display: block !important;
+    max-width: 100% !important;
+}
+.card.user-management-table .card-body {
+    overflow: hidden !important;
+}
+</style>
+{% endblock extra_css %}
+{% block content %}
+    <section class="content">
+        <div class="container-fluid">
+            <!-- Admin Statistics -->
+            <div class="row mb-4">
+                <div class="col-lg-3 col-6">
+                    <div class="small-box bg-info stats-refresh" id="totalUsersStats">
+                        <div class="inner">
+                            <h3>{{ total_users }}</h3>
+                            <p>Total Users</p>
+                        </div>
+                        <div class="icon">
+                            <i class="fas fa-users"></i>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-3 col-6">
+                    <div class="small-box bg-success stats-refresh" id="activeUsersStats">
+                        <div class="inner">
+                            <h3>{{ active_users }}</h3>
+                            <p>Active Users</p>
+                        </div>
+                        <div class="icon">
+                            <i class="fas fa-user-check"></i>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-3 col-6">
+                    <div class="small-box bg-warning stats-refresh" id="adminUsersStats">
+                        <div class="inner">
+                            <h3>{{ admin_users }}</h3>
+                            <p>Administrators</p>
+                        </div>
+                        <div class="icon">
+                            <i class="fas fa-user-shield"></i>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-3 col-6">
+                    <div class="small-box bg-danger stats-refresh" id="inactiveUsersStats">
+                        <div class="inner">
+                            <h3>{{ inactive_users }}</h3>
+                            <p>Inactive Users</p>
+                        </div>
+                        <div class="icon">
+                            <i class="fas fa-user-times"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Admin Panel Header -->
+            <div class="row mb-3">
+                <div class="col-md-12">
+                    <div class="card" role="region" aria-labelledby="admin-header">
+                        <div class="card-header">
+                            <h3 class="card-title" id="admin-header">User List</h3>
+                            <div class="card-tools">
+                                <button type="button"
+                                        class="btn btn-primary"
+                                        data-toggle="modal"
+                                        data-target="#addUserModal"
+                                        aria-label="Add new user">
+                                    <i class="fas fa-plus" aria-hidden="true"></i> Add User
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- User Table -->
+            <div class="row">
+                <div class="col-md-12">
+                    <div class="card user-management-table" role="region" aria-labelledby="user-table-header">
+                        <div class="card-header card-header-enhanced">
+                            <h3 class="card-title" id="user-table-header">
+                                <i class="fas fa-users mr-2" aria-hidden="true"></i>
+                                User List
+                            </h3>
+                            <div class="card-tools">
+                                <button type="button" class="btn btn-primary btn-sm" onclick="refreshStats()" aria-label="Refresh user data">
+                                    <i class="fas fa-sync-alt" id="refreshIcon" aria-hidden="true"></i>
+                                    Refresh
+                                </button>
+                                <span class="badge bg-info ml-2" role="status" aria-label="Total {{ users|length }} users">
+                                    <i class="fas fa-user-friends mr-1" aria-hidden="true"></i>
+                                    Total: {{ users|length }} users
+                                </span>
+                            </div>
+                        </div>
+                        <div class="card-body p-3">
+                            <div class="table-responsive padded-scroll mx-2">
+                            <table class="table table-hover text-nowrap" role="table" aria-labelledby="user-table-header" aria-describedby="user-table-description">
+                                <caption id="user-table-description" class="sr-only">Table of users with information including ID, username, email, role, status, and actions</caption>
+                                <thead>
+                                    <tr role="row">
+                                        <th class="col-id" scope="col" style="width: 60px;" data-sort="id" data-sort-type="number">
+                                            <i class="fas fa-hashtag mr-1" aria-hidden="true"></i>
+                                            ID
+                                            <span class="sort-indicator"><i class="fas fa-sort"></i></span>
+                                        </th>
+                                        <th class="col-username" scope="col" style="width: 150px;" data-sort="username" data-sort-type="text">
+                                            <i class="fas fa-user mr-1" aria-hidden="true"></i>
+                                            Username
+                                            <span class="sort-indicator"><i class="fas fa-sort"></i></span>
+                                        </th>
+                                        <th class="col-email" scope="col" style="width: 200px;" data-sort="email" data-sort-type="text">
+                                            <i class="fas fa-envelope mr-1" aria-hidden="true"></i>
+                                            Email
+                                            <span class="sort-indicator"><i class="fas fa-sort"></i></span>
+                                        </th>
+                                        <th class="col-role" scope="col" style="width: 120px;" data-sort="role" data-sort-type="text">
+                                            <i class="fas fa-user-tag mr-1" aria-hidden="true"></i>
+                                            Role
+                                            <span class="sort-indicator"><i class="fas fa-sort"></i></span>
+                                        </th>
+                                        <th class="col-status" scope="col" style="width: 100px;" data-sort="status" data-sort-type="text">
+                                            <i class="fas fa-toggle-on mr-1" aria-hidden="true"></i>
+                                            Status
+                                            <span class="sort-indicator"><i class="fas fa-sort"></i></span>
+                                        </th>
+                                        <th class="col-last-login" scope="col" style="width: 150px;" data-sort="last_login" data-sort-type="datetime">
+                                            <i class="fas fa-clock mr-1" aria-hidden="true"></i>
+                                            Last Login
+                                            <span class="sort-indicator"><i class="fas fa-sort"></i></span>
+                                        </th>
+                                        <th class="col-created" scope="col" style="width: 150px;" data-sort="created_at" data-sort-type="datetime">
+                                            <i class="fas fa-calendar-plus mr-1" aria-hidden="true"></i>
+                                            Registration Date
+                                            <span class="sort-indicator"><i class="fas fa-sort"></i></span>
+                                        </th>
+                                        <th class="col-actions" scope="col" style="width: 180px;">
+                                            <i class="fas fa-cogs mr-1" aria-hidden="true"></i>
+                                            Actions
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for user in users %}
+                                        <tr role="row">
+                                            <td class="text-center col-id">
+                                                <span class="badge badge-light" aria-label="User ID {{ user.id }}">#{{ user.id }}</span>
+                                            </td>
+                                            <td class="col-username">
+                                                <div class="d-flex align-items-center">
+                                                    <div class="user-avatar mr-2">
+                                                        <i class="fas fa-user-circle fa-2x text-muted" aria-hidden="true"></i>
+                                                    </div>
+                                                    <div>
+                                                        <strong class="username-text" title="{{ user.username }}">{{ user.username }}</strong>
+                                                        {% if user.id == current_user.id %}
+                                                            <span class="badge bg-info ml-1" aria-label="Your current account">
+                                                                <i class="fas fa-star mr-1" aria-hidden="true"></i>You
+                                                            </span>
+                                                        {% endif %}
+                                                        {% if user.full_name %}
+                                                            <br><small class="text-muted">{{ user.full_name }}</small>
+                                                        {% endif %}
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td class="col-email">
+                                                <div class="d-flex align-items-center">
+                                                    <i class="fas fa-at text-muted mr-2" aria-hidden="true"></i>
+                                                    <span class="email-text" title="{{ user.email }}">{{ user.email }}</span>
+                                                </div>
+                                            </td>
+                                            <td class="col-role">
+                                                {% if user.role == 'admin' %}
+                                                    <span class="badge bg-danger" aria-label="Administrator Role">
+                                                        <i class="fas fa-crown mr-1" aria-hidden="true"></i>Administrator
+                                                    </span>
+                                                {% else %}
+                                                    <span class="badge bg-primary" aria-label="User Role">
+                                                        <i class="fas fa-user mr-1" aria-hidden="true"></i>User
+                                                    </span>
+                                                {% endif %}
+                                            </td>
+                                            <td class="col-status">
+                                                {% if user.is_active %}
+                                                    <span class="badge bg-success" aria-label="Active Status">
+                                                        <i class="fas fa-check-circle mr-1" aria-hidden="true"></i>Active
+                                                    </span>
+                                                {% else %}
+                                                    <span class="badge bg-secondary" aria-label="Inactive Status">
+                                                        <i class="fas fa-times-circle mr-1" aria-hidden="true"></i>Inactive
+                                                    </span>
+                                                {% endif %}
+                                            </td>
+                                            <td class="col-last-login">
+                                                {% if user.last_login %}
+                                                    <div class="d-flex align-items-center">
+                                                        <i class="fas fa-history text-success mr-2" aria-hidden="true"></i>
+                                                        <div>
+                                                            <small>{{ user.last_login | format_datetime }}</small>
+                                                        </div>
+                                                    </div>
+                                                {% else %}
+                                                    <div class="d-flex align-items-center">
+                                                        <i class="fas fa-minus-circle text-muted mr-2" aria-hidden="true"></i>
+                                                        <span class="text-muted">Never</span>
+                                                    </div>
+                                                {% endif %}
+                                            </td>
+                                            <td class="col-created">
+                                                <div class="d-flex align-items-center">
+                                                    <i class="fas fa-calendar text-info mr-2" aria-hidden="true"></i>
+                                                    <small>{{ user.created_at | format_datetime }}</small>
+                                                </div>
+                                            </td>
+                                            <td class="col-actions">
+                                                <div class="btn-group" role="group">
+                                                    <button type="button"
+                                                            class="btn btn-sm btn-info"
+                                                            onclick="viewUser({{ user.id }})"
+                                                            title="View Details">
+                                                        <i class="fas fa-eye"></i>
+                                                    </button>
+                                                    {% if user.id != current_user.id %}
+                                                        <button type="button"
+                                                                class="btn btn-sm btn-warning"
+                                                                onclick="editUser({{ user.id }})"
+                                                                title="Edit User">
+                                                            <i class="fas fa-edit"></i>
+                                                        </button>
+                                                        {% if user.is_active %}
+                                                            <button type="button"
+                                                                    class="btn btn-sm btn-secondary"
+                                                                    onclick="toggleUserStatus({{ user.id }}, false)"
+                                                                    title="Deactivate">
+                                                                <i class="fas fa-user-slash"></i>
+                                                            </button>
+                                                        {% else %}
+                                                            <button type="button"
+                                                                    class="btn btn-sm btn-success"
+                                                                    onclick="toggleUserStatus({{ user.id }}, true)"
+                                                                    title="Activate">
+                                                                <i class="fas fa-user-check"></i>
+                                                            </button>
+                                                        {% endif %}
+                                                        <button type="button"
+                                                                class="btn btn-sm btn-danger"
+                                                                onclick="deleteUser({{ user.id }})"
+                                                                title="Delete User">
+                                                            <i class="fas fa-trash"></i>
+                                                        </button>
+                                                    {% else %}
+                                                        <span class="badge badge-light">
+                                                            <i class="fas fa-lock mr-1"></i>Your Account
+                                                        </span>
+                                                    {% endif %}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    {% else %}
+                                        <tr>
+                                            <td colspan="8" class="empty-state">
+                                                <div>
+                                                    <i class="fas fa-users fa-4x"></i>
+                                                    <h5>No users found</h5>
+                                                    <p>There are no users registered in the system yet.</p>
+                                                    <button type="button"
+                                                            class="btn btn-primary mt-3"
+                                                            data-toggle="modal"
+                                                            data-target="#addUserModal">
+                                                        <i class="fas fa-plus mr-2"></i>Add First User
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                            </div>
+                        </div>
+                        {% if users|length > 0 %}
+                        <div class="card-footer">
+                            <div class="row align-items-center">
+                                <div class="col-sm-6">
+                                    <small class="text-muted">
+                                        <i class="fas fa-info-circle mr-1"></i>
+                                        Showing {{ users|length }} users
+                                    </small>
+                                </div>
+                                <div class="col-sm-6 text-right">
+                                    <small class="text-muted">
+                                        <i class="fas fa-clock mr-1"></i>
+                                        Last updated: {{ current_time | format_datetime('datetime') }}
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+    <!-- Add User Modal -->
+    <div class="modal fade" id="addUserModal" tabindex="-1" role="dialog">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h4 class="modal-title">Add New User</h4>
+                    <button type="button" class="close" data-dismiss="modal">
+                        <span>×</span>
+                    </button>
+                </div>
+                <form id="addUserForm">
+                    <div class="modal-body">
+                        <div class="form-group">
+                            <label for="addUsername">Username</label>
+                            <input type="text"
+                                   class="form-control"
+                                   id="addUsername"
+                                   name="username"
+                                   required>
+                        </div>
+                        <div class="form-group">
+                            <label for="addEmail">Email</label>
+                            <input type="email" class="form-control" id="addEmail" name="email" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="addPassword">Password</label>
+                            <input type="password"
+                                   class="form-control"
+                                   id="addPassword"
+                                   name="password"
+                                   required>
+                        </div>
+                        <div class="form-group">
+                            <label for="addRole">Role</label>
+                            <select class="form-control" id="addRole" name="role" required>
+                                <option value="user">User</option>
+                                <option value="admin">Administrator</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <div class="custom-control custom-checkbox">
+                                <input type="checkbox"
+                                       class="custom-control-input"
+                                       id="addIsActive"
+                                       name="is_active"
+                                       checked>
+                                <label class="custom-control-label" for="addIsActive">Active</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Add User</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <!-- Edit User Modal -->
+    <div class="modal fade" id="editUserModal" tabindex="-1" role="dialog">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h4 class="modal-title">Edit User</h4>
+                    <button type="button" class="close" data-dismiss="modal">
+                        <span>×</span>
+                    </button>
+                </div>
+                <form id="editUserForm">
+                    <input type="hidden" id="editUserId" name="user_id">
+                    <div class="modal-body">
+                        <div class="form-group">
+                            <label for="editUsername">Username</label>
+                            <input type="text"
+                                   class="form-control"
+                                   id="editUsername"
+                                   name="username"
+                                   required>
+                        </div>
+                        <div class="form-group">
+                            <label for="editEmail">Email</label>
+                            <input type="email"
+                                   class="form-control"
+                                   id="editEmail"
+                                   name="email"
+                                   required>
+                        </div>
+                        <div class="form-group">
+                            <label for="editPassword">New Password (leave blank to keep unchanged)</label>
+                            <input type="password"
+                                   class="form-control"
+                                   id="editPassword"
+                                   name="password">
+                        </div>
+                        <div class="form-group">
+                            <label for="editRole">Role</label>
+                            <select class="form-control" id="editRole" name="role" required>
+                                <option value="user">User</option>
+                                <option value="admin">Administrator</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <div class="custom-control custom-checkbox">
+                                <input type="checkbox"
+                                       class="custom-control-input"
+                                       id="editIsActive"
+                                       name="is_active">
+                                <label class="custom-control-label" for="editIsActive">Active</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Save Changes</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <!-- User Detail Modal -->
+    <div class="modal fade" id="viewUserModal" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h4 class="modal-title">User Details</h4>
+                    <button type="button" class="close" data-dismiss="modal">
+                        <span>×</span>
+                    </button>
+                </div>
+                <div class="modal-body" id="userDetailBody">
+                    <!-- Content will be loaded via AJAX -->
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock content %}
+{% block extra_js %}
+<script>
+// Fix dropdown visibility and functionality
+$(document).ready(function() {
+    // Ensure dropdowns are properly styled and functional
+    $('select[name="role"], select[name="status"]').each(function() {
+        // Check if dark mode is active
+        const isDarkMode = $('body').hasClass('dark-mode');
+        const bg = isDarkMode ? '#343a40' : '#ffffff';
+        const border = isDarkMode ? '1px solid #6c757d' : '1px solid #ced4da';
+        const color = isDarkMode ? '#ffffff' : '#495057';
+        
+        $(this).css({
+            'position': 'relative',
+            'z-index': '9999',
+            'background-color': bg,
+            'border': border,
+            'color': color,
+            'height': '38px',
+            'min-height': '38px'
+        });
+    });
+    
+    // Handle dropdown focus to ensure visibility
+    $('select[name="role"], select[name="status"]').on('focus', function() {
+        $(this).css('z-index', '10000');
+        $(this).parent().css('overflow', 'visible');
+        $(this).closest('.card-body').css('overflow', 'visible');
+        $(this).closest('.card').css('overflow', 'visible');
+    });
+    
+    // Handle dropdown blur
+    $('select[name="role"], select[name="status"]').on('blur', function() {
+        $(this).css('z-index', '9999');
+    });
+    // Limit overflow changes to prevent global scope
+    // Note: we have set overflow specifically for the user table card via CSS.
+    // Here, we no longer force all .card/.card-body to be visible.
+    
+    // Ensure form elements have consistent height
+    $('.form-control, .btn').css({
+        'height': '38px',
+        'min-height': '38px',
+        'line-height': '1.5',
+        'padding': '6px 12px'
+    });
+    
+    // Handle form submission
+    $('#filterForm').on('submit', function(e) {
+        // Form will submit normally to the server
+    });
+    
+    // Handle reset button click
+    $('.btn-secondary[href*="admin_panel"]').on('click', function(e) {
+        e.preventDefault();
+        // Clear all form fields
+        $('#filterForm')[0].reset();
+        $('select[name="role"]').val('');
+        $('select[name="status"]').val('');
+        $('input[name="search"]').val('');
+        // Redirect to clean admin panel
+        window.location.href = $(this).attr('href');
+    });
+    
+    // Handle search button functionality
+    $('.btn-primary[type="submit"]').on('click', function() {
+        // Form will submit automatically
+    });
+});
+</script>
+<script>
+// Add User
+$('#addUserForm').submit(function(e) {
+    e.preventDefault();
+    
+    var formData = new FormData();
+    formData.append('username', $('#addUsername').val());
+    formData.append('email', $('#addEmail').val());
+    formData.append('password', $('#addPassword').val());
+    formData.append('role', $('#addRole').val());
+    formData.append('is_active', $('#addIsActive').is(':checked') ? 'true' : 'false');
+    
+    const csrfToken = $('meta[name=csrf-token]').attr('content');
+    
+    $.ajax({
+        url: '/api/admin/users',
+        type: 'POST',
+        data: formData,
+        processData: false,
+        contentType: false,
+        headers: {
+            'X-CSRFToken': csrfToken
+        },
+        success: function(response) {
+            if (response.success) {
+                Swal.fire({
+                icon: 'success',
+                title: 'Success',
+                text: 'User added successfully',
+                customClass: {
+                    popup: 'swal2-popup',
+                    title: 'swal2-title',
+                    htmlContainer: 'swal2-html-container',
+                    actions: 'swal2-actions',
+                    confirmButton: 'swal2-confirm'
+                }
+            }).then(() => {
+                $('#addUserModal').modal('hide');
+                location.reload();
+            });
+            } else {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: response.message || 'Failed to add user',
+                    customClass: {
+                        popup: 'swal2-popup',
+                        title: 'swal2-title',
+                        htmlContainer: 'swal2-html-container',
+                        actions: 'swal2-actions',
+                        confirmButton: 'swal2-confirm'
+                    }
+                });
+            }
+        },
+        error: function(xhr) {
+            var errorMsg = 'Failed to add user';
+            if (xhr.responseJSON && xhr.responseJSON.message) {
+                errorMsg = xhr.responseJSON.message;
+            }
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: errorMsg,
+                customClass: {
+                    popup: 'swal2-popup',
+                    title: 'swal2-title',
+                    htmlContainer: 'swal2-html-container',
+                    actions: 'swal2-actions',
+                    confirmButton: 'swal2-confirm'
+                }
+            });
+        }
+    });
+});
+
+// View User Detail
+function viewUser(userId) {
+    $.get('/api/admin/users/' + userId, function(data) {
+        var content = `
+            <div class="row">
+                <div class="col-md-6">
+                    <strong>ID:</strong> ${data.id}<br>
+                    <strong>Username:</strong> ${data.username}<br>
+                    <strong>Email:</strong> ${data.email}<br>
+                    <strong>Role:</strong> ${data.role === 'admin' ? 'Administrator' : 'User'}<br>
+                    <strong>Status:</strong> ${data.is_active ? 'Active' : 'Inactive'}<br>
+                </div>
+                <div class="col-md-6">
+                    <strong>Registration Date:</strong> ${data.created_at || '-'}<br>
+                    <strong>Last Login:</strong> ${data.last_login || 'Never'}<br>
+                    <strong>Total Uploads:</strong> ${data.stats.total_uploads || 0}<br>
+                    <strong>Total Scraping:</strong> ${data.stats.total_scraping || 0}<br>
+                    <strong>Total Classifications:</strong> ${data.stats.total_classifications || 0}<br>
+                </div>
+            </div>
+            <hr>
+            <div class="row">
+                <div class="col-md-12">
+                    <h5>Recent Activities</h5>
+                    <div class="timeline">
+                        ${data.recent_activities.map(activity => `
+                            <div class="time-label">
+                                <span class="bg-info">${activity.created_at ? activity.created_at.split(' ')[0] : '-'}</span>
+                            </div>
+                            <div>
+                                <i class="fas ${activity.icon} bg-${activity.color}"></i>
+                                <div class="timeline-item">
+                                    <span class="time"><i class="fas fa-clock"></i> ${activity.created_at ? activity.created_at.split(' ')[1] + ' ' + activity.created_at.split(' ')[2] : '-'}</span>
+                                    <h3 class="timeline-header">${activity.title}</h3>
+                                    <div class="timeline-body">${activity.description}</div>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            </div>
+        `;
+        $('#userDetailBody').html(content);
+        $('#viewUserModal').modal('show');
+    }).fail(function() {
+        if (typeof swalError === 'function') {
+            swalError('Error', 'Failed to load user details');
+        } else {
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'Failed to load user details',
+                customClass: {
+                    popup: 'swal2-popup',
+                    title: 'swal2-title',
+                    htmlContainer: 'swal2-html-container',
+                    actions: 'swal2-actions',
+                    confirmButton: 'swal2-confirm'
+                }
+            });
+        }
+    });
+}
+
+// Edit User
+function editUser(userId) {
+    $.get('/api/admin/users/' + userId, function(data) {
+        $('#editUserId').val(data.id);
+        $('#editUsername').val(data.username);
+        $('#editEmail').val(data.email);
+        $('#editRole').val(data.role);
+        $('#editIsActive').prop('checked', data.is_active);
+        $('#editUserModal').modal('show');
+    }).fail(function() {
+        Swal.fire('Error', 'Failed to load user data', 'error');
+    });
+}
+
+$('#editUserForm').submit(function(e) {
+    e.preventDefault();
+    
+    var userId = $('#editUserId').val();
+    var formData = new FormData();
+    formData.append('username', $('#editUsername').val());
+    formData.append('email', $('#editEmail').val());
+    formData.append('role', $('#editRole').val());
+    formData.append('is_active', $('#editIsActive').is(':checked') ? 'true' : 'false');
+    
+    if ($('#editPassword').val()) {
+        formData.append('password', $('#editPassword').val());
+    }
+    
+    const csrfToken = $('meta[name=csrf-token]').attr('content');
+    
+    $.ajax({
+        url: '/api/admin/users/' + userId,
+        type: 'PUT',
+        data: formData,
+        processData: false,
+        contentType: false,
+        headers: {
+            'X-CSRFToken': csrfToken
+        },
+        success: function(response) {
+            if (response.success) {
+                Swal.fire('Success', 'User updated successfully', 'success').then(() => {
+                    $('#editUserModal').modal('hide');
+                    location.reload();
+                });
+            } else {
+                Swal.fire('Error', response.message || 'Failed to update user', 'error');
+            }
+        },
+        error: function(xhr) {
+            var errorMsg = 'Failed to update user';
+            if (xhr.responseJSON && xhr.responseJSON.message) {
+                errorMsg = xhr.responseJSON.message;
+            }
+            Swal.fire('Error', errorMsg, 'error');
+        }
+    });
+});
+
+// Toggle User Status
+function toggleUserStatus(userId, status) {
+    var action = status ? 'activate' : 'deactivate';
+    var actionInd = status ? 'mengaktifkan' : 'menonaktifkan'; // Keep for now if needed or remove
+    
+    Swal.fire({
+        title: 'Confirmation',
+        text: `Are you sure you want to ${action} this user?`,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Yes, ' + action.charAt(0).toUpperCase() + action.slice(1),
+        cancelButtonText: 'Cancel'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            const csrfToken = $('meta[name=csrf-token]').attr('content');
+            var formData = new FormData();
+            formData.append('is_active', status ? 'true' : 'false');
+            
+            $.ajax({
+                url: '/api/admin/users/' + userId + '/toggle-status',
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                headers: {
+                    'X-CSRFToken': csrfToken
+                },
+                success: function(response) {
+                    if (response.success) {
+                        if (typeof swalSuccess === 'function') {
+                            swalSuccess('Success', `User ${status ? 'activated' : 'deactivated'} successfully`).then(() => {
+                                location.reload();
+                            });
+                        } else {
+                            Swal.fire({
+                                icon: 'success',
+                                title: 'Success',
+                                text: `User ${status ? 'activated' : 'deactivated'} successfully`,
+                                customClass: {
+                                    popup: 'swal2-popup',
+                                    title: 'swal2-title',
+                                    htmlContainer: 'swal2-html-container',
+                                    actions: 'swal2-actions',
+                                    confirmButton: 'swal2-confirm'
+                                }
+                            }).then(() => {
+                                location.reload();
+                            });
+                        }
+                    } else {
+                        Swal.fire('Error', response.message || 'Failed to update user status', 'error');
+                    }
+                },
+                error: function(xhr) {
+                    var errorMsg = 'Failed to update user status';
+                    if (xhr.responseJSON && xhr.responseJSON.message) {
+                        errorMsg = xhr.responseJSON.message;
+                    }
+                    Swal.fire('Error', errorMsg, 'error');
+                }
+            });
+        }
+    });
+}
+
+function refreshStats() {
+    // Animate refresh icon
+    const refreshIcon = document.getElementById('refreshIcon');
+    refreshIcon.classList.add('fa-spin');
+    
+    // Add shimmer effect to all stats boxes
+    const statsBoxes = document.querySelectorAll('.stats-refresh');
+    statsBoxes.forEach(box => {
+        box.classList.add('shimmer');
+    });
+    
+    // Simulate refresh (in real implementation, this would be an AJAX call)
+    setTimeout(() => {
+        refreshIcon.classList.remove('fa-spin');
+        statsBoxes.forEach(box => {
+            box.classList.remove('shimmer');
+        });
+        
+        // Reload the page to get fresh data
+        location.reload();
+    }, 1500);
+}
+
+// Delete User
+function deleteUser(userId) {
+    Swal.fire({
+        title: 'Delete Confirmation',
+        text: 'Are you sure you want to delete this user? This action cannot be undone.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Yes, Delete',
+        cancelButtonText: 'Cancel',
+        confirmButtonColor: '#d33'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            const csrfToken = $('meta[name=csrf-token]').attr('content');
+            $.ajax({
+                url: '/api/admin/users/' + userId,
+                type: 'DELETE',
+                headers: {
+                    'X-CSRFToken': csrfToken
+                },
+                success: function(response) {
+                    if (response.success) {
+                        Swal.fire('Success', 'User deleted successfully', 'success').then(() => {
+                            location.reload();
+                        });
+                    } else {
+                        Swal.fire('Error', response.message || 'Failed to delete user', 'error');
+                    }
+                },
+                error: function(xhr) {
+                    var errorMsg = 'Failed to delete user';
+                    if (xhr.responseJSON && xhr.responseJSON.message) {
+                        errorMsg = xhr.responseJSON.message;
+                    }
+                    Swal.fire('Error', errorMsg, 'error');
+                }
+            });
+        }
+    });
+}
+
+
+// CSS untuk sort indicator
+const sortStyle = document.createElement('style');
+sortStyle.textContent = `
+    .sort-indicator {
+        margin-left: 5px;
+        opacity: 0.5;
+        transition: opacity 0.3s ease;
+    }
+    
+    th:hover .sort-indicator {
+        opacity: 1;
+    }
+    
+    th[data-sort].sort-asc .sort-indicator i {
+        transform: rotate(180deg);
+    }
+    
+    th[data-sort].sort-desc .sort-indicator i {
+        transform: rotate(0deg);
+    }
+    
+    th[data-sort] {
+        cursor: pointer;
+        user-select: none;
+        position: relative;
+    }
+    
+    th[data-sort]:hover {
+        background-color: #f8f9fa;
+    }
+    
+    .sort-active {
+        background-color: #e3f2fd !important;
+    }
+`;
+document.head.appendChild(sortStyle);
+
+// Fungsi sorting untuk tabel
+$(document).ready(function() {
+    let currentSort = { column: null, direction: 'asc' };
+    
+    // Inisialisasi sort indicator (sudah ada di HTML)
+    
+    // Event handler untuk sorting
+    $('th[data-sort]').on('click', function() {
+        const column = $(this).data('sort');
+        const sortType = $(this).data('sort-type');
+        
+        // Toggle direction jika kolom yang sama diklik
+        if (currentSort.column === column) {
+            currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+        } else {
+            currentSort.column = column;
+            currentSort.direction = 'asc';
+        }
+        
+        // Update UI
+        $('th[data-sort]').removeClass('sort-asc sort-desc sort-active');
+        $(this).addClass(`sort-${currentSort.direction} sort-active`);
+        
+        // Update sort indicator
+        $(this).find('.sort-indicator i')
+            .removeClass('fa-sort fa-sort-up fa-sort-down')
+            .addClass(currentSort.direction === 'asc' ? 'fa-sort-up' : 'fa-sort-down');
+        
+        // Lakukan sorting
+        sortTable(column, currentSort.direction, sortType);
+    });
+    
+    function sortTable(column, direction, sortType) {
+        const $table = $('.user-management-table table');
+        const $tbody = $table.find('tbody');
+        const $rows = $tbody.find('tr').get();
+        
+        $rows.sort(function(a, b) {
+            const aValue = getCellValue(a, column, sortType);
+            const bValue = getCellValue(b, column, sortType);
+            
+            let comparison = 0;
+            
+            switch (sortType) {
+                case 'number':
+                    comparison = Number(aValue) - Number(bValue);
+                    break;
+                case 'datetime':
+                    comparison = new Date(aValue) - new Date(bValue);
+                    break;
+                default: // text
+                    comparison = aValue.localeCompare(bValue, 'id', { sensitivity: 'base' });
+                    break;
+            }
+            
+            return direction === 'asc' ? comparison : -comparison;
+        });
+        
+        $.each($rows, function(index, row) {
+            $tbody.append(row);
+        });
+    }
+    
+    function getCellValue(row, column, sortType) {
+        const cellIndex = getColumnIndex(column);
+        const $cell = $(row).find(`td:eq(${cellIndex})`);
+        
+        let value = $cell.text().trim();
+        
+        switch (column) {
+            case 'id':
+                value = value.replace('#', '');
+                break;
+            case 'status':
+                value = $cell.find('.badge').text().trim().toLowerCase();
+                break;
+            case 'role':
+                value = $cell.find('.badge').text().trim().toLowerCase();
+                break;
+            case 'last_login':
+            case 'created_at':
+                // Untuk datetime, kita ambil dari attribute data jika ada
+                const datetimeAttr = $cell.find('small').data('datetime');
+                value = datetimeAttr || value;
+                break;
+            case 'username':
+                value = $cell.find('strong').text().trim();
+                break;
+            case 'email':
+                value = $cell.find('span').text().trim();
+                break;
+        }
+        
+        // Handle empty values untuk sorting
+        if (!value || value === '-' || value === 'belum pernah') {
+            return sortType === 'number' ? 0 : '';
+        }
+        
+        return value;
+    }
+    
+    function getColumnIndex(column) {
+        const columnMap = {
+            'id': 0,
+            'username': 1,
+            'email': 2,
+            'role': 3,
+            'status': 4,
+            'last_login': 5,
+            'created_at': 6
+        };
+        
+        return columnMap[column] || 0;
+    }
+});
+
+</script>
+{% endblock extra_js %}

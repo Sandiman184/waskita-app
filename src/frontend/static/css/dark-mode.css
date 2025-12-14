@@ -1,0 +1,417 @@
+/* Comprehensive Dark Mode Enhancements using Centralized Variables */
+
+/* Global Inputs */
+body.dark-mode .form-control {
+    background-color: var(--input-bg);
+    color: var(--input-color);
+    border-color: var(--input-border);
+}
+
+body.dark-mode .form-control:focus {
+    background-color: var(--dropdown-link-hover-bg);
+    color: var(--white);
+    border-color: var(--input-focus-border);
+}
+
+body.dark-mode .custom-file-label {
+    background-color: var(--input-bg);
+    color: var(--input-color);
+    border-color: var(--input-border);
+}
+
+body.dark-mode .custom-file-label::after {
+    background-color: var(--body-bg);
+    color: var(--white);
+}
+
+/* Text Muted Override for Better Contrast */
+body.dark-mode .text-muted,
+body.dark-mode .form-text.text-muted,
+body.dark-mode ::placeholder,
+body.dark-mode :-ms-input-placeholder,
+body.dark-mode ::-ms-input-placeholder {
+    color: #adb5bd !important;
+}
+
+body.dark-mode ::placeholder {
+    opacity: 1;
+}
+
+/* Modals */
+body.dark-mode .modal-content {
+    background-color: var(--modal-content-bg);
+    color: var(--body-color);
+    border-color: var(--modal-content-border-color);
+}
+
+body.dark-mode .modal-header,
+body.dark-mode .modal-footer {
+    border-color: var(--modal-content-border-color);
+}
+
+body.dark-mode .close {
+    color: var(--white);
+    text-shadow: none;
+}
+
+/* Dropdowns */
+body.dark-mode .dropdown-menu {
+    background-color: var(--dropdown-bg);
+    border-color: var(--dropdown-border);
+}
+
+body.dark-mode .dropdown-item {
+    color: var(--dropdown-link-color);
+}
+
+body.dark-mode .dropdown-item:hover,
+body.dark-mode .dropdown-item:focus {
+    background-color: var(--dropdown-link-hover-bg);
+    color: var(--white);
+}
+
+body.dark-mode .dropdown-divider {
+    border-top-color: var(--dropdown-border);
+}
+
+/* Navbar */
+body.dark-mode .navbar-light .navbar-nav .nav-link {
+    color: var(--dropdown-link-color);
+}
+
+body.dark-mode .navbar-light .navbar-nav .nav-link:hover {
+    color: var(--white);
+}
+
+/* Content Wrapper */
+body.dark-mode .content-wrapper {
+    background-color: var(--body-bg);
+    color: var(--body-color);
+}
+
+body.dark-mode .content-header {
+    background-color: var(--body-bg);
+    border-bottom-color: var(--table-border-color);
+    color: var(--white);
+}
+
+/* Specific Dashboard Header Overrides */
+body.dark-mode .content-header h1,
+body.dark-mode .content-header .m-0,
+body.dark-mode .content-header h1.m-0 {
+    color: var(--white) !important;
+}
+
+body.dark-mode .breadcrumb-item,
+body.dark-mode .breadcrumb-item.active {
+    color: #ced4da !important;
+}
+
+body.dark-mode .breadcrumb-item a {
+    color: var(--link-color) !important;
+}
+
+/* Cards */
+body.dark-mode .card {
+    background-color: var(--card-bg);
+    color: var(--card-color);
+}
+
+/* Select2 */
+body.dark-mode .select2-container--default .select2-selection--single {
+    background-color: var(--input-bg);
+    border-color: var(--input-border);
+    color: var(--input-color);
+}
+
+body.dark-mode .select2-container--default .select2-selection--single .select2-selection__rendered {
+    color: var(--input-color);
+}
+
+body.dark-mode .select2-dropdown {
+    background-color: var(--dropdown-bg);
+    border-color: var(--dropdown-border);
+}
+
+body.dark-mode .select2-container--default .select2-results__option[aria-selected=true] {
+    background-color: var(--dropdown-link-hover-bg);
+}
+
+/* SweetAlert2 Dark Mode Overrides */
+body.dark-mode .swal2-popup {
+    background: var(--card-bg) !important;
+    color: #e0e0e0 !important;
+}
+
+body.dark-mode .swal2-title {
+    color: var(--white) !important;
+}
+
+body.dark-mode .swal2-content {
+    color: #d0d0d0 !important;
+}
+
+body.dark-mode .swal2-close {
+    color: var(--white) !important;
+}
+
+body.dark-mode .swal2-input,
+body.dark-mode .swal2-textarea {
+    background: #2b3035 !important;
+    color: var(--white) !important;
+    border-color: #495057 !important;
+}
+
+body.dark-mode .swal2-validation-message {
+    background: #2b3035 !important;
+    color: var(--white) !important;
+}
+
+/* Tables */
+body.dark-mode .table {
+    color: var(--body-color);
+    background-color: var(--table-bg);
+}
+
+body.dark-mode .table th,
+body.dark-mode .table td {
+    border-color: var(--table-border-color);
+    color: var(--white) !important;
+}
+
+body.dark-mode .table-striped tbody tr:nth-of-type(odd) {
+    background-color: var(--table-hover-bg);
+}
+
+body.dark-mode .table-hover tbody tr:hover {
+    background-color: rgba(255, 255, 255, 0.075);
+}
+
+/* Card Headers Contextual */
+body.dark-mode .card-success .card-header { background-color: #1e7e34; }
+body.dark-mode .card-primary .card-header { background-color: #0062cc; }
+body.dark-mode .card-info .card-header { background-color: #138496; }
+body.dark-mode .card-warning .card-header { background-color: #d39e00; color: var(--white); }
+body.dark-mode .card-danger .card-header { background-color: #bd2130; }
+
+/* Small Box */
+body.dark-mode .small-box h3,
+body.dark-mode .small-box p {
+    color: var(--white) !important;
+}
+
+/* Card Titles */
+body.dark-mode .card-title {
+    color: var(--white) !important;
+}
+
+/* Form Labels */
+body.dark-mode label:not(.custom-file-label) {
+    color: var(--white);
+}
+
+/* Custom Progress Bar */
+body.dark-mode .custom-progress {
+    background-color: var(--body-bg);
+}
+
+body.dark-mode .progress-text,
+body.dark-mode .info-label,
+body.dark-mode .info-value {
+    color: #e0e0e0;
+}
+
+/* Input Group Addon */
+body.dark-mode .input-group-text {
+    background-color: var(--input-bg);
+    color: var(--input-color);
+    border-color: var(--input-border);
+}
+
+/* Navbar Toggle Icon and Active User Text */
+body.dark-mode .main-header .nav-link,
+body.dark-mode .main-header .nav-link i,
+body.dark-mode .main-header .nav-link span {
+    color: var(--white) !important;
+}
+
+body.dark-mode .main-header .nav-link:hover,
+body.dark-mode .main-header .nav-link:focus {
+    color: #cccccc !important;
+}
+
+/* Fix Navbar Dropdowns */
+body.dark-mode .main-header .dropdown-menu {
+    background-color: var(--dropdown-bg);
+    border: 1px solid var(--dropdown-border);
+}
+
+body.dark-mode .main-header .dropdown-item {
+    color: var(--dropdown-link-color);
+}
+
+body.dark-mode .main-header .dropdown-item:hover {
+    background-color: var(--dropdown-link-hover-bg);
+    color: var(--white);
+}
+
+/* Dataset Management & General Breadcrumbs */
+body.dark-mode .breadcrumb-item,
+body.dark-mode .breadcrumb-item.active {
+    color: #e0e0e0 !important;
+}
+
+body.dark-mode .breadcrumb-item a {
+    color: var(--link-color) !important;
+}
+
+body.dark-mode .card-header h6 {
+    color: var(--white) !important;
+}
+
+/* Dashboard History / Activity Section */
+body.dark-mode .activity-title {
+    color: var(--white) !important;
+}
+
+body.dark-mode .activity-description {
+    color: #d0d0d0 !important;
+}
+
+body.dark-mode .activity-item .text-muted {
+    color: #adb5bd !important;
+}
+
+/* Info Boxes */
+body.dark-mode .info-box {
+    background-color: var(--card-bg);
+    color: var(--white);
+}
+
+body.dark-mode .info-box-text,
+body.dark-mode .info-box-number {
+    color: var(--white);
+}
+
+body.dark-mode .info-box-icon {
+    color: var(--white) !important;
+}
+
+/* Main Footer */
+/* Ensure card headers have appropriate background in dark mode if not specified */
+body.dark-mode .card-header:not([class*="bg-"]) {
+    background-color: rgba(0, 0, 0, 0.2);
+    border-bottom: 1px solid var(--border-color);
+}
+
+/* Safety override for text-dark in dark mode */
+body.dark-mode .text-dark {
+    color: var(--white) !important;
+}
+
+/* Ensure links in dark mode are visible */
+body.dark-mode a:not(.btn) {
+    color: var(--link-color);
+}
+
+body.dark-mode a:not(.btn):hover {
+    color: var(--link-hover-color);
+}
+body.dark-mode .main-footer {
+    background-color: var(--card-bg);
+    color: var(--white);
+    border-top-color: var(--border-color);
+}
+
+body.dark-mode .main-footer a {
+    color: var(--link-color);
+}
+
+/* Buttons */
+body.dark-mode .btn-default {
+    background-color: var(--dropdown-link-hover-bg);
+    color: var(--white);
+    border-color: var(--border-color);
+}
+
+body.dark-mode .btn-default:hover {
+    background-color: #4b545c;
+    color: var(--white);
+}
+
+/* Table Borders */
+body.dark-mode .table-bordered,
+body.dark-mode .table-bordered td,
+body.dark-mode .table-bordered th {
+    border-color: #56606a !important;
+}
+
+/* Pagination Links */
+body.dark-mode .page-link {
+    background-color: var(--card-bg);
+    border-color: var(--border-color);
+    color: var(--white);
+}
+
+body.dark-mode .page-item.disabled .page-link {
+    background-color: var(--dropdown-link-hover-bg);
+    border-color: var(--border-color);
+    color: var(--secondary);
+}
+
+body.dark-mode .page-item.active .page-link {
+    background-color: var(--primary);
+    border-color: var(--primary);
+    color: var(--white);
+}
+
+/* Custom Scrollbar */
+body.dark-mode ::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+}
+
+body.dark-mode ::-webkit-scrollbar-track {
+    background: #2b3035;
+}
+
+body.dark-mode ::-webkit-scrollbar-thumb {
+    background: var(--secondary);
+    border-radius: 6px;
+    border: 3px solid #2b3035;
+}
+
+body.dark-mode ::-webkit-scrollbar-thumb:hover {
+    background: #adb5bd;
+}
+
+/* Status Badges */
+body.dark-mode .status-badge {
+    border: 1px solid transparent;
+}
+
+body.dark-mode .status-badge.raw {
+    background-color: var(--card-bg) !important;
+    color: #ced4da !important;
+    border-color: var(--border-color) !important;
+}
+
+body.dark-mode .status-badge.cleaned {
+    background-color: #1e4620 !important;
+    color: #d4edda !important;
+    border-color: var(--success) !important;
+}
+
+body.dark-mode .status-badge.classified {
+    background-color: #003060 !important;
+    color: #cce5ff !important;
+    border-color: var(--primary) !important;
+}
+
+/* Table Headers */
+body.dark-mode .table th,
+body.dark-mode .table thead th {
+    background-color: var(--card-bg) !important;
+    color: var(--white) !important;
+    border-color: var(--table-border-color) !important;
+}

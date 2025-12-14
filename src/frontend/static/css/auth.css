@@ -1,0 +1,472 @@
+/* Auth Pages Custom Styles */
+/* Note: Relies on variables.css for design tokens */
+
+/* Base Body Styles */
+body {
+    font-family: var(--font-family-base);
+    background-color: var(--body-bg);
+    color: var(--body-color);
+    transition: background-color 0.3s ease;
+    min-height: 100vh;
+}
+
+body.dark-mode {
+    background-color: var(--body-bg);
+    color: var(--body-color);
+}
+
+/* AdminLTE Page Overrides */
+.login-page, .register-page, .status-page {
+    background-color: var(--body-bg);
+    color: var(--body-color);
+}
+
+body.dark-mode .login-page,
+body.dark-mode .register-page,
+body.dark-mode .status-page {
+    background-color: var(--body-bg);
+    color: var(--body-color);
+}
+
+/* Box Containers */
+.login-box, .register-box, .status-box {
+    margin: 2rem auto;
+}
+
+.login-box { width: 400px; }
+.register-box { width: 450px; }
+.status-box { width: 500px; }
+
+/* Card Styles */
+.card {
+    border-radius: 15px;
+    box-shadow: 0 0 1px rgba(0,0,0,.125), 0 1px 3px rgba(0,0,0,.2);
+    border: none;
+    background-color: var(--card-bg);
+    transition: background-color 0.3s ease;
+}
+
+body.dark-mode .card {
+    background-color: var(--card-bg);
+    color: var(--card-color);
+}
+
+.card-header {
+    background: linear-gradient(135deg, var(--primary) 0%, #0056b3 100%);
+    color: var(--white);
+    border-radius: 15px 15px 0 0 !important;
+    text-align: center;
+    padding: 2rem 1rem;
+    border-bottom: none;
+}
+
+/* Status Page Specific Headers */
+.status-pending .card-header { background: linear-gradient(135deg, var(--warning) 0%, #ff8f00 100%); }
+.status-approved .card-header { background: linear-gradient(135deg, var(--success) 0%, #20c997 100%); }
+.status-rejected .card-header { background: linear-gradient(135deg, var(--danger) 0%, #e83e8c 100%); }
+.status-expired .card-header { background: linear-gradient(135deg, var(--secondary) 0%, #495057 100%); }
+
+.card-header h1 {
+    margin: 0;
+    font-size: 2rem;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.register-page .card-header h1,
+.status-page .card-header h1 {
+    font-weight: 300;
+}
+
+.card-header p {
+    font-weight: 700;
+    margin-bottom: 0;
+    opacity: 0.9;
+}
+
+.card-body {
+    padding: 2rem;
+}
+
+.card-footer {
+    background: transparent;
+    border-top: 1px solid var(--border-color);
+    padding: 1.5rem;
+}
+
+body.dark-mode .card-footer {
+    border-color: var(--border-color);
+}
+
+/* Form Controls */
+.form-control {
+    border-radius: 25px;
+    padding: 12px 20px;
+    border: 2px solid var(--input-border);
+    transition: all 0.3s ease;
+    background-color: var(--input-bg);
+    color: var(--input-color);
+}
+
+body.dark-mode .form-control {
+    background-color: var(--input-bg);
+    border-color: var(--input-border);
+    color: var(--input-color);
+}
+
+/* Fix for Chrome Autofill in Dark Mode */
+body.dark-mode input:-webkit-autofill,
+body.dark-mode input:-webkit-autofill:hover, 
+body.dark-mode input:-webkit-autofill:focus, 
+body.dark-mode input:-webkit-autofill:active {
+    -webkit-box-shadow: 0 0 0 30px var(--input-bg) inset !important;
+    -webkit-text-fill-color: var(--input-color) !important;
+    transition: background-color 5000s ease-in-out 0s;
+}
+
+/* Ensure placeholder visibility in dark mode */
+body.dark-mode .form-control::placeholder {
+    color: #adb5bd;
+    opacity: 1;
+}
+
+.form-control:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+    outline: none;
+}
+
+body.dark-mode .form-control:focus {
+    background-color: var(--dropdown-link-hover-bg);
+    color: var(--white);
+    border-color: var(--input-focus-border);
+}
+
+/* Input Groups */
+.input-group-text {
+    background-color: transparent;
+    border: 2px solid var(--input-border);
+    border-right: none;
+    border-radius: 25px 0 0 25px;
+    color: var(--input-color);
+}
+
+body.dark-mode .input-group-text {
+    border-color: var(--input-border);
+    color: var(--input-color);
+    background-color: transparent;
+}
+
+.input-group .form-control {
+    border-left: none;
+    border-radius: 0 25px 25px 0;
+}
+
+/* For register page inputs that are different */
+.register-page .input-group-text {
+    background-color: #e9ecef;
+}
+.register-page .input-group-append .btn {
+    border-left: none;
+    border: 1px solid var(--input-border);
+    background: #f8f9fa;
+    color: var(--secondary);
+}
+body.dark-mode .register-page .input-group-text {
+    background-color: var(--dropdown-link-hover-bg);
+}
+body.dark-mode .register-page .input-group-append .btn {
+    border-color: var(--input-border);
+    background: var(--dropdown-link-hover-bg);
+    color: var(--input-color);
+}
+
+/* Buttons */
+.btn-primary {
+    background: linear-gradient(135deg, var(--primary) 0%, #0056b3 100%);
+    border: none;
+    border-radius: 25px;
+    padding: 12px 30px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0, 123, 255, 0.4);
+    background: linear-gradient(135deg, #0056b3 0%, var(--primary) 100%);
+}
+
+.btn-primary:disabled {
+    background: var(--secondary);
+    border-color: var(--secondary);
+    transform: none;
+    box-shadow: none;
+}
+
+/* Links */
+a {
+    color: var(--primary);
+    text-decoration: none;
+    font-weight: 500;
+}
+
+body.dark-mode a {
+    color: var(--link-color);
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+.login-link, .register-link {
+    text-align: center;
+    margin-top: 1rem;
+}
+
+/* Brand Logo */
+.brand-logo {
+    font-size: 3rem;
+    color: var(--white);
+    margin-bottom: 1rem;
+}
+
+.brand-logo img {
+    height: 68px;
+    max-width: 100%;
+    width: auto;
+    object-fit: contain;
+    filter: drop-shadow(0 1px 1px rgba(0,0,0,0.25));
+}
+
+/* Alerts */
+.alert {
+    border-radius: 12px;
+    border: none;
+    padding: 1rem 1.25rem;
+    margin-bottom: 1.5rem;
+    font-size: 0.9rem;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.alert-info {
+    border-left: 4px solid var(--info);
+    background: linear-gradient(135deg, #e8f4fd 0%, #f0f9ff 100%);
+    border: 1px solid #bee5eb;
+    color: #0c5460;
+}
+
+body.dark-mode .alert-info {
+    background: var(--dropdown-link-hover-bg);
+    border-color: var(--info);
+    color: var(--info);
+}
+
+.alert-info strong {
+    color: #0c5460;
+    font-weight: 600;
+}
+
+body.dark-mode .alert-info strong {
+    color: var(--info);
+}
+
+/* Custom Checkbox */
+.custom-control-input:focus ~ .custom-control-label::before,
+.form-check-input:focus {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
+.form-check-input:checked {
+    background-color: var(--primary);
+    border-color: var(--primary);
+}
+
+/* Helper Classes */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* Info Box (Register Page) */
+.info-box {
+    background: linear-gradient(135deg, #e8f4fd 0%, #d1ecf1 100%);
+    border: 1px solid rgba(52, 152, 219, 0.2);
+    border-radius: 12px;
+    padding: 1.25rem;
+    margin-bottom: 2rem;
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    position: relative;
+    overflow: hidden;
+    color: #0c5460;
+}
+
+body.dark-mode .info-box {
+    background: var(--dropdown-link-hover-bg);
+    border-color: var(--border-color);
+    color: var(--input-color);
+}
+
+.info-box::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background: #3498db;
+}
+
+/* Password Strength */
+.strength-bar {
+    height: 3px;
+    background-color: var(--border-color);
+    border-radius: 1px;
+    overflow: hidden;
+    margin-bottom: 0.25rem;
+}
+
+body.dark-mode .strength-bar {
+    background-color: var(--border-color);
+}
+
+.strength-fill {
+    height: 100%;
+    border-radius: 1px;
+}
+
+.strength-weak { background: var(--danger); width: 33%; }
+.strength-medium { background: var(--warning); width: 66%; }
+.strength-strong { background: var(--success); width: 100%; }
+
+/* OTP Page Specifics */
+.otp-page-body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.otp-icon {
+    width: 70px;
+    height: 70px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 1rem;
+}
+
+.otp-icon i {
+    font-size: 2rem;
+    color: var(--white);
+}
+
+/* Status Page Specifics */
+.status-icon {
+    font-size: 60px;
+    margin-bottom: 15px;
+}
+
+.info-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+body.dark-mode .info-row {
+    border-color: var(--border-color);
+}
+
+.info-row:last-child {
+    border-bottom: none;
+}
+
+.timeline {
+    position: relative;
+    padding-left: 30px;
+}
+
+.timeline::before {
+    content: '';
+    position: absolute;
+    left: 15px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--border-color);
+}
+
+body.dark-mode .timeline::before {
+    background: var(--border-color);
+}
+
+.timeline-item {
+    position: relative;
+    margin-bottom: 20px;
+    padding: 15px 20px;
+    background: var(--light);
+    border-radius: 8px;
+}
+
+body.dark-mode .timeline-item {
+    background: var(--dropdown-link-hover-bg);
+}
+
+.timeline-item::before {
+    content: '';
+    position: absolute;
+    left: -27px;
+    top: 20px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--primary);
+    border: 3px solid var(--white);
+    box-shadow: 0 0 0 2px var(--primary);
+}
+
+body.dark-mode .timeline-item::before {
+    border-color: var(--card-bg);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .login-box, .register-box, .status-box {
+        width: 90%;
+        margin: 1rem auto;
+    }
+}
+
+/* OTP Page Dark Mode Fixes */
+body.dark-mode.otp-page-body .text-dark {
+    color: var(--white) !important;
+}
+
+body.dark-mode.otp-page-body .text-muted {
+    color: #ced4da !important;
+}
+
+body.dark-mode.otp-page-body .card-header {
+    color: var(--white);
+}
+
+body.dark-mode.otp-page-body .form-label {
+    color: var(--white) !important;
+}
+
+body.dark-mode.otp-page-body .form-text {
+    color: #ced4da !important;
+}

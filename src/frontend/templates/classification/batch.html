@@ -1,0 +1,930 @@
+{% extends "base.html" %}
+
+{% block title %}Batch Classification - Waskita{% endblock title %}
+
+{% block page_title %}Batch Classification{% endblock page_title %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item">
+    <a href="{{ url_for('main.dashboard') }}">Home</a>
+</li>
+<li class="breadcrumb-item">
+    <a href="{{ url_for('classification.index') }}">Classification</a>
+</li>
+<li class="breadcrumb-item active">Batch</li>
+{% endblock breadcrumb %}
+
+{% block stylesheets %}
+    <style>
+        .progress-section {
+            margin-top: 20px;
+        }
+        
+        .card.border-left-success {
+            border-left: 4px solid #28a745;
+        }
+        
+        .btn-success.btn-lg {
+            padding: 12px 30px;
+            font-size: 16px;
+            font-weight: 600;
+            border-radius: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            min-width: 180px;
+        }
+        
+        .empty-state {
+            padding: 40px 20px;
+        }
+        
+        .empty-state i {
+            opacity: 0.5;
+        }
+        
+        .empty-state h5 {
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+        
+        .empty-state p {
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        /* Dark Mode Overrides */
+        body.dark-mode .text-dark {
+            color: #e9ecef !important;
+        }
+        body.dark-mode .bg-light {
+            background-color: #3a4047 !important;
+            border-color: #4b545c !important;
+        }
+        body.dark-mode .table .thead-light th {
+            background-color: #343a40;
+            color: #e9ecef;
+            border-color: #4b545c;
+        }
+        body.dark-mode .table-bordered td, body.dark-mode .table-bordered th {
+            border-color: #4b545c;
+            color: #e9ecef;
+        }
+        body.dark-mode .table-hover tbody tr:hover {
+            color: #e9ecef;
+            background-color: rgba(255, 255, 255, 0.075);
+        }
+        body.dark-mode .text-muted {
+            color: #adb5bd !important;
+        }
+        body.dark-mode .card {
+            background-color: #343a40;
+            border-color: #454d55;
+        }
+
+        /* Font Consistency */
+        h5 { font-size: 1.25rem !important; font-weight: 600; }
+        h6 { font-size: 1.1rem !important; font-weight: 600; }
+        .table td, .table th { font-size: 0.9rem !important; }
+        .btn-lg { font-size: 1rem !important; }
+    </style>
+{% endblock stylesheets %}
+
+{% block content %}
+<section class="content">
+    <div class="container-fluid">
+        <!-- Header with Dataset Info and Back Button -->
+        <div class="row mb-3 align-items-center">
+            <div class="col-md-8">
+                <div class="d-flex align-items-center">
+                    <i class="fas fa-layer-group fa-lg text-dark mr-3"></i>
+                    <h5 class="mb-0 text-dark">Selected Dataset for Batch Classification</h5>
+                </div>
+            </div>
+            <div class="col-md-4 text-right">
+                <a href="{{ url_for('classification.index') }}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left mr-2"></i>Back to Classification
+                </a>
+            </div>
+        </div>
+
+        <!-- Data Preview -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body">
+                        <div id="dataLoading" class="text-center">
+                            <i class="fas fa-spinner fa-spin fa-2x text-primary"></i>
+                            <p class="mt-2">Loading data...</p>
+                        </div>
+                        
+                        <div id="dataPreview" style="display: none;">
+                            <div class="table-responsive">
+                                <table class="table table-bordered table-hover" id="previewTable">
+                                    <thead class="thead-light">
+                                        <tr>
+                                            <th width="10%" class="text-center">Data Source</th>
+                                            <th width="15%">Username</th>
+                                            <th width="65%">Content</th>
+                                            <th width="10%" class="text-center">URL</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="previewTableBody">
+                                        <!-- Data will be filled via JavaScript -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        
+                        <div id="noDataMessage" style="display: none;" class="text-center text-muted">
+                            <i class="fas fa-exclamation-triangle fa-2x"></i>
+                            <p class="mt-2">No clean data available for classification</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Classification Controls -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card border-left-success shadow">
+                    <div class="card-body">
+                        <div class="row align-items-center">
+                            <div class="col-md-6">
+                                <!-- Classification information removed -->
+                            </div>
+                            <div class="col-md-6 text-right">
+                                <button id="startClassification" class="btn btn-success btn-lg" disabled>
+                                    <i class="fas fa-play mr-2"></i>Start Classification
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="d-none" id="progressSection">
+                            <hr>
+                            <h6><i class="fas fa-tasks mr-2"></i>Classification Progress</h6>
+                            <div class="progress mb-2">
+                                <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                     role="progressbar" style="width: 0%" id="progressBar">
+                                    0%
+                                </div>
+                            </div>
+                            <div id="progressText" class="text-muted">
+                                Starting classification...
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock content %}
+
+{% block scripts %}
+<script>
+let currentDatasetId = null;
+let previewData = [];
+
+$(document).ready(function() {
+    // Get dataset_id from URL parameter
+    const urlParams = new URLSearchParams(window.location.search);
+    currentDatasetId = urlParams.get('dataset_id');
+    
+    // Initialize progress section as hidden
+    $('#progressSection').addClass('d-none');
+    $('#progressBar').css('width', '0%').text('0%');
+    $('#progressText').text('Starting classification...');
+    
+    if (currentDatasetId) {
+        loadPreviewData();
+    } else {
+        window.location.href = '/classification';
+    }
+    
+    $('#startClassification').click(function() {
+        startBatchClassification();
+    });
+});
+
+function loadPreviewData() {
+    // Show loading state
+    $('#dataLoading').show();
+    $('#noDataMessage').hide();
+    $('#dataPreview').hide();
+    $('#startClassification').prop('disabled', true);
+    
+    $.ajax({
+        url: `/api/dataset/${currentDatasetId}/clean-data`,
+        method: 'GET',
+        success: function(response) {
+            $('#dataLoading').hide();
+            
+            if (response.success && response.data && response.data.length > 0) {
+                previewData = response.data.slice(0, 10);
+                displayPreviewData();
+                $('#dataPreview').show();
+                $('#startClassification').prop('disabled', false);
+            } else {
+                $('#noDataMessage').show().html(`
+                    <div class="text-center py-4">
+                        <i class="fas fa-info-circle fa-3x text-info mb-3"></i>
+                        <h5>No Data to Classify</h5>
+                        <p class="text-muted">This dataset does not have cleaned data or all data has been classified.</p>
+                        <div class="mt-3">
+                            <a href="/dataset/${currentDatasetId}/details" class="btn btn-primary">
+                                <i class="fas fa-eye mr-2"></i>View Dataset Details
+                            </a>
+                            <a href="/classification" class="btn btn-secondary ml-2">
+                                <i class="fas fa-arrow-left mr-2"></i>Back
+                            </a>
+                        </div>
+                    </div>
+                `);
+                $('#startClassification').prop('disabled', true);
+            }
+        },
+        error: function(xhr, status, error) {
+            $('#dataLoading').hide();
+            
+            let errorMessage = 'An error occurred while loading data';
+            let errorIcon = 'error';
+            let actionButtons = '';
+            
+            // Handle different error types
+            if (xhr.status === 404) {
+                errorMessage = 'Dataset not found';
+                errorIcon = 'warning';
+                actionButtons = `
+                    <div class="mt-3">
+                        <a href="/classification" class="btn btn-primary">
+                            <i class="fas fa-arrow-left mr-2"></i>Select Another Dataset
+                        </a>
+                    </div>
+                `;
+            } else if (xhr.status === 403) {
+                errorMessage = 'You do not have access to this dataset';
+                errorIcon = 'warning';
+                actionButtons = `
+                    <div class="mt-3">
+                        <a href="/classification" class="btn btn-primary">
+                            <i class="fas fa-arrow-left mr-2"></i>Back to Dataset List
+                        </a>
+                    </div>
+                `;
+            } else if (xhr.status === 500) {
+                errorMessage = 'Server error occurred. Please try again later.';
+                actionButtons = `
+                    <div class="mt-3">
+                        <button onclick="loadPreviewData()" class="btn btn-primary">
+                            <i class="fas fa-redo mr-2"></i>Try Again
+                        </button>
+                        <a href="/classification" class="btn btn-secondary ml-2">
+                            <i class="fas fa-arrow-left mr-2"></i>Back
+                        </a>
+                    </div>
+                `;
+            } else {
+                // Try to get error message from response
+                try {
+                    const response = JSON.parse(xhr.responseText);
+                    if (response.message) {
+                        errorMessage = response.message;
+                    }
+                } catch (e) {
+                    errorMessage = `Error ${xhr.status}: ${error}`;
+                }
+                
+                actionButtons = `
+                    <div class="mt-3">
+                        <button onclick="loadPreviewData()" class="btn btn-primary">
+                            <i class="fas fa-redo mr-2"></i>Try Again
+                        </button>
+                        <a href="/classification" class="btn btn-secondary ml-2">
+                            <i class="fas fa-arrow-left mr-2"></i>Back
+                        </a>
+                    </div>
+                `;
+            }
+            
+            $('#noDataMessage').show().html(`
+                <div class="text-center py-4">
+                    <i class="fas fa-exclamation-triangle fa-3x text-${errorIcon === 'error' ? 'danger' : 'warning'} mb-3"></i>
+                    <h5>Error Loading Data</h5>
+                    <p class="text-muted">${errorMessage}</p>
+                    ${actionButtons}
+                </div>
+            `);
+            $('#startClassification').prop('disabled', true);
+            
+            // Show error notification
+            Swal.fire({
+                title: 'Error',
+                text: errorMessage,
+                icon: errorIcon,
+                confirmButtonText: 'OK',
+                customClass: {
+                    popup: 'swal2-popup',
+                    title: 'swal2-title',
+                    htmlContainer: 'swal2-html-container',
+                    actions: 'swal2-actions',
+                    confirmButton: 'swal2-confirm'
+                }
+            });
+        }
+    });
+}
+
+function displayPreviewData() {
+    const tbody = $('#previewTableBody');
+    tbody.empty();
+    
+    if (!previewData || previewData.length === 0) {
+        // Show empty state message
+        const emptyRow = `
+            <tr>
+                <td colspan="4" class="text-center py-5">
+                    <div class="empty-state">
+                        <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                        <h5 class="text-muted">No Data Available</h5>
+                        <p class="text-muted mb-0">
+                            No data available to display.<br>
+                            Ensure data is uploaded or scraped and has been cleaned.
+                        </p>
+                    </div>
+                </td>
+            </tr>
+        `;
+        tbody.append(emptyRow);
+        $('#startClassification').prop('disabled', true);
+        return;
+    }
+    
+    previewData.forEach(function(item, index) {
+        const row = `
+            <tr>
+                <td class="text-center">
+                    <span class="badge badge-${item.data_type === 'upload' ? 'primary' : 'info'}">
+                        ${item.data_type === 'upload' ? 'Upload' : 'Scraper'}
+                    </span>
+                </td>
+                <td>${item.username || '-'}</td>
+                <td>
+                    <div style="max-height: 100px; overflow-y: auto;">
+                        ${item.content || item.full_content || '-'}
+                    </div>
+                </td>
+                <td class="text-center">
+                    ${item.url ? `<a href="${item.url}" target="_blank" class="btn btn-sm btn-outline-primary">
+                        <i class="fas fa-external-link-alt"></i>
+                    </a>` : '-'}
+                </td>
+            </tr>
+        `;
+        tbody.append(row);
+    });
+    
+    // Enable classification button if data is available
+    $('#startClassification').prop('disabled', false);
+}
+
+function startBatchClassification() {
+    // Show loading state
+    if (typeof swalLoading === 'function') {
+        swalLoading('Loading Data...', 'Loading data for classification');
+    } else {
+        Swal.fire({
+            title: 'Loading Data...',
+            text: 'Loading data for classification',
+            icon: 'info',
+            allowOutsideClick: false,
+            showConfirmButton: false,
+            didOpen: () => {
+                Swal.showLoading();
+            },
+            customClass: {
+                popup: 'swal2-popup',
+                title: 'swal2-title',
+                htmlContainer: 'swal2-html-container',
+                actions: 'swal2-actions',
+                confirmButton: 'swal2-confirm'
+            }
+        });
+    }
+
+    $.ajax({
+        url: `/api/dataset/${currentDatasetId}/clean-data`,
+        method: 'GET',
+        success: function(response) {
+            Swal.close(); // Close loading dialog
+            
+            if (response.success === false) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Server Error',
+                    text: 'Server error occurred while loading data',
+                    confirmButtonText: 'OK'
+                });
+                return;
+            }
+            
+            if (response.data && response.data.length > 0) {
+                const allData = response.data.map(function(item) {
+                    return {
+                        data_id: item.id,
+                        data_type: item.data_type
+                    };
+                });
+                
+                if (typeof swalConfirm === 'function') {
+                    swalConfirm(`Classify ${allData.length} data. Proceed?`, {
+                        confirmButtonText: 'Classify',
+                        cancelButtonText: 'Cancel',
+                        confirmButtonColor: '#28a745',
+                        cancelButtonColor: '#6c757d'
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            processAllData(allData);
+                        }
+                    });
+                } else {
+                    Swal.fire({
+                        title: 'Batch Classification',
+                        text: `Classify all ${allData.length} data. Proceed?`,
+                        icon: 'question',
+                        showCancelButton: true,
+                        confirmButtonColor: '#28a745',
+                        cancelButtonColor: '#6c757d',
+                        confirmButtonText: 'Classify',
+                        cancelButtonText: 'Cancel',
+                        customClass: {
+                            popup: 'swal2-popup',
+                            title: 'swal2-title',
+                            htmlContainer: 'swal2-html-container',
+                            actions: 'swal2-actions',
+                            confirmButton: 'swal2-confirm',
+                            cancelButton: 'swal2-cancel'
+                        }
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            processAllData(allData);
+                        }
+                    });
+                }
+            } else {
+                if (typeof swalWarning === 'function') {
+                    swalWarning(`
+                        <p>No data available for classification.</p>
+                        <p><strong>Possible causes:</strong></p>
+                        <ul style="text-align: left; margin: 10px 0;">
+                            <li>Data has not been uploaded or scraped</li>
+                            <li>Data has not been cleaned</li>
+                            <li>Dataset is empty</li>
+                        </ul>
+                        <p>Please check your data first.</p>
+                    `, {
+                        title: 'Data Not Available',
+                        confirmButtonText: 'OK',
+                        confirmButtonColor: '#007bff'
+                    });
+                } else {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Data Not Available',
+                        html: `
+                            <p>No data available for classification.</p>
+                            <p><strong>Possible causes:</strong></p>
+                            <ul style="text-align: left; margin: 10px 0;">
+                                <li>Data has not been uploaded or scraped</li>
+                                <li>Data has not been cleaned</li>
+                                <li>Dataset is empty</li>
+                            </ul>
+                            <p>Please check your data first.</p>
+                        `,
+                        confirmButtonText: 'OK',
+                        confirmButtonColor: '#007bff',
+                        customClass: {
+                            popup: 'swal2-popup',
+                            title: 'swal2-title',
+                            htmlContainer: 'swal2-html-container',
+                            actions: 'swal2-actions',
+                            confirmButton: 'swal2-confirm'
+                        }
+                    });
+                }
+            }
+        },
+        error: function(xhr, status, error) {
+            Swal.close(); // Close loading dialog
+            
+            let errorMessage = 'Failed to load data for classification';
+            let errorTitle = 'Error';
+            
+            if (xhr.status === 404) {
+                errorTitle = 'Dataset Not Found';
+                errorMessage = 'Requested dataset not found. Ensure dataset is available.';
+            } else if (xhr.status === 403) {
+                errorTitle = 'Access Denied';
+                errorMessage = 'You do not have access to view this dataset.';
+            } else if (xhr.status === 500) {
+                errorTitle = 'Server Error';
+                errorMessage = 'Server error occurred. Please try again later.';
+            } else if (xhr.status === 0) {
+                errorTitle = 'Connection Lost';
+                errorMessage = 'Cannot connect to server. Check your internet connection.';
+            }
+            
+            if (typeof swalError === 'function') {
+                swalError(errorMessage, {
+                    title: errorTitle,
+                    confirmButtonText: 'OK',
+                    confirmButtonColor: '#dc3545'
+                });
+            } else {
+                Swal.fire({
+                    icon: 'error',
+                    title: errorTitle,
+                    text: errorMessage,
+                    confirmButtonText: 'OK',
+                    confirmButtonColor: '#dc3545',
+                    customClass: {
+                        popup: 'swal2-popup',
+                        title: 'swal2-title',
+                        htmlContainer: 'swal2-html-container',
+                        actions: 'swal2-actions',
+                        confirmButton: 'swal2-confirm'
+                    }
+                });
+            }
+        }
+    });
+}
+
+function processAllData(allData) {
+    $('#progressSection').removeClass('d-none');
+    $('#startClassification').prop('disabled', true).html(`
+        <i class="fas fa-spinner fa-spin mr-2"></i>Processing...
+    `);
+    
+    const csrfToken = $('meta[name=csrf-token]').attr('content');
+    
+    // Reset previous classification results before starting new classification
+    $.ajax({
+        url: '/api/classification/reset-latest',
+        method: 'POST',
+        contentType: 'application/json',
+        headers: {
+            'X-CSRFToken': csrfToken
+        },
+        data: JSON.stringify({
+            dataset_id: currentDatasetId
+        }),
+        success: function(resetResponse) {
+            if (resetResponse.success) {
+                
+                
+                // Start classification with progress tracking
+                startClassificationProcess();
+            } else {
+                throw new Error(resetResponse.message);
+            }
+        },
+        error: function(xhr, status, error) {
+            console.error('Error resetting previous results:', error);
+            // Continue with classification even if reset fails
+            startClassificationProcess();
+        }
+    });
+    
+    function startClassificationProcess() {
+        // Start classification with progress tracking
+        $.ajax({
+            url: '/api/classification/start',
+            method: 'POST',
+            contentType: 'application/json',
+            headers: {
+                'X-CSRFToken': csrfToken
+            },
+            data: JSON.stringify({
+                dataset_id: currentDatasetId
+            }),
+        success: function(response) {
+                if (response.success) {
+                    // Start polling for progress with optimized intervals and retry mechanism
+                    startOptimizedProgressPolling(currentDatasetId);
+                } else {
+                    throw new Error(response.message);
+                }
+            },
+        error: function(xhr, status, error) {
+            if (typeof swalError === 'function') {
+                swalError(`An error occurred: ${error}`, {
+                    title: 'Error'
+                });
+            } else {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: `An error occurred: ${error}`,
+                    customClass: {
+                        popup: 'swal2-popup',
+                        title: 'swal2-title',
+                        htmlContainer: 'swal2-html-container',
+                        actions: 'swal2-actions',
+                        confirmButton: 'swal2-confirm'
+                    }
+                });
+            }
+            $('#startClassification').prop('disabled', false).html(`
+                <i class="fas fa-play mr-2"></i>Start Classification
+            `);
+        }
+    });
+    }
+}
+
+function startOptimizedProgressPolling(datasetId) {
+    let pollingInterval = 1000; // Start at 1 second
+    let consecutiveErrors = 0;
+    let maxPollingTime = 300000; // 5 minutes max
+    let startTime = Date.now();
+    
+    function pollProgress() {
+        if (Date.now() - startTime > maxPollingTime) {
+            // Timeout after 5 minutes
+            if (typeof swalError === 'function') {
+                swalError('Classification timed out after 5 minutes. Please try again.', {
+                    title: 'Timeout'
+                });
+            }
+            $('#startClassification').prop('disabled', false).html(`
+                <i class="fas fa-play mr-2"></i>Start Classification
+            `);
+            return;
+        }
+        
+        $.ajax({
+            url: `/api/classification/status/${datasetId}`,
+            method: 'GET',
+            success: function(response) {
+                if (response.success) {
+                    const datasetStatus = response.dataset.status;
+                    const totalItems = response.dataset.total_items || 0;
+                    const processedItems = response.dataset.processed_items || 0;
+                    const pct = Math.max(0, Math.min(100, parseInt(response.dataset.progress_percentage || (totalItems ? Math.floor((processedItems/totalItems)*100) : 0))));
+
+                    $('#progressBar').css('width', pct + '%').text(pct + '%');
+                    $('#progressText').html(`
+                        <i class="fas fa-sync-alt fa-spin mr-1"></i>
+                        Status: ${datasetStatus} · ${processedItems}/${totalItems}
+                    `);
+                    
+                    if (datasetStatus === 'Classified' || pct === 100) {
+                        // Classification complete, redirect to results
+                        setTimeout(() => {
+                            if (typeof swalSuccess === 'function') {
+                                swalSuccess('Success', 'Classification completed successfully!', {
+                                    confirmButtonText: 'View Results'
+                                }).then((result) => {
+                                    if (result.isConfirmed) {
+                                        window.location.href = '/classification/results';
+                                    }
+                                });
+                            } else {
+                                Swal.fire({
+                                    icon: 'success',
+                                    title: 'Success',
+                                    text: 'Classification completed successfully!',
+                                    confirmButtonText: 'View Results',
+                                    showCancelButton: true,
+                                    cancelButtonText: 'Close'
+                                }).then((result) => {
+                                    if (result.isConfirmed) {
+                                        window.location.href = '/classification/results';
+                                    }
+                                });
+                            }
+                        }, 1000);
+                    } else if (datasetStatus === 'Submitted' || datasetStatus === 'Cleaned' || datasetStatus === 'Processing') {
+                        // Still processing, continue polling
+                        setTimeout(pollProgress, pollingInterval);
+                    } else if (datasetStatus === 'Completed') {
+                        // Alternative status for completed classification
+                        setTimeout(() => {
+                            window.location.href = '/classification/results';
+                        }, 1000);
+                    } else {
+                        // Invalid status
+                        consecutiveErrors++;
+                        if (consecutiveErrors > 5) {
+                            if (typeof swalError === 'function') {
+                                swalError(`Invalid classification status: ${datasetStatus}`, {
+                                    title: 'Error'
+                                });
+                            }
+                            $('#startClassification').prop('disabled', false).html(`
+                                <i class="fas fa-play mr-2"></i>Start Classification
+                            `);
+                        } else {
+                            setTimeout(pollProgress, pollingInterval);
+                        }
+                    }
+                } else {
+                    consecutiveErrors++;
+                    if (consecutiveErrors > 5) {
+                        if (typeof swalError === 'function') {
+                            swalError('Failed to monitor classification status. Please refresh the page.', {
+                                title: 'Error'
+                            });
+                        }
+                        $('#startClassification').prop('disabled', false).html(`
+                            <i class="fas fa-play mr-2"></i>Start Classification
+                        `);
+                    } else {
+                        setTimeout(pollProgress, pollingInterval);
+                    }
+                }
+            },
+            error: function() {
+                consecutiveErrors++;
+                if (consecutiveErrors > 5) {
+                    if (typeof swalError === 'function') {
+                        swalError('Failed to monitor classification progress. Please refresh the page.', {
+                            title: 'Error'
+                        });
+                    }
+                    $('#startClassification').prop('disabled', false).html(`
+                        <i class="fas fa-play mr-2"></i>Start Classification
+                    `);
+                } else {
+                    setTimeout(pollProgress, pollingInterval);
+                }
+            }
+        });
+    }
+    
+    // Start polling
+    pollProgress();
+}
+
+function showLatestClassificationResults() {
+    // Fetch latest classification results
+    $.ajax({
+        url: `/api/classification/latest-results?dataset_id=${currentDatasetId}`,
+        method: 'GET',
+        success: function(response) {
+            if (response.success) {
+                const results = response.results;
+                
+                // Calculate model-specific totals
+                const model1Total = results.model_stats.model1.radikal + results.model_stats.model1.non_radikal;
+                const model2Total = results.model_stats.model2.radikal + results.model_stats.model2.non_radikal;
+                const model3Total = results.model_stats.model3.radikal + results.model_stats.model3.non_radikal;
+                
+                // Show results in a modal
+                if (typeof swalInfo === 'function') {
+                    swalInfo('Latest Classification Results', `
+                        <div class="text-left">
+                            <div class="mb-3">
+                                <h6 class="text-primary">Total Classification Results</h6>
+                                <div class="d-flex justify-content-between">
+                                    <span>${results.total_classifications} content × 3 models</span>
+                                    <strong>${results.total_classifications} results</strong>
+                                </div>
+                                <small class="text-muted">All predictions from ${results.model_count} models</small>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <h6 class="text-danger">Total Radical</h6>
+                                <div class="d-flex justify-content-between">
+                                    <span>${results.total_radikal} predictions</span>
+                                    <strong>${results.radikal_percentage}% of total</strong>
+                                </div>
+                                <small class="text-muted">All radical predictions from 3 models</small>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <h6 class="text-success">Total Non-Radical</h6>
+                                <div class="d-flex justify-content-between">
+                                    <span>${results.total_non_radikal} predictions</span>
+                                    <strong>${results.non_radikal_percentage}% of total</strong>
+                                </div>
+                                <small class="text-muted">All non-radical predictions from 3 models</small>
+                            </div>
+                            
+                            <div class="mb-4 p-3 bg-light rounded">
+                                    <h6 class="text-info mb-3">Results Per Model</h6>
+                                    <div class="row">
+                                        <div class="col-4">
+                                            <div class="text-center p-2 border rounded">
+                                                <small class="text-primary fw-bold">${results.model_stats.model1.name || 'Model 1'}</small><br>
+                                                <span class="text-danger fw-bold">${results.model_stats.model1.radikal} radical</span><br>
+                                                <span class="text-success fw-bold">${results.model_stats.model1.non_radikal} non-radical</span>
+                                            </div>
+                                        </div>
+                                        <div class="col-4">
+                                            <div class="text-center p-2 border rounded">
+                                                <small class="text-primary fw-bold">${results.model_stats.model2.name || 'Model 2'}</small><br>
+                                                <span class="text-danger fw-bold">${results.model_stats.model2.radikal} radical</span><br>
+                                                <span class="text-success fw-bold">${results.model_stats.model2.non_radikal} non-radical</span>
+                                            </div>
+                                        </div>
+                                        <div class="col-4">
+                                            <div class="text-center p-2 border rounded">
+                                                <small class="text-primary fw-bold">${results.model_stats.model3.name || 'Model 3'}</small><br>
+                                                <span class="text-danger fw-bold">${results.model_stats.model3.radikal} radical</span><br>
+                                                <span class="text-success fw-bold">${results.model_stats.model3.non_radikal} non-radical</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="text-center mt-3">
+                                        <small class="text-muted">Total: ${results.total_classifications} classification results</small>
+                                    </div>
+                                </div>
+                        </div>
+                    `, {
+                        width: '800px',
+                        confirmButtonText: 'Close',
+                        showCloseButton: true,
+                        customClass: {
+                            popup: 'swal2-popup-wide',
+                            title: 'swal2-title',
+                            htmlContainer: 'swal2-html-container',
+                            actions: 'swal2-actions',
+                            confirmButton: 'swal2-confirm'
+                        }
+                    });
+                } else {
+                    Swal.fire({
+                        title: 'Latest Classification Results',
+                        html: `
+                            <div class="text-left">
+                                <div class="mb-3">
+                                    <h6 class="text-primary">Total Classification Results</h6>
+                                    <div class="d-flex justify-content-between">
+                                        <span>${results.total_classifications} content × ${results.model_count} models</span>
+                                        <strong>${results.total_predictions} results</strong>
+                                    </div>
+                                    <small class="text-muted">All predictions from ${results.model_count} models</small>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <h6 class="text-danger">Total Radical</h6>
+                                    <div class="d-flex justify-content-between">
+                                        <span>${results.total_radikal} predictions</span>
+                                        <strong>${results.radikal_percentage}% of total</strong>
+                                    </div>
+                                    <small class="text-muted">All radical predictions from ${results.model_count} models</small>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <h6 class="text-success">Total Non-Radical</h6>
+                                    <div class="d-flex justify-content-between">
+                                        <span>${results.total_non_radikal} predictions</span>
+                                        <strong>${results.non_radikal_percentage}% of total</strong>
+                                    </div>
+                                    <small class="text-muted">All non-radical predictions from ${results.model_count} models</small>
+                                </div>
+                                
+                                <div class="mb-4 p-3 bg-light rounded">
+                                    <h6 class="text-info mb-3">Results Per Model</h6>
+                                    <div class="row">
+                                        ${results.models.map(model => `
+                                        <div class="col-md-${Math.max(Math.floor(12 / (results.model_count || 3)), 3)} col-sm-6 mb-3">
+                                            <div class="text-center p-2 border rounded h-100">
+                                                <small class="text-primary fw-bold">${(model.name || 'Model').replace('_', ' ').toUpperCase()}</small><br>
+                                                <span class="text-danger fw-bold">${model.radikal} radical</span><br>
+                                                <span class="text-success fw-bold">${model.non_radikal} non-radical</span>
+                                            </div>
+                                        </div>
+                                        `).join('')}
+                                    </div>
+                                    <div class="text-center mt-3">
+                                        <small class="text-muted">Total: ${results.total_predictions} classification results</small>
+                                    </div>
+                                </div>
+                            </div>
+                        `,
+                        width: '800px',
+                        confirmButtonText: 'Close',
+                        showCloseButton: true,
+                        customClass: {
+                            popup: 'swal2-popup-wide',
+                            title: 'swal2-title',
+                            htmlContainer: 'swal2-html-container',
+                            actions: 'swal2-actions',
+                            confirmButton: 'swal2-confirm'
+                        }
+                    });
+                }
+            } else {
+                console.error('Error fetching latest results:', response.message);
+            }
+        },
+        error: function(xhr, status, error) {
+            console.error('Error fetching latest classification results:', error);
+        }
+    });
+}
+</script>
+{% endblock scripts %}

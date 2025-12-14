@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="description"
+              content="Registration Status - Waskita - Radical Content Classification System using Machine Learning">
+        <meta name="keywords"
+              content="registration status, waskita, content classification, machine learning">
+        <meta name="csrf-token" content="{{ csrf_token() }}">
+        
+        <!-- Favicon -->
+        <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='images/favicon.svg') }}">
+        <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='images/favicon.ico') }}">
+        <link rel="shortcut icon" type="image/x-icon" href="{{ url_for('static', filename='images/favicon.ico') }}">
+
+        <title>Registration Status - Waskita</title>
+        <!-- Google Font: Source Sans Pro -->
+        <link rel="stylesheet"
+              href="https://fonts.googleapis.com/css?family=Source+Sans+Pro:300,400,400i,700&display=fallback">
+        <!-- Font Awesome -->
+        <link rel="stylesheet"
+              href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+        <!-- AdminLTE CSS -->
+        <link rel="stylesheet"
+              href="https://cdn.jsdelivr.net/npm/admin-lte@3.2/dist/css/adminlte.min.css">
+        <!-- SweetAlert2 CSS -->
+        <link rel="stylesheet"
+              href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+        <!-- Auth Custom CSS -->
+        <link rel="stylesheet" href="{{ url_for('static', filename='css/variables.css') }}">
+        <link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
+    </head>
+    <body class="hold-transition status-page dark-mode">
+        <div class="status-page d-flex justify-content-center align-items-center">
+            <div class="status-box">
+                <div class="card status-{{ request.status }}">
+                    <!-- Status Header -->
+                    <div class="card-header">
+                        <div class="status-icon">
+                            {% if request.status == 'pending' %}
+                                <i class="fas fa-clock"></i>
+                            {% elif request.status == 'approved' %}
+                                <i class="fas fa-check-circle"></i>
+                            {% elif request.status == 'rejected' %}
+                                <i class="fas fa-times-circle"></i>
+                            {% elif request.status == 'expired' %}
+                                <i class="fas fa-hourglass-end"></i>
+                            {% endif %}
+                        </div>
+                        
+                        <h1>
+                            {% if request.status == 'pending' %}
+                                Pending Approval
+                            {% elif request.status == 'approved' %}
+                                Registration Approved
+                            {% elif request.status == 'rejected' %}
+                                Registration Rejected
+                            {% elif request.status == 'expired' %}
+                                Request Expired
+                            {% endif %}
+                        </h1>
+                        
+                        <p class="mb-0">
+                            {% if request.status == 'pending' %}
+                                Your registration request is being reviewed by the administrator
+                            {% elif request.status == 'approved' %}
+                                Congratulations! Your account has been approved and is ready to use
+                            {% elif request.status == 'rejected' %}
+                                Sorry, your registration request cannot be approved
+                            {% elif request.status == 'expired' %}
+                                Your registration request has expired
+                            {% endif %}
+                        </p>
+                    </div>
+                    
+                    <!-- Status Body -->
+                    <div class="card-body">
+                        <!-- Request Information -->
+                        <h5 class="mb-3">
+                            <i class="fas fa-info-circle text-primary mr-2"></i>
+                            Request Information
+                        </h5>
+                        
+                        <div class="info-row">
+                            <span class="info-label">Username:</span>
+                            <span class="info-value">{{ request.username }}</span>
+                        </div>
+                        
+                        <div class="info-row">
+                            <span class="info-label">Email:</span>
+                            <span class="info-value">{{ request.email }}</span>
+                        </div>
+                        
+                        {% if request.full_name %}
+                        <div class="info-row">
+                            <span class="info-label">Full Name:</span>
+                            <span class="info-value">{{ request.full_name }}</span>
+                        </div>
+                        {% endif %}
+                        
+                        <div class="info-row">
+                            <span class="info-label">Request Date:</span>
+                            <span class="info-value">{{ request.created_at|format_datetime('%d/%m/%Y %H:%M') }} WIB</span>
+                        </div>
+                        
+                        <div class="info-row">
+                            <span class="info-label">Status:</span>
+                            <span class="info-value">
+                                <span class="badge badge-{{ 'warning' if request.status == 'pending' else 'success' if request.status == 'approved' else 'danger' if request.status == 'rejected' else 'secondary' }}">
+                                    {% if request.status == 'pending' %}
+                                        Pending Verification
+                                    {% elif request.status == 'approved' %}
+                                        Approved
+                                    {% elif request.status == 'rejected' %}
+                                        Rejected
+                                    {% elif request.status == 'expired' %}
+                                        Expired
+                                    {% endif %}
+                                </span>
+                            </span>
+                        </div>
+                        
+                        {% if request.approved_at %}
+                        <div class="info-row">
+                            <span class="info-label">Processed Date:</span>
+                            <span class="info-value">{{ request.approved_at|format_datetime('%d/%m/%Y %H:%M') }} WIB</span>
+                        </div>
+                        {% endif %}
+                        
+                        {% if request.admin_notes %}
+                        <div class="info-row">
+                            <span class="info-label">System Notes:</span>
+                            <span class="info-value">{{ request.admin_notes }}</span>
+                        </div>
+                        {% endif %}
+                        
+                        <!-- Status Messages -->
+                        {% if request.status == 'pending' %}
+                            <div class="alert alert-info mt-4">
+                                <i class="fas fa-info-circle mr-2"></i>
+                                <strong>Information:</strong> Your registration request is being processed. 
+                                You will receive an email notification when your registration is approved.
+                            </div>
+                        {% elif request.status == 'approved' %}
+                            <div class="alert alert-success mt-4">
+                                <i class="fas fa-check-circle mr-2"></i>
+                                <strong>Congratulations!</strong> Your registration has been successfully verified. You can now login using the username and password you created.
+                            </div>
+                        {% elif request.status == 'rejected' %}
+                            <div class="alert alert-danger mt-4">
+                                <i class="fas fa-times-circle mr-2"></i>
+                                <strong>Sorry,</strong> your registration request cannot be processed. 
+                                {% if request.admin_notes %}
+                                    Reason: {{ request.admin_notes }}
+                                {% endif %}
+                                You can submit a new request if needed.
+                            </div>
+                        {% elif request.status == 'expired' %}
+                            <div class="alert alert-warning mt-4">
+                                <i class="fas fa-hourglass-end mr-2"></i>
+                                <strong>Expired:</strong> Your registration request has expired. 
+                                Please submit a new registration request.
+                            </div>
+                        {% endif %}
+                        
+                        <!-- Email Timeline - Hidden for security -->
+                        {% if false and email_logs %}
+                        <h5 class="mb-3 mt-4">
+                            <i class="fas fa-envelope text-primary mr-2"></i>
+                            Email History
+                        </h5>
+                        
+                        <div class="timeline">
+                            {% for log in email_logs %}
+                            <div class="timeline-item {{ 'success' if log.is_sent else 'danger' }}">
+                                <div class="timeline-time">
+                                    {{ log.created_at|format_datetime('%d/%m/%Y %H:%M') }} WIB
+                                </div>
+                                <div class="timeline-title">
+                                    {% if log.email_type == 'otp_notification' %}
+                                        OTP Notification to Admin
+                                    {% elif log.email_type == 'approval_notification' %}
+                                        Approval Notification
+                                    {% else %}
+                                        {{ log.email_type.replace('_', ' ').title() }}
+                                    {% endif %}
+                                </div>
+                                <div class="timeline-desc">
+                                    <strong>Recipient:</strong> {{ log.recipient_email }}<br>
+                                    <strong>Status:</strong> 
+                                    {% if log.is_sent %}
+                                        <span class="text-success">Sent successfully</span>
+                                    {% else %}
+                                        <span class="text-danger">Failed to send</span>
+                                        {% if log.error_message %}
+                                            - {{ log.error_message }}
+                                        {% endif %}
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                        
+                        <!-- Action Buttons -->
+                        <div class="action-buttons">
+                            <!-- Primary Actions -->
+                            <div class="primary-actions">
+                                <a href="{{ url_for('otp.registration_status', request_id=request.id) }}" class="btn btn-refresh">
+                                    <i class="fas fa-sync-alt mr-2"></i>
+                                    Refresh Status
+                                </a>
+                                
+                                {% if request.status == 'approved' %}
+                                    <a href="{{ url_for('auth.login') }}" class="btn btn-success">
+                                        <i class="fas fa-sign-in-alt mr-2"></i>
+                                        Login Now
+                                    </a>
+                                {% elif request.status in ['rejected', 'expired'] %}
+                                    <a href="{{ url_for('otp.register_request') }}" class="btn btn-primary">
+                                        <i class="fas fa-user-plus mr-2"></i>
+                                        Re-register
+                                    </a>
+                                {% endif %}
+                            </div>
+                            
+                            <!-- Secondary Actions -->
+                            <div class="secondary-actions">
+                                <a href="{{ url_for('main.index') }}" class="btn btn-outline-secondary">
+                                    <i class="fas fa-home mr-2"></i>
+                                    Back to Home
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- jQuery -->
+        <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+        <!-- Bootstrap 4 -->
+        <script src="https://cdn.jsdelivr.net/npm/admin-lte@3.2/dist/js/adminlte.min.js"></script>
+        <!-- SweetAlert2 -->
+        <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.js"></script>
+        
+        <script>
+        $(document).ready(function() {
+            // Auto refresh every 30 seconds for pending requests
+            {% if request.status == 'pending' %}
+            setInterval(function() {
+                // Check if page is visible
+                if (!document.hidden) {
+                    location.reload();
+                }
+            }, 30000); // 30 seconds
+            {% endif %}
+            
+            // Show notification if status changed
+            {% if request.status == 'approved' %}
+                // Show success notification
+                if (typeof swalSuccess === 'function') {
+                    swalSuccess('Registration Successful!', 'Congratulations! Your account has been verified and is ready to use.', 'Login Now', 'Later')
+                    .then((result) => {
+                        if (result.isConfirmed) {
+                            window.location.href = "{{ url_for('auth.login') }}";
+                        }
+                    });
+                } else if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Registration Successful!',
+                        text: 'Congratulations! Your account has been verified and is ready to use.',
+                        confirmButtonText: 'Login Now',
+                        showCancelButton: true,
+                        cancelButtonText: 'Later',
+                        customClass: {
+                            popup: 'swal2-popup',
+                            title: 'swal2-title',
+                            htmlContainer: 'swal2-html-container',
+                            actions: 'swal2-actions',
+                            confirmButton: 'swal2-confirm',
+                            cancelButton: 'swal2-cancel'
+                        }
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            window.location.href = "{{ url_for('auth.login') }}";
+                        }
+                    });
+                }
+            {% elif request.status == 'rejected' %}
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Registration Failed',
+                        text: 'Sorry, your registration request cannot be processed.',
+                        confirmButtonText: 'OK',
+                        customClass: {
+                            popup: 'swal2-popup',
+                            title: 'swal2-title',
+                            htmlContainer: 'swal2-html-container',
+                            actions: 'swal2-actions',
+                            confirmButton: 'swal2-confirm'
+                        }
+                    });
+                }
+            {% endif %}
+        });
+        </script>
+    </body>
+</html>

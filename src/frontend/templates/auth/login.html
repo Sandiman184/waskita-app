@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="description"
+              content="Login to Waskita - Radical Content Classification System using Machine Learning">
+        <meta name="keywords"
+              content="login, waskita, content classification, machine learning, authentication system">
+        <meta name="csrf-token" content="{{ csrf_token() }}">
+        
+        <!-- Favicon -->
+        <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='images/favicon.svg') }}">
+        <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='images/favicon.ico') }}">
+        <link rel="shortcut icon" type="image/x-icon" href="{{ url_for('static', filename='images/favicon.ico') }}">
+
+        <title>Login - Waskita</title>
+        <!-- Google Font: Source Sans Pro -->
+        <link rel="stylesheet"
+              href="https://fonts.googleapis.com/css?family=Source+Sans+Pro:300,400,400i,700&display=fallback">
+        <!-- Font Awesome -->
+        <link rel="stylesheet"
+              href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+        <!-- AdminLTE CSS -->
+        <link rel="stylesheet"
+              href="https://cdn.jsdelivr.net/npm/admin-lte@3.2/dist/css/adminlte.min.css">
+        <!-- SweetAlert2 CSS -->
+        <link rel="stylesheet"
+              href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+        <!-- Auth Custom CSS -->
+        <link rel="stylesheet" href="{{ url_for('static', filename='css/variables.css') }}">
+        <link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
+    </head>
+    <body class="hold-transition login-page dark-mode">
+        <div class="login-box">
+            <div class="card card-outline card-primary">
+                <header class="card-header brand-header" role="banner">
+                    <div class="brand-logo">
+                        <img src="{{ url_for('static', filename='images/logo.webp') }}" alt="Waskita Logo" />
+                    </div>
+                    <h1 class="brand-text">WASKITA</h1>
+                    <p class="brand-subtitle mb-0">Content Classification System</p>
+                </header>
+                <main class="card-body" role="main">
+                    <p class="login-box-msg">Please login to continue</p>
+                    <!-- Flash messages -->
+                    {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% if messages %}
+                            <div role="alert" aria-live="polite" aria-atomic="true">
+                                {% for category, message in messages %}
+                                    <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show"
+                                         role="alert">
+                                        {{ message }}
+                                        <button type="button" class="close" data-dismiss="alert" aria-label="Close message">
+                                            <span aria-hidden="true">×</span>
+                                        </button>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    {% endwith %}
+                    <form method="post" id="loginForm" aria-labelledby="login-heading" novalidate>
+                        <h2 id="login-heading" class="sr-only">Login Form</h2>
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <div class="form-group">
+                            <label for="username" class="sr-only">Username</label>
+                            <div class="input-group mb-3">
+                                <div class="input-group-prepend">
+                                    <span class="input-group-text" aria-hidden="true">
+                                        <i class="fas fa-user"></i>
+                                    </span>
+                                </div>
+                                <input type="text"
+                                       id="username"
+                                       name="username"
+                                       class="form-control"
+                                       placeholder="Username"
+                                       aria-label="Username"
+                                       aria-describedby="username-help"
+                                       autocomplete="username"
+                                       required>
+                            </div>
+                            <div id="username-help" class="sr-only">Enter your username to login</div>
+                        </div>
+                        <div class="form-group">
+                            <label for="password" class="sr-only">Password</label>
+                            <div class="input-group mb-3">
+                                <div class="input-group-prepend">
+                                    <span class="input-group-text" aria-hidden="true">
+                                        <i class="fas fa-lock"></i>
+                                    </span>
+                                </div>
+                                <input type="password"
+                                       id="password"
+                                       name="password"
+                                       class="form-control"
+                                       placeholder="Password"
+                                       aria-label="Password"
+                                       aria-describedby="password-help"
+                                       autocomplete="current-password"
+                                       required>
+                            </div>
+                            <div id="password-help" class="sr-only">Enter your password to login</div>
+                        </div>
+                        <div class="row">
+                            <div class="col-8">
+                                <div class="custom-control custom-checkbox">
+                                    <input type="checkbox" 
+                                           class="custom-control-input" 
+                                           id="remember" 
+                                           name="remember"
+                                           aria-describedby="remember-help">
+                                    <label class="custom-control-label" for="remember">Remember me</label>
+                                    <div id="remember-help" class="sr-only">Check to stay logged in on this device</div>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <button type="submit" 
+                                        class="btn btn-primary btn-block"
+                                        aria-describedby="login-button-help">
+                                    Login
+                                </button>
+                                <div id="login-button-help" class="sr-only">Click to enter the system</div>
+                            </div>
+                        </div>
+                    </form>
+                    <nav class="register-link" aria-label="Registration link">
+                        <p>
+                            Don't have an account? <a href="{{ url_for('otp.register_request') }}" aria-label="Register new account">Register here</a>
+                        </p>
+                    </nav>
+                </main>
+            </div>
+        </div>
+        <!-- jQuery -->
+        <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+        <!-- Bootstrap 4 -->
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
+        <!-- AdminLTE App -->
+        <script src="https://cdn.jsdelivr.net/npm/admin-lte@3.2/dist/js/adminlte.min.js"></script>
+        <!-- SweetAlert2 -->
+        <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+        <script>
+        $(document).ready(function() {
+            $('#loginForm').on('submit', function(e) {
+                e.preventDefault();
+                
+                const username = $('input[name="username"]').val();
+                const password = $('input[name="password"]').val();
+                
+                if (!username || !password) {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error',
+                        text: 'Username and password are required!',
+                        confirmButtonColor: '#007bff'
+                    });
+                    return;
+                }
+                
+                // Show loading using global function
+                if (typeof showLoading === 'function') {
+                    showLoading('Processing...', 'Verifying login');
+                } else {
+                    // Fallback to direct usage with custom styling
+                    Swal.fire({
+                        title: 'Processing...',
+                        text: 'Verifying login',
+                        allowOutsideClick: false,
+                        showConfirmButton: false,
+                        customClass: {
+                            popup: 'swal2-popup',
+                            title: 'swal2-title',
+                            htmlContainer: 'swal2-html-container'
+                        },
+                        willOpen: () => {
+                            Swal.showLoading();
+                        }
+                    });
+                }
+                
+                // Submit form
+                this.submit();
+            });
+        });
+        </script>
+    </body>
+</html>

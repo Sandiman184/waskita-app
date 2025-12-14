@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>Registration Approval - Waskita</title>
+    
+    <!-- Google Font: Source Sans Pro -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Source+Sans+Pro:300,400,400i,700&display=fallback">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- AdminLTE CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/admin-lte@3.2/dist/css/adminlte.min.css">
+    <!-- SweetAlert2 CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+    
+    <style>
+        /* Base Styles - Consistent with Register */
+        .approval-page {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            font-family: 'Source Sans Pro', sans-serif;
+        }
+        
+        .approval-box {
+            width: 450px;
+            margin: 2rem auto;
+        }
+        
+        .card {
+            border-radius: 15px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
+            border: none;
+        }
+        
+        .card-header {
+            background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+            color: white;
+            border-radius: 15px 15px 0 0;
+            text-align: center;
+            padding: 2rem 1rem;
+        }
+        
+        .card-header.processed {
+            background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+        }
+        
+        .card-header.already-processed {
+            background: linear-gradient(135deg, #ffc107 0%, #fd7e14 100%);
+        }
+        
+        .card-header h1 {
+            margin: 0;
+            font-size: 2rem;
+            font-weight: 300;
+        }
+
+        .card-header p {
+            margin: 0.5rem 0 0 0;
+            opacity: 0.9;
+        }
+
+        .brand-logo {
+            font-size: 3rem;
+            color: white;
+            margin-bottom: 1rem;
+        }
+
+        .card-body {
+            padding: 2rem;
+            background: white;
+            border-radius: 0 0 15px 15px;
+        }
+
+        /* Form Section Styling - Consistent with Register */
+        .form-section {
+            background: linear-gradient(135deg, #e8f4fd 0%, #d1ecf1 100%);
+            border: 1px solid rgba(52, 152, 219, 0.2);
+            border-radius: 12px;
+            padding: 1.25rem;
+            margin-bottom: 2rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .form-section::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 4px;
+            background: #3498db;
+        }
+
+        .form-section h5 {
+            color: #2c3e50;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            font-size: 1.1rem;
+        }
+
+        /* Info Section Styling */
+        .info-section {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            border-radius: 12px;
+            padding: 1.25rem;
+            margin-bottom: 2rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .info-section::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 4px;
+            background: #007bff;
+        }
+
+        .info-section h5 {
+            color: #2c3e50;
+            margin-bottom: 1rem;
+            font-weight: 600;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+        }
+
+        .info-row:last-child {
+            border-bottom: none;
+        }
+
+        .info-label {
+            font-weight: 500;
+            color: #495057;
+            font-size: 0.9rem;
+        }
+
+        .info-value {
+            color: #2c3e50;
+            font-weight: 500;
+        }
+        
+        /* Form Control Styling - Consistent with Register */
+        .form-control {
+            border-radius: 0.25rem;
+            padding: 0.375rem 0.75rem;
+            border: 1px solid #ced4da;
+            font-size: 1rem;
+        }
+
+        .form-control:focus {
+            border-color: #80bdff;
+            box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+            outline: none;
+        }
+
+        /* OTP Input Styling */
+        .otp-input {
+            font-size: 1.5rem;
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            text-align: center;
+            letter-spacing: 5px;
+            border: 2px solid #007bff;
+            border-radius: 8px;
+            padding: 12px;
+            background: white;
+            max-width: 200px;
+            margin: 0 auto;
+        }
+
+        .otp-input:focus {
+            border-color: #0056b3;
+            box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+        }
+        
+        /* Button Styling - Consistent with Register */
+        .btn {
+            border-radius: 0.25rem;
+            padding: 0.375rem 0.75rem;
+            font-weight: 400;
+            transition: all 0.3s ease;
+            border: none;
+        }
+        
+        .btn-success {
+            background-color: #28a745;
+            border-color: #28a745;
+        }
+        
+        .btn-success:hover {
+            background-color: #218838;
+            border-color: #1e7e34;
+        }
+        
+        .btn-danger {
+            background-color: #dc3545;
+            border-color: #dc3545;
+        }
+        
+        .btn-danger:hover {
+            background-color: #c82333;
+            border-color: #bd2130;
+        }
+        
+        .btn-primary {
+            background-color: #007bff;
+            border-color: #007bff;
+        }
+        
+        .btn-primary:hover {
+            background-color: #0069d9;
+            border-color: #0062cc;
+        }
+        
+        .btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.15);
+        }
+        
+        .action-buttons {
+            display: flex;
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+        
+        .action-buttons .btn {
+            flex: 1;
+        }
+        
+        /* Status Badge */
+        .status-badge {
+            display: inline-block;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.8rem;
+        }
+        
+        .status-pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+        
+        .status-approved {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .status-rejected {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        /* Alert Styling */
+        .alert {
+            border-radius: 12px;
+            border: none;
+            margin-bottom: 1.5rem;
+        }
+        
+        .text-muted {
+            font-size: 0.9rem;
+        }
+        
+        /* Back Link */
+        .back-link {
+            text-align: center;
+            margin-top: 2rem;
+        }
+        
+        .back-link a {
+            color: #007bff;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        
+        .back-link a:hover {
+            text-decoration: underline;
+        }
+        /* Dark Mode Support for Approval Page */
+        body.dark-mode {
+            background-color: #1a1a1a;
+            color: #ffffff;
+        }
+
+        body.dark-mode .card-body {
+            background: #2c3e50;
+            color: #ffffff;
+        }
+
+        body.dark-mode .form-section {
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            border-color: rgba(52, 152, 219, 0.4);
+        }
+
+        body.dark-mode .form-section h5 {
+            color: #ffffff;
+        }
+
+        body.dark-mode .info-section {
+            background: linear-gradient(135deg, #343a40 0%, #2c3e50 100%);
+            border-color: rgba(255, 255, 255, 0.1);
+        }
+
+        body.dark-mode .info-section h5 {
+            color: #ffffff;
+        }
+
+        body.dark-mode .info-row {
+            border-bottom-color: rgba(255, 255, 255, 0.1);
+        }
+
+        body.dark-mode .info-label {
+            color: #ced4da;
+        }
+
+        body.dark-mode .info-value {
+            color: #ffffff;
+        }
+
+        body.dark-mode .form-control {
+            background-color: #343a40;
+            border-color: #6c757d;
+            color: #ffffff;
+        }
+
+        body.dark-mode .otp-input {
+            background-color: #343a40;
+            border-color: #007bff;
+            color: #ffffff;
+        }
+    </style>
+</head>
+
+<body class="hold-transition approval-page dark-mode">
+    <div class="approval-box">
+        <div class="brand-logo text-center">
+            <a href="/" style="color: white; text-decoration: none;">
+                <i class="fas fa-shield-alt"></i>
+            </a>
+        </div>
+        
+        <div class="card">
+            <div class="card-header {% if processed %}processed{% elif already_processed %}already-processed{% endif %}">
+                <h1>
+                    <i class="fas fa-user-check mr-2"></i>
+                    {% if processed %}
+                        Registration Processed
+                    {% elif already_processed %}
+                        Already Processed
+                    {% else %}
+                        Registration Approval
+                    {% endif %}
+                </h1>
+                <p>
+                    {% if processed %}
+                        Registration request has been successfully processed
+                    {% elif already_processed %}
+                        This registration request has already been processed
+                    {% else %}
+                        Review and approve user registration request
+                    {% endif %}
+                </p>
+            </div>
+            
+            <div class="card-body">
+                <!-- Flash Messages -->
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show">
+                                <i class="fas fa-{{ 'exclamation-triangle' if category == 'error' else 'info-circle' if category == 'info' else 'check-circle' if category == 'success' else 'exclamation-triangle' }} mr-2"></i>
+                                {{ message }}
+                                <button type="button" class="close" data-dismiss="alert">
+                                    <span>&times;</span>
+                                </button>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+                
+                <!-- Registration Info -->
+                <div class="info-section">
+                    <h5>
+                        <i class="fas fa-user mr-2"></i>
+                        Applicant Information
+                    </h5>
+                    
+                    <div class="info-row">
+                        <span class="info-label">Username:</span>
+                        <span class="info-value">{{ request.username }}</span>
+                    </div>
+                    
+                    <div class="info-row">
+                        <span class="info-label">Email:</span>
+                        <span class="info-value">{{ request.email }}</span>
+                    </div>
+                    
+                    {% if request.full_name %}
+                    <div class="info-row">
+                        <span class="info-label">Full Name:</span>
+                        <span class="info-value">{{ request.full_name }}</span>
+                    </div>
+                    {% endif %}
+                    
+                    <div class="info-row">
+                        <span class="info-label">Date:</span>
+                        <span class="info-value">{{ request.created_at|format_datetime('%d/%m/%Y %H:%M') }}</span>
+                    </div>
+                    
+                    <div class="info-row">
+                        <span class="info-label">Status:</span>
+                        <span class="status-badge status-{{ request.status }}">{{ request.status }}</span>
+                    </div>
+                </div>
+                
+                {% if not processed and not already_processed %}
+                    <!-- Approval Form -->
+                    <form method="POST" id="approvalForm">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                        
+                        <!-- Admin Notes Section -->
+                        <div class="form-section">
+                            <h5><i class="fas fa-sticky-note mr-2"></i>Administrator Notes</h5>
+                            <p class="text-muted mb-3">Add notes for the user (optional)</p>
+                            <textarea name="admin_notes" 
+                                      class="form-control" 
+                                      rows="3" 
+                                      placeholder="Add notes for the user..."></textarea>
+                        </div>
+                        
+                        <!-- Action Buttons -->
+                        <div class="action-buttons">
+                            <button type="submit" name="action" value="approve" class="btn btn-success">
+                                <i class="fas fa-check mr-2"></i>Approve
+                            </button>
+                            <button type="submit" name="action" value="reject" class="btn btn-danger">
+                                <i class="fas fa-times mr-2"></i>Reject
+                            </button>
+                        </div>
+                    </form>
+                {% endif %}
+                
+                {% if processed or already_processed %}
+                    <div class="back-link">
+                        <a href="/">
+                            <i class="fas fa-home mr-2"></i>Back to Home
+                        </a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- jQuery -->
+    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+    <!-- Bootstrap 4 -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- AdminLTE App -->
+    <script src="https://cdn.jsdelivr.net/npm/admin-lte@3.2/dist/js/adminlte.min.js"></script>
+    <!-- SweetAlert2 -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    
+    <script>
+        $(document).ready(function() {
+            // Form submission with confirmation
+            $('#approvalForm').on('submit', function(e) {
+                e.preventDefault();
+                
+                const action = $('button[type="submit"]:focus').val() || $('button[name="action"]:focus').val();
+                const actionText = action === 'approve' ? 'approve' : 'reject';
+                const username = '{{ request.username }}';
+                
+                Swal.fire({
+                    title: 'Confirmation',
+                    text: `Are you sure you want to ${actionText} registration for ${username}?`,
+                    icon: 'question',
+                    showCancelButton: true,
+                    confirmButtonColor: action === 'approve' ? '#28a745' : '#dc3545',
+                    cancelButtonColor: '#6c757d',
+                    confirmButtonText: 'Yes, ' + actionText.charAt(0).toUpperCase() + actionText.slice(1),
+                    cancelButtonText: 'Cancel'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        // Show loading
+                        Swal.fire({
+                            title: 'Processing...',
+                            text: 'Processing request',
+                            allowOutsideClick: false,
+                            showConfirmButton: false,
+                            willOpen: () => {
+                                Swal.showLoading();
+                            }
+                        });
+                        
+                        // Add action to form and submit
+                        $('<input>').attr({
+                            type: 'hidden',
+                            name: 'action',
+                            value: action
+                        }).appendTo('#approvalForm');
+                        
+                        this.submit();
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>

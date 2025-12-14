@@ -1,0 +1,328 @@
+{% extends "base.html" %}
+
+{% block title %}Database Management - Waskita{% endblock %}
+
+{% block page_title %}
+    Database Management
+{% endblock page_title %}
+
+{% block breadcrumb %}
+    <li class="breadcrumb-item">
+        <a href="{{ url_for("main.dashboard") }}">Home</a>
+    </li>
+    <li class="breadcrumb-item active">Database Management</li>
+{% endblock breadcrumb %}
+
+{% block content %}
+<div class="container-fluid">
+    
+    <div class="row">
+        <!-- Backup Section -->
+        <div class="col-md-3">
+            <div class="card card-outline card-primary h-100 shadow-sm transition-hover">
+                <div class="card-body text-center p-4">
+                    <div class="icon-circle bg-light-primary mb-3 mx-auto">
+                        <i class="fas fa-download fa-2x text-primary"></i>
+                    </div>
+                    <h4 class="font-weight-bold">Backup SQL</h4>
+                    <p class="text-muted small mb-4">
+                        Download database (Data & Structure) in SQL format.
+                    </p>
+                    <a href="{{ url_for('admin.database_backup') }}" class="btn btn-primary btn-block rounded-pill">
+                        <i class="fas fa-file-code mr-2"></i>Download SQL
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Restore Section -->
+        <div class="col-md-3">
+            <div class="card card-outline card-success h-100 shadow-sm transition-hover">
+                <div class="card-body text-center p-4">
+                    <div class="icon-circle bg-light-success mb-3 mx-auto">
+                        <i class="fas fa-upload fa-2x text-success"></i>
+                    </div>
+                    <h4 class="font-weight-bold">Restore SQL</h4>
+                    <p class="text-muted small mb-4">
+                        Restore database from SQL backup file.
+                    </p>
+                    
+                    <form action="{{ url_for('admin.database_restore') }}" method="post" enctype="multipart/form-data" id="restoreForm">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <div class="custom-file mb-3 text-left">
+                            <input type="file" class="custom-file-input" id="backupFile" name="file" accept=".sql" required>
+                            <label class="custom-file-label" for="backupFile">Select SQL file...</label>
+                        </div>
+                        <button type="submit" class="btn btn-success btn-block rounded-pill" id="btnRestore">
+                            <i class="fas fa-sync-alt mr-2"></i>Restore
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Log Management Section -->
+        <div class="col-md-3">
+            <div class="card card-outline card-warning h-100 shadow-sm transition-hover">
+                <div class="card-body text-center p-4">
+                    <div class="icon-circle bg-light-warning mb-3 mx-auto">
+                        <i class="fas fa-file-alt fa-2x text-warning"></i>
+                    </div>
+                    <h4 class="font-weight-bold">System Logs</h4>
+                    <p class="text-muted small mb-4">
+                        Manage system log files (Security, Audit, App).
+                    </p>
+                    
+                    <a href="{{ url_for('admin.logs_backup') }}" class="btn btn-warning btn-block rounded-pill text-white mb-2">
+                        <i class="fas fa-file-archive mr-2"></i>Backup Logs (ZIP)
+                    </a>
+                    
+                    <button type="button" class="btn btn-outline-warning btn-block rounded-pill" onclick="confirmLogReset()">
+                        <i class="fas fa-eraser mr-2"></i>Reset Logs
+                    </button>
+                    <form id="resetLogsForm" action="{{ url_for('admin.logs_reset') }}" method="post" style="display: none;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Reset Section -->
+        <div class="col-md-3">
+            <div class="card card-outline card-danger h-100 shadow-sm transition-hover">
+                <div class="card-body text-center p-4">
+                    <div class="icon-circle bg-light-danger mb-3 mx-auto">
+                        <i class="fas fa-trash-alt fa-2x text-danger"></i>
+                    </div>
+                    <h4 class="font-weight-bold">Reset DB</h4>
+                    <p class="text-muted small mb-4">
+                        Permanently delete ALL application data.
+                    </p>
+                    
+                    <button type="button" class="btn btn-danger btn-block rounded-pill" onclick="confirmReset()">
+                        <i class="fas fa-exclamation-triangle mr-2"></i>Full Reset
+                    </button>
+                    
+                    <form id="resetForm" action="{{ url_for('admin.database_reset') }}" method="post" style="display: none;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Stats Section -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card shadow-none bg-transparent border-0">
+                <div class="card-body p-0">
+                    <h6 class="text-muted mb-3 font-weight-bold text-uppercase spacing-1">Current Data Summary</h6>
+                    <div class="row">
+                        <div class="col-md-3 col-sm-6 col-12">
+                            <div class="info-box shadow-sm">
+                                <span class="info-box-icon bg-info"><i class="fas fa-users"></i></span>
+                                <div class="info-box-content">
+                                    <span class="info-box-text">Users</span>
+                                    <span class="info-box-number">{{ stats.users }}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3 col-sm-6 col-12">
+                            <div class="info-box shadow-sm">
+                                <span class="info-box-icon bg-warning"><i class="fas fa-database"></i></span>
+                                <div class="info-box-content">
+                                    <span class="info-box-text">Datasets</span>
+                                    <span class="info-box-number">{{ stats.datasets }}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3 col-sm-6 col-12">
+                            <div class="info-box shadow-sm">
+                                <span class="info-box-icon bg-success"><i class="fas fa-file-csv"></i></span>
+                                <div class="info-box-content">
+                                    <span class="info-box-text">Raw Data</span>
+                                    <span class="info-box-number">{{ stats.raw_data }}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3 col-sm-6 col-12">
+                            <div class="info-box shadow-sm">
+                                <span class="info-box-icon bg-danger"><i class="fas fa-project-diagram"></i></span>
+                                <div class="info-box-content">
+                                    <span class="info-box-text">Classifications</span>
+                                    <span class="info-box-number">{{ stats.classifications }}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* Standardized Font Sizes */
+    .card .card-body h4.font-weight-bold { font-size: 1.1rem !important; line-height: 1.4; }
+    .card .btn { font-size: 0.9rem !important; }
+    .text-muted.small { font-size: 0.85rem !important; }
+    
+    .info-box-text { font-size: 0.9rem !important; font-weight: 600; }
+    .info-box-number { font-size: 1.5rem !important; font-weight: 700; }
+    
+    .icon-circle {
+        width: 52px;
+        height: 52px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .icon-circle i { font-size: 1.25rem !important; }
+    .card .btn { padding: 6px 12px; font-size: 0.9rem; border-radius: 10px; }
+    .btn.btn-block.rounded-pill { min-height: 32px; height: auto; font-weight: 500; }
+    .card .card-body h4.font-weight-bold { font-size: 1.1rem; line-height: 1.4; margin-bottom: 0.5rem; }
+    .bg-light-primary { background-color: rgba(0, 123, 255, 0.1); }
+    .bg-light-success { background-color: rgba(40, 167, 69, 0.1); }
+    .bg-light-warning { background-color: rgba(255, 193, 7, 0.1); }
+    .bg-light-danger { background-color: rgba(220, 53, 69, 0.1); }
+    .transition-hover { transition: transform 0.3s ease, box-shadow 0.3s ease; }
+    .transition-hover:hover { transform: translateY(-5px); box-shadow: 0 1rem 3rem rgba(0,0,0,.175)!important; }
+    .spacing-1 { letter-spacing: 1px; }
+
+    /* Dark Mode Enhancements for Admin Database */
+    body.dark-mode .bg-light-primary { background-color: rgba(63, 103, 145, 0.2); }
+    body.dark-mode .bg-light-success { background-color: rgba(40, 167, 69, 0.2); }
+    body.dark-mode .bg-light-warning { background-color: rgba(255, 193, 7, 0.2); }
+    body.dark-mode .bg-light-danger { background-color: rgba(220, 53, 69, 0.2); }
+    body.dark-mode .text-muted { color: #adb5bd !important; }
+    
+    body.dark-mode .card {
+        background-color: var(--card-bg);
+        border-color: var(--border-color);
+    }
+    
+    body.dark-mode .info-box {
+        background-color: var(--card-bg);
+        color: var(--white);
+    }
+    
+    body.dark-mode .info-box-icon.bg-info {
+        background-color: rgba(23, 162, 184, 0.8) !important;
+    }
+    
+    body.dark-mode .info-box-icon.bg-warning {
+        background-color: rgba(255, 193, 7, 0.8) !important;
+        color: #1f2d3d !important;
+    }
+    
+    body.dark-mode .info-box-icon.bg-success {
+        background-color: rgba(40, 167, 69, 0.8) !important;
+    }
+    
+    body.dark-mode .info-box-icon.bg-danger {
+        background-color: rgba(220, 53, 69, 0.8) !important;
+    }
+</style>
+{% endblock content %}
+
+{% block extra_js %}
+<script>
+    // Custom file input label
+    $('.custom-file-input').on('change', function() {
+        let fileName = $(this).val().split('\\').pop();
+        $(this).next('.custom-file-label').addClass("selected").html(fileName);
+    });
+
+    // Confirm Restore
+    $('#restoreForm').on('submit', function(e) {
+        e.preventDefault();
+        Swal.fire({
+            title: 'Confirm SQL Restore',
+            text: "Are you sure you want to restore the database? This process will execute SQL commands.",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#28a745',
+            cancelButtonColor: '#d33',
+            confirmButtonText: 'Yes, Restore!',
+            cancelButtonText: 'Cancel'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                Swal.fire({
+                    title: 'Processing Restore...',
+                    html: 'Please wait, executing SQL file.',
+                    allowOutsideClick: false,
+                    didOpen: () => {
+                        Swal.showLoading();
+                    }
+                });
+                this.submit();
+            }
+        });
+    });
+
+    // Confirm Log Reset
+    function confirmLogReset() {
+        Swal.fire({
+            title: 'Reset Logs?',
+            text: "This will clear all system log files (Security, Audit, App).",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#ffc107',
+            cancelButtonColor: '#d33',
+            confirmButtonText: 'Yes, Clear Logs!',
+            cancelButtonText: 'Cancel'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                document.getElementById('resetLogsForm').submit();
+            }
+        });
+    }
+
+    // Confirm Reset
+    function confirmReset() {
+        Swal.fire({
+            title: 'SEVERE WARNING!',
+            text: "This action will DELETE ALL DATA. Data cannot be recovered!",
+            icon: 'error',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: 'Yes, Delete Everything!',
+            cancelButtonText: 'Cancel'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                Swal.fire({
+                    title: 'Final Verification',
+                    text: "Type 'RESET' (uppercase) to confirm.",
+                    input: 'text',
+                    inputAttributes: {
+                        autocapitalize: 'off'
+                    },
+                    showCancelButton: true,
+                    confirmButtonText: 'PERMANENTLY DELETE',
+                    confirmButtonColor: '#d33',
+                    showLoaderOnConfirm: true,
+                    preConfirm: (text) => {
+                        if (text !== 'RESET') {
+                            Swal.showValidationMessage('Incorrect confirmation. Type RESET.')
+                        }
+                    }
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        Swal.fire({
+                            title: 'Resetting Database...',
+                            html: 'Deleting data...',
+                            allowOutsideClick: false,
+                            didOpen: () => {
+                                Swal.showLoading();
+                            }
+                        });
+                        document.getElementById('resetForm').submit();
+                    }
+                });
+            }
+        });
+    }
+</script>
+{% endblock extra_js %}

@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="description"
+              content="Registration Request - Waskita - Radical Content Classification System using Machine Learning">
+        <meta name="keywords"
+              content="register, registration, waskita, content classification, machine learning, account request">
+        <meta name="csrf-token" content="{{ csrf_token() }}">
+        
+        <!-- Favicon -->
+        <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='images/favicon.svg') }}">
+        <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='images/favicon.ico') }}">
+        <link rel="shortcut icon" type="image/x-icon" href="{{ url_for('static', filename='images/favicon.ico') }}">
+
+        <title>Registration Request - Waskita</title>
+        
+        <!-- Preload critical resources -->
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        
+        <!-- Google Fonts -->
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+        
+        <!-- Font Awesome -->
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+        
+        <!-- AdminLTE CSS -->
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/admin-lte@3.2/dist/css/adminlte.min.css">
+        
+        <!-- SweetAlert2 CSS -->
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+        
+        <!-- Animate.css for animations -->
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
+        
+        <!-- Auth Custom CSS -->
+        <link rel="stylesheet" href="{{ url_for('static', filename='css/variables.css') }}">
+        <link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
+    </head>
+    <body class="hold-transition register-page dark-mode">
+        <div class="register-box">
+            <div class="brand-logo text-center">
+                <a href="{{ url_for('main.index') }}" style="color: white; text-decoration: none;">
+                    <img src="{{ url_for('static', filename='images/logo.webp') }}" alt="Waskita Logo" />
+                </a>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <h1>
+                        <i class="fas fa-user-plus mr-2"></i>
+                        Registration Request
+                    </h1>
+                </div>
+                
+                <div class="card-body">
+                    
+                    {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% if messages %}
+                            {% for category, message in messages %}
+                                <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert">
+                                    <i class="fas fa-{{ 'exclamation-triangle' if category == 'error' else 'info-circle' if category == 'info' else 'check-circle' if category == 'success' else 'exclamation-triangle' }} mr-2"></i>
+                                    {{ message }}
+                                    <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                                        <span aria-hidden="true">&times;</span>
+                                    </button>
+                                </div>
+                            {% endfor %}
+                        {% endif %}
+                    {% endwith %}
+                    
+                    <form method="POST" id="registerForm" novalidate>
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                        <div class="form-group">
+                            <label for="username" class="form-label">
+                                Username
+                            </label>
+                            <div class="input-group">
+                                <div class="input-group-prepend">
+                                    <span class="input-group-text">
+                                        <i class="fas fa-user"></i>
+                                    </span>
+                                </div>
+                                <input type="text" 
+                                       class="form-control" 
+                                       name="username" 
+                                       id="username" 
+                                       placeholder="Enter your unique username"
+                                       required 
+                                       maxlength="50" 
+                                       pattern="[a-zA-Z0-9_]+" 
+                                       title="Username can only contain letters, numbers, and underscores"
+                                       autocomplete="username">
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="email" class="form-label">
+                                Email Address
+                            </label>
+                            <div class="input-group">
+                                <div class="input-group-prepend">
+                                    <span class="input-group-text">
+                                        <i class="fas fa-envelope"></i>
+                                    </span>
+                                </div>
+                                <input type="email" 
+                                       class="form-control" 
+                                       name="email" 
+                                       id="email" 
+                                       placeholder="name@email.com"
+                                       required 
+                                       maxlength="100"
+                                       autocomplete="email">
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="full_name" class="form-label">
+                                Full Name <span class="text-muted">(Optional)</span>
+                            </label>
+                            <div class="input-group">
+                                <div class="input-group-prepend">
+                                    <span class="input-group-text">
+                                        <i class="fas fa-id-card"></i>
+                                    </span>
+                                </div>
+                                <input type="text" 
+                                       class="form-control" 
+                                       name="full_name" 
+                                       id="full_name" 
+                                       placeholder="Your full name"
+                                       maxlength="100"
+                                       autocomplete="name">
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="password" class="form-label">
+                                Password
+                            </label>
+                            <div class="input-group">
+                                <div class="input-group-prepend">
+                                    <span class="input-group-text">
+                                        <i class="fas fa-lock"></i>
+                                    </span>
+                                </div>
+                                <input type="password" 
+                                       class="form-control" 
+                                       name="password" 
+                                       id="password" 
+                                       placeholder="Create a strong password"
+                                       required 
+                                       minlength="6"
+                                       autocomplete="new-password">
+                                <div class="input-group-append">
+                                    <button class="btn btn-outline-secondary" 
+                                            type="button" 
+                                            id="togglePassword"
+                                            title="Show/Hide Password">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="password-strength" id="passwordStrength"></div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="confirm_password" class="form-label">
+                                Confirm Password
+                            </label>
+                            <div class="input-group">
+                                <div class="input-group-prepend">
+                                    <span class="input-group-text">
+                                        <i class="fas fa-lock"></i>
+                                    </span>
+                                </div>
+                                <input type="password" 
+                                       class="form-control" 
+                                       name="confirm_password" 
+                                       id="confirm_password" 
+                                       placeholder="Repeat your password"
+                                       required 
+                                       minlength="6"
+                                       autocomplete="new-password">
+                                <div class="input-group-append">
+                                    <button class="btn btn-outline-secondary" 
+                                            type="button" 
+                                            id="toggleConfirmPassword"
+                                            title="Show/Hide Password">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="password-match" id="passwordMatch"></div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <div class="custom-control custom-checkbox">
+                                <input type="checkbox" 
+                                       class="custom-control-input" 
+                                       id="agreeTerms" 
+                                       required>
+                                <label class="custom-control-label small text-muted d-flex align-items-center" for="agreeTerms">
+                                    <span class="mr-2">I agree to the</span>
+                                    <a href="#" class="text-primary font-weight-bold" data-toggle="modal" data-target="#termsModal">
+                                        terms and conditions
+                                    </a>
+                                    <span class="ml-1"></span>
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <button type="submit" class="btn btn-primary btn-block" id="submitBtn">
+                                <i class="fas fa-paper-plane mr-2"></i>
+                                Send Registration Request
+                            </button>
+                        </div>
+                    </form>
+                    
+                    <div class="login-link">
+                        <p class="mb-0">
+                            <i class="fas fa-sign-in-alt mr-1"></i>
+                            Already have an account? 
+                            <a href="{{ url_for('auth.login') }}">Login here</a>
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Terms Modal -->
+        <div class="modal fade" id="termsModal" tabindex="-1" role="dialog" aria-labelledby="termsModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-lg" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="termsModalLabel">
+                            <i class="fas fa-file-contract mr-2"></i>
+                            Terms and Conditions
+                        </h5>
+                        <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="terms-content">
+                            <div class="terms-section mb-4">
+                                <h6 class="terms-heading">
+                                    <i class="fas fa-cog text-primary mr-2"></i>
+                                    1. System Usage
+                                </h6>
+                                <p class="terms-text">
+                                    The Waskita System is used for radical content classification on social media using Machine Learning technology. Users are fully responsible for the data uploaded and the use of available features.
+                                </p>
+                            </div>
+                            
+                            <div class="terms-section mb-4">
+                                <h6 class="terms-heading">
+                                    <i class="fas fa-shield-alt text-success mr-2"></i>
+                                    2. Privacy and Data Security
+                                </h6>
+                                <p class="terms-text">
+                                    We are committed to maintaining the confidentiality and security of user data. Uploaded data will be processed in accordance with privacy policies and will not be shared with third parties without consent.
+                                </p>
+                            </div>
+                            
+                            <div class="terms-section mb-4">
+                                <h6 class="terms-heading">
+                                    <i class="fas fa-user-check text-info mr-2"></i>
+                                    3. User Obligations
+                                </h6>
+                                <ul class="terms-list">
+                                    <li>Use the system according to its intended purpose</li>
+                                    <li>Do not misuse available features</li>
+                                    <li>Maintain account and password confidentiality</li>
+                                    <li>Report any bugs or security issues found</li>
+                                    <li>Do not use the system for illegal purposes</li>
+                                </ul>
+                            </div>
+                            
+                            <div class="terms-section mb-4">
+                                <h6 class="terms-heading">
+                                    <i class="fas fa-exclamation-triangle text-warning mr-2"></i>
+                                    4. Restrictions and Sanctions
+                                </h6>
+                                <p class="terms-text">
+                                    Administrators have the right to limit, suspend, or deactivate accounts that violate the terms. Serious violations may result in permanent blocking.
+                                </p>
+                            </div>
+                            
+                            <div class="terms-section">
+                                <h6 class="terms-heading">
+                                    <i class="fas fa-sync-alt text-secondary mr-2"></i>
+                                    5. Changes to Terms
+                                </h6>
+                                <p class="terms-text">
+                                    These terms and conditions may change at any time. Users will be notified via email or system notification about significant changes.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">
+                            <i class="fas fa-times mr-1"></i>
+                            Close
+                        </button>
+                        <button type="button" class="btn btn-primary" id="acceptTerms">
+                            <i class="fas fa-check mr-1"></i>
+                            I Agree
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- jQuery -->
+        <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+        <!-- Bootstrap 4 -->
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
+        <!-- AdminLTE App -->
+        <script src="https://cdn.jsdelivr.net/npm/admin-lte@3.2/dist/js/adminlte.min.js"></script>
+        <!-- SweetAlert2 -->
+        <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+        
+        <script>
+        $(document).ready(function() {
+            // Initialize tooltips
+            $('[title]').tooltip();
+            
+            // Password visibility toggle
+            function togglePasswordVisibility(inputId, buttonId) {
+                $(buttonId).click(function() {
+                    const passwordField = $(inputId);
+                    const icon = $(this).find('i');
+                    
+                    if (passwordField.attr('type') === 'password') {
+                        passwordField.attr('type', 'text');
+                        icon.removeClass('fa-eye').addClass('fa-eye-slash');
+                        $(this).attr('title', 'Hide Password');
+                    } else {
+                        passwordField.attr('type', 'password');
+                        icon.removeClass('fa-eye-slash').addClass('fa-eye');
+                        $(this).attr('title', 'Show Password');
+                    }
+                });
+            }
+            
+            togglePasswordVisibility('#password', '#togglePassword');
+            togglePasswordVisibility('#confirm_password', '#toggleConfirmPassword');
+            
+            // Enhanced password strength checker
+            $('#password').on('input', function() {
+                const password = $(this).val();
+                const strengthBar = $('#passwordStrength');
+                
+                if (password.length === 0) {
+                    strengthBar.removeClass().addClass('password-strength');
+                    return;
+                }
+                
+                let strength = 0;
+                const checks = {
+                    length: password.length >= 8,
+                    lowercase: /[a-z]/.test(password),
+                    uppercase: /[A-Z]/.test(password),
+                    numbers: /\d/.test(password),
+                    symbols: /[^a-zA-Z0-9]/.test(password)
+                };
+                
+                // Calculate strength
+                if (password.length >= 6) strength++;
+                if (checks.lowercase) strength++;
+                if (checks.uppercase) strength++;
+                if (checks.numbers) strength++;
+                if (checks.symbols) strength++;
+                
+                strengthBar.removeClass();
+                if (strength <= 2) {
+                    strengthBar.addClass('password-strength strength-weak');
+                } else if (strength <= 3) {
+                    strengthBar.addClass('password-strength strength-medium');
+                } else {
+                    strengthBar.addClass('password-strength strength-strong');
+                }
+            });
+            
+            // Real-time password match checker
+            function checkPasswordMatch() {
+                const password = $('#password').val();
+                const confirmPassword = $('#confirm_password').val();
+                const matchDiv = $('#passwordMatch');
+                
+                if (confirmPassword.length === 0) {
+                    matchDiv.html('');
+                    return;
+                }
+                
+                if (password === confirmPassword) {
+                    matchDiv.html('<small class="text-success"><i class="fas fa-check mr-1"></i>Password match</small>');
+                } else {
+                    matchDiv.html('<small class="text-danger"><i class="fas fa-times mr-1"></i>Password do not match</small>');
+                }
+            }
+            
+            $('#confirm_password, #password').on('input', checkPasswordMatch);
+            
+            // Enhanced form validation
+            $('#registerForm').on('submit', function(e) {
+                e.preventDefault();
+                
+                const formData = {
+                    username: $('#username').val().trim(),
+                    email: $('#email').val().trim(),
+                    password: $('#password').val(),
+                    confirmPassword: $('#confirm_password').val(),
+                    agreeTerms: $('#agreeTerms').is(':checked')
+                };
+                
+                // Validation checks
+                const validations = [
+                    {
+                        condition: !formData.username,
+                        message: 'Username is required'
+                    },
+                    {
+                        condition: !/^[a-zA-Z0-9_]+$/.test(formData.username),
+                        message: 'Username can only contain letters, numbers, and underscores'
+                    },
+                    {
+                        condition: !formData.email,
+                        message: 'Email is required'
+                    },
+                    {
+                        condition: !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email),
+                        message: 'Invalid email format'
+                    },
+                    {
+                        condition: formData.password.length < 6,
+                        message: 'Password must be at least 6 characters'
+                    },
+                    {
+                        condition: formData.password !== formData.confirmPassword,
+                        message: 'Password and confirm password do not match'
+                    },
+                    {
+                        condition: !formData.agreeTerms,
+                        message: 'You must agree to the terms and conditions'
+                    }
+                ];
+                
+                // Check for validation errors
+                for (let validation of validations) {
+                    if (validation.condition) {
+                        if (typeof swalError === 'function') {
+                            swalError('Validation Failed', validation.message);
+                        } else {
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'Validation Failed',
+                                text: validation.message,
+                                confirmButtonColor: '#11998e',
+                                confirmButtonText: 'OK',
+                                customClass: {
+                                    popup: 'swal2-popup',
+                                    title: 'swal2-title',
+                                    htmlContainer: 'swal2-html-container',
+                                    actions: 'swal2-actions',
+                                    confirmButton: 'swal2-confirm'
+                                }
+                            });
+                        }
+                        return false;
+                    }
+                }
+                
+                // Show loading state
+                const submitBtn = $('#submitBtn');
+                const originalText = submitBtn.html();
+                submitBtn.html('<span class="loading-spinner"></span> Sending request...');
+                submitBtn.prop('disabled', true);
+                
+                // Submit form
+                setTimeout(() => {
+                    this.submit();
+                }, 500);
+            });
+            
+            // Username validation with real-time feedback
+            $('#username').on('input', function() {
+                const username = $(this).val();
+                const regex = /^[a-zA-Z0-9_]+$/;
+                
+                if (username && !regex.test(username)) {
+                    $(this).addClass('is-invalid');
+                } else {
+                    $(this).removeClass('is-invalid');
+                }
+            });
+            
+            // Email validation with real-time feedback
+            $('#email').on('blur', function() {
+                const email = $(this).val();
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                
+                if (email && !emailRegex.test(email)) {
+                    $(this).addClass('is-invalid');
+                } else {
+                    $(this).removeClass('is-invalid');
+                }
+            });
+            
+            // Terms modal accept button
+            $('#acceptTerms').click(function() {
+                $('#agreeTerms').prop('checked', true);
+                $('#termsModal').modal('hide');
+                
+                if (typeof swalSuccess === 'function') {
+                    swalSuccess('Thank You', 'You have agreed to the terms and conditions', {
+                        timer: 2000,
+                        showConfirmButton: false,
+                        toast: true,
+                        position: 'top-end'
+                    });
+                } else {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Thank You',
+                        text: 'You have agreed to the terms and conditions',
+                        timer: 2000,
+                        showConfirmButton: false,
+                        toast: true,
+                        position: 'top-end',
+                        customClass: {
+                            popup: 'swal2-popup',
+                            title: 'swal2-title',
+                            htmlContainer: 'swal2-html-container',
+                            actions: 'swal2-actions',
+                            confirmButton: 'swal2-confirm'
+                        }
+                    });
+                }
+            });
+            
+            // Auto-focus first input
+            $('#username').focus();
+            
+            // Prevent form submission on Enter in input fields (except submit button)
+            $('#registerForm input').not('#submitBtn').keydown(function(e) {
+                if (e.keyCode === 13) {
+                    e.preventDefault();
+                    const inputs = $('#registerForm input:visible');
+                    const currentIndex = inputs.index(this);
+                    if (currentIndex < inputs.length - 1) {
+                        inputs.eq(currentIndex + 1).focus();
+                    }
+                }
+            });
+        });
+        </script>
+    </body>
+</html>

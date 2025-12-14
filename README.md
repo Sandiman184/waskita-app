@@ -15,6 +15,7 @@ Versi Dokumen: 1.3 — Diperbarui: 2025-01-15
 - Cleaning teks otomatis (emoji, link, tanda baca)
 - Klasifikasi dan probabilitas hasil
 - Dark/Light mode, notifikasi SweetAlert2
+- UI Profile dengan Timeline Recent Activities
 - UI default bahasa Indonesia
 
 ## 🚀 Quick Deployment Guide
@@ -30,6 +31,7 @@ cd waskita-app
 # Setup environment
 cp .env.example .env
 # Edit .env dengan konfigurasi lokal
+# PENTING: Set DISABLE_MODEL_LOADING=True jika belum memiliki file model
 
 # Install dependencies & run
 pip install -r requirements.txt
@@ -128,6 +130,8 @@ Untuk konfigurasi SSL yang lengkap, setup production, dan troubleshooting, silak
 ### Security Settings:
 - `SECRET_KEY` - Wajib, generate dengan: `python -c "import secrets; print(secrets.token_hex(32))"`
 - `OTP_ENABLED` - `False` untuk development, `True` untuk production
+- **Logging**: Log tersimpan terpusat di folder `logs/` (absolute path)
+- **Rate Limiting**: Aktif untuk login dan API endpoints
 
 ### Optional Services:
 - Email: `MAIL_USERNAME`, `MAIL_PASSWORD`

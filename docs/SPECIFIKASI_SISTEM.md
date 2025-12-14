@@ -55,9 +55,9 @@ Versi Dokumen: 1.3 — Diperbarui: 2025-01-15
   - Action: Menampilkan notifikasi kontekstual di UI.
 
 - Requirement: FR-011 Pengaturan Bahasa & Tema
-  - Deskripsi: Bahasa default Indonesia; pengguna dapat memilih bahasa lain. Tema mendukung Dark/Light mode dengan default Dark.
+  - Deskripsi: Bahasa default Indonesia; pengguna dapat memilih bahasa lain. Tema mendukung Dark/Light mode dengan default Dark. Profil menampilkan Recent Activities dalam bentuk timeline vertikal yang responsif.
   - Actor: User
-  - Action: Mengubah preferensi bahasa/tema di profil.
+  - Action: Mengubah preferensi bahasa/tema di profil, melihat riwayat aktivitas.
 
 - Requirement: FR-012 Audit Log
   - Deskripsi: Semua aksi penting dicatat (login, upload, scraping, cleaning, klasifikasi, perubahan oleh admin) untuk audit.
@@ -139,7 +139,7 @@ Versi Dokumen: 1.3 — Diperbarui: 2025-01-15
 
 - Requirement: MR-011 Logging & Audit
   - Purpose: Menjaga jejak aktivitas untuk kepatuhan dan forensik.
-  - Method/Tool Used: `security_logger` dengan audit log terstruktur.
+  - Method/Tool Used: `security_logger` dengan audit log terstruktur (disimpan di absolute path `logs/`).
 
 - Requirement: MR-012 Deployment & Reverse Proxy
   - Purpose: Menyajikan aplikasi secara aman di produksi.

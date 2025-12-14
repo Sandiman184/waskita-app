@@ -1,0 +1,105 @@
+:root {
+    /* Brand Colors */
+    --primary: #007bff;
+    --secondary: #6c757d;
+    --success: #28a745;
+    --info: #17a2b8;
+    --warning: #ffc107;
+    --danger: #dc3545;
+    --light: #f8f9fa;
+    --dark: #343a40;
+    
+    /* Extended Palette */
+    --blue: #007bff;
+    --indigo: #6610f2;
+    --purple: #6f42c1;
+    --pink: #e83e8c;
+    --red: #dc3545;
+    --orange: #fd7e14;
+    --yellow: #ffc107;
+    --green: #28a745;
+    --teal: #20c997;
+    --cyan: #17a2b8;
+    --white: #ffffff;
+    --gray: #6c757d;
+    --gray-dark: #343a40;
+
+    /* Typography */
+    --font-family-base: 'Source Sans Pro', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+    --font-size-base: 1rem;
+    --font-size-sm: 0.875rem;
+    --font-size-lg: 1.25rem;
+    --font-weight-light: 300;
+    --font-weight-normal: 400;
+    --font-weight-bold: 700;
+
+    /* Spacing */
+    --spacer: 1rem;
+    
+    /* Transitions */
+    --transition-base: all 0.2s ease-in-out;
+    --transition-fade: opacity 0.15s linear;
+
+    /* Light Mode Defaults */
+    --body-bg: #f4f6f9;
+    --body-color: #212529;
+    --card-bg: #ffffff;
+    --card-color: #212529;
+    --card-border-color: rgba(0, 0, 0, .125);
+    
+    --border-color: #dee2e6;
+    --border-radius: 0.25rem;
+    --border-radius-lg: 0.3rem;
+    --border-radius-sm: 0.2rem;
+    
+    --input-bg: #ffffff;
+    --input-color: #495057;
+    --input-border: #ced4da;
+    --input-focus-border: #80bdff;
+    
+    --link-color: #007bff;
+    --link-hover-color: #0056b3;
+    
+    --table-bg: transparent;
+    --table-border-color: #dee2e6;
+    --table-hover-bg: rgba(0, 0, 0, 0.075);
+    
+    --dropdown-bg: #ffffff;
+    --dropdown-border: rgba(0, 0, 0, 0.15);
+    --dropdown-link-color: #212529;
+    --dropdown-link-hover-bg: #f8f9fa;
+    
+    --modal-content-bg: #ffffff;
+    --modal-content-border-color: rgba(0, 0, 0, 0.2);
+}
+
+/* Dark Mode Overrides */
+body.dark-mode {
+    --body-bg: #454d55;
+    --body-color: #ffffff;
+    --card-bg: #343a40;
+    --card-color: #ffffff;
+    --card-border-color: #4b545c;
+    
+    --border-color: #6c757d;
+    
+    --input-bg: #343a40;
+    --input-color: #ffffff;
+    --input-border: #6c757d;
+    --input-focus-border: #80bdff;
+    
+    --link-color: #66b0ff;
+    --link-hover-color: #80bdff;
+    
+    --table-bg: #343a40;
+    --table-border-color: #4b545c;
+    --table-hover-bg: rgba(255, 255, 255, 0.075);
+    
+    --dropdown-bg: #343a40;
+    --dropdown-border: #4b545c;
+    --dropdown-link-color: #dee2e6;
+    --dropdown-link-hover-bg: #3f474e;
+    
+    --modal-content-bg: #343a40;
+    --modal-content-border-color: #4b545c;
+}
