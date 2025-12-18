@@ -97,8 +97,8 @@ def validate_pipeline():
             for name, model in models.items():
                 # Logic per model type
                 if name == 'indobert':
-                    # IndoBERT uses Raw Text
-                    pred, prob = classify_content(None, model, text=raw_text)
+                    # IndoBERT uses Preprocessed Text to match Training & App consistency
+                    pred, prob = classify_content(None, model, text=preprocessed)
                 else:
                     # Conventional uses Vector
                     pred, prob = classify_content(vector, model, text=preprocessed)

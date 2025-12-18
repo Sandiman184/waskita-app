@@ -9,136 +9,259 @@
     </li>
     <li class="breadcrumb-item active">Profile</li>
 {% endblock breadcrumb %}
+{% block extra_css %}
+<style>
+    /* 
+     * Modal Backdrop & Z-Index Fixes
+     * Ensures backdrop covers everything except the modal itself 
+     */
+    .modal-backdrop {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background-color: #000 !important;
+        z-index: 10500 !important; /* Higher than card-secondary (9999) and dropdowns (10000) */
+        transition: opacity 0.3s linear;
+    }
+
+    /* Bootstrap 'fade' and 'show' classes control opacity */
+    .modal-backdrop.fade {
+        opacity: 0;
+    }
+    
+    .modal-backdrop.show {
+        opacity: 0.5 !important;
+    }
+
+    /* Modal Styling to sit above backdrop */
+    .modal {
+        z-index: 10600 !important;
+    }
+
+    /* Ensure modal content is visible and pops out */
+    .modal-content {
+        box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+        border: none;
+    }
+
+    /* Reset card z-index to avoid stacking context issues */
+    .card {
+        z-index: auto !important;
+    }
+    
+    /* Explicitly lower z-index of background cards when modal is open */
+    body.modal-open .card,
+    body.modal-open .main-header,
+    body.modal-open .main-sidebar,
+    body.modal-open .content-wrapper {
+        z-index: 0 !important;
+        pointer-events: none;
+    }
+    
+    body.modal-open .modal {
+        pointer-events: auto;
+    }
+
+    /* Prevent body scrolling when modal is open */
+    body.modal-open {
+        overflow: hidden;
+    }
+</style>
+{% endblock extra_css %}
+
 {% block content %}
         <!-- Main content -->
         <section class="content">
             <div class="container-fluid">
+                <!-- Top Row: Statistics -->
+                <div class="row mb-3">
+                    <div class="col-12 col-sm-6 col-md-3">
+                        <div class="info-box">
+                            <span class="info-box-icon bg-info elevation-1"><i class="fas fa-upload"></i></span>
+                            <div class="info-box-content">
+                                <span class="info-box-text">Manual Uploads</span>
+                                <span class="info-box-number">{{ user_stats.manual_uploads or 0 }}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-sm-6 col-md-3">
+                        <div class="info-box">
+                            <span class="info-box-icon bg-success elevation-1"><i class="fas fa-robot"></i></span>
+                            <div class="info-box-content">
+                                <span class="info-box-text">Scraping</span>
+                                <span class="info-box-number">{{ user_stats.scraping_count or 0 }}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-sm-6 col-md-3">
+                        <div class="info-box">
+                            <span class="info-box-icon bg-warning elevation-1"><i class="fas fa-broom"></i></span>
+                            <div class="info-box-content">
+                                <span class="info-box-text">Data Cleaned</span>
+                                <span class="info-box-number">{{ user_stats.cleaned_data or 0 }}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-sm-6 col-md-3">
+                        <div class="info-box">
+                            <span class="info-box-icon bg-danger elevation-1"><i class="fas fa-brain"></i></span>
+                            <div class="info-box-content">
+                                <span class="info-box-text">Classified</span>
+                                <span class="info-box-number">{{ user_stats.total_classifications or 0 }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="row">
-                    <!-- Profile Information -->
-                    <div class="col-md-4 d-flex flex-column">
-                        <div class="card">
-                            <div class="card-body box-profile">
-                                <div class="text-center">
-                                    <i class="fas fa-user-circle fa-5x text-secondary mb-3"></i>
-                                    <h3 class="profile-username text-center">{{ current_user.username }}</h3>
-                                    <p class="text-muted text-center">
-                                        {% if current_user.is_admin() %}
-                                            <span class="badge bg-secondary"><i class="fas fa-crown mr-1"></i>Administrator</span>
+                    <!-- Profile Card (Left) -->
+                    <div class="col-lg-4 col-md-12">
+                        <div class="card card-primary card-outline mb-4 h-100">
+                            <div class="card-body box-profile d-flex flex-column">
+                                <div class="text-center position-relative mb-3">
+                                    <div class="profile-user-img img-fluid img-circle d-flex justify-content-center align-items-center bg-light mx-auto position-relative overflow-hidden" style="width: 100px; height: 100px;">
+                                        {% if current_user.profile_picture %}
+                                            <img src="{{ url_for('static', filename='profile_pics/' + current_user.profile_picture) }}" alt="User profile picture" class="w-100 h-100" style="object-fit: cover;">
                                         {% else %}
-                                            <span class="badge bg-secondary"><i class="fas fa-user mr-1"></i>User</span>
+                                            <i class="fas fa-user fa-3x text-secondary"></i>
+                                        {% endif %}
+                                        
+                                        <!-- Hover Overlay for Upload -->
+                                        <div class="position-absolute w-100 h-100 d-flex justify-content-center align-items-center" 
+                                             style="top: 0; left: 0; background: rgba(0,0,0,0.5); opacity: 0; transition: opacity 0.3s; cursor: pointer;"
+                                             onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0"
+                                             onclick="document.getElementById('profilePhotoInput').click()"
+                                             title="Change Profile Photo">
+                                            <i class="fas fa-camera text-white fa-lg"></i>
+                                        </div>
+                                    </div>
+                                    <!-- Hidden File Input -->
+                                    <input type="file" id="profilePhotoInput" accept="image/png, image/jpeg, image/gif" style="display: none;" onchange="handleProfilePhotoUpload(this)">
+                                    
+                                    {% if current_user.profile_picture %}
+                                    <div class="mt-2">
+                                        <button class="btn btn-xs btn-outline-danger" onclick="deleteProfilePhoto()" title="Remove photo">
+                                            <i class="fas fa-trash mr-1"></i> Remove Photo
+                                        </button>
+                                    </div>
+                                    {% endif %}
+
+                                    <h3 class="profile-username text-center">{{ current_user.username }}</h3>
+                                    <p class="text-muted text-center mb-3">
+                                        {% if current_user.is_admin() %}
+                                            <span class="badge badge-secondary"><i class="fas fa-crown mr-1"></i>Administrator</span>
+                                        {% else %}
+                                            <span class="badge badge-secondary"><i class="fas fa-user mr-1"></i>User</span>
                                         {% endif %}
                                     </p>
                                 </div>
                                 <ul class="list-group list-group-unbordered mb-3">
-                                    <li class="list-group-item">
-                                        <b>Total Uploads</b> <a class="float-right">{{ user_stats.total_uploads or 0 }}</a>
+                                    <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                                        <b>Joined</b> <span class="text-muted">{{ current_user.created_at|format_datetime('date') }}</span>
                                     </li>
-                                    <li class="list-group-item">
-                                        <b>Processed Data</b> <a class="float-right">{{ user_stats.total_processed or 0 }}</a>
-                                    </li>
-                                    <li class="list-group-item">
-                                        <b>Classifications</b> <a class="float-right">{{ user_stats.total_classifications or 0 }}</a>
-                                    </li>
-                                    <li class="list-group-item">
-                                        <b>Joined</b> <a class="float-right">{{ current_user.created_at|format_datetime('date') }}</a>
-                                    </li>
-                                    <li class="list-group-item">
+                                    <li class="list-group-item d-flex justify-content-between align-items-center px-0">
                                         <b>Last Login</b>
-                                        <a class="float-right">
+                                        <span class="text-muted">
                                             {% if current_user.last_login %}
                                                 {{ current_user.last_login|format_datetime('date') }}
                                             {% else %}
                                                 Never
                                             {% endif %}
-                                        </a>
+                                        </span>
                                     </li>
                                 </ul>
-                                <button class="btn btn-secondary btn-block" onclick="showEditProfileModal()">
+                                <button class="btn btn-primary btn-block btn-profile-action mt-auto" onclick="showEditProfileModal()">
                                     <i class="fas fa-edit mr-2"></i>Edit Profile
                                 </button>
                             </div>
                         </div>
-                        <!-- Account Security -->
-                        <div class="card">
+                    </div>
+
+                    <!-- Activity Statistics (Right) -->
+                    <div class="col-lg-8 col-md-12">
+                        <div class="card card-success card-outline mb-4 h-100">
+                            <div class="card-header">
+                                <h3 class="card-title">
+                                    <i class="fas fa-chart-line mr-2"></i>Activity Statistics
+                                </h3>
+                            </div>
+                            <div class="card-body">
+                                <div class="chart-container" style="position: relative; height: 300px; width: 100%;">
+                                    <canvas id="activityChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bottom Row: Account Security, Recent Activities, Preferences -->
+                <div class="row mt-4">
+                    <!-- Account Security -->
+                    <div class="col-lg-4 col-md-12">
+                        <div class="card card-warning card-outline mb-4 h-100">
                             <div class="card-header">
                                 <h3 class="card-title">
                                     <i class="fas fa-shield-alt mr-2"></i>Account Security
                                 </h3>
                             </div>
-                            <div class="card-body">
-                                <div class="form-group">
-                                    <label>Account Status:</label>
+                            <div class="card-body d-flex flex-column">
+                                <div class="form-group mb-3">
+                                    <label class="mb-1 text-dark dark-mode-text">Account Status</label>
                                     <div>
-                                        <span class="badge badge-{{ 'success' if current_user.is_active else 'danger' }} badge-lg">
+                                        <span class="badge badge-{{ 'success' if current_user.is_active else 'danger' }} p-2 w-100">
                                             {{ 'Active' if current_user.is_active else 'Inactive' }}
                                         </span>
                                     </div>
                                 </div>
-                                <div class="form-group">
-                                    <label>Password Security:</label>
-                                    <div class="password-security-indicator">
-                                        <div class="security-level">
-                                            <span>Security Status</span>
-                                            <span class="security-level-badge security-strong" id="securityBadge">
-                                                <i class="fas fa-shield-alt"></i>
-                                                Strong
-                                            </span>
+                                <div class="form-group mb-3">
+                                    <label class="mb-1 text-dark dark-mode-text">Password Security</label>
+                                    <div class="password-security-indicator p-2 bg-light rounded">
+                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                            <span class="text-sm text-muted">Strength</span>
+                                            <span class="badge badge-success" id="securityBadge">Strong</span>
                                         </div>
                                         
-                                        <div class="security-progress">
-                                            <div class="security-progress-bar security-progress-strong" id="securityProgressBar"></div>
+                                        <div class="progress mb-2" style="height: 6px;">
+                                            <div class="progress-bar bg-success" id="securityProgressBar" style="width: 80%"></div>
                                         </div>
                                         
-
-                                        
-                                        <div class="password-last-changed">
-                                            <span>
-                                                <i class="fas fa-clock mr-1"></i>
-                                                Last changed: 
-                                                <span id="lastPasswordChange">
-                                                    {% if current_user.password_changed_at is defined and current_user.password_changed_at %}
-                                                        {{ current_user.password_changed_at|format_datetime('date') }}
-                                                    {% else %}
-                                                        Never
-                                                    {% endif %}
-                                                </span>
-                                            </span>
-                                            <span class="password-age-warning" id="passwordAgeWarning" style="display: none;">
-                                                <i class="fas fa-exclamation-triangle"></i>
-                                                Needs update
-                                            </span>
-                                        </div>
-                                        
-                                        <div class="security-recommendations" id="securityRecommendations" style="display: none;">
-                                            <h6><i class="fas fa-lightbulb mr-1"></i>Security Recommendations</h6>
-                                            <ul id="recommendationsList">
-                                                <li>Use a mix of uppercase and lowercase letters</li>
-                                                <li>Add special characters (!@#$%^&*)</li>
-                                                <li>Increase password length (minimum 12 characters)</li>
-                                            </ul>
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <small class="text-muted">Last changed</small>
+                                            <small class="font-weight-bold" id="lastPasswordChange">
+                                                {% if current_user.password_changed_at is defined and current_user.password_changed_at %}
+                                                    {{ current_user.password_changed_at|format_datetime('date') }}
+                                                {% else %}
+                                                    Never
+                                                {% endif %}
+                                            </small>
                                         </div>
                                     </div>
                                 </div>
-                                <button class="btn btn-secondary btn-block" onclick="showChangePasswordModal()">
+                                <button class="btn btn-warning btn-block text-white btn-profile-action mt-auto" onclick="showChangePasswordModal()">
                                     <i class="fas fa-key mr-2"></i>Change Password
                                 </button>
                             </div>
                         </div>
-                        <!-- Recent Activity -->
-                        <div class="card flex-grow-1">
-                            <header class="card-header">
+                    </div>
+
+                    <!-- Recent Activities -->
+                    <div class="col-lg-4 col-md-12">
+                        <div class="card card-info card-outline mb-4 h-100">
+                            <div class="card-header">
                                 <h3 class="card-title">
-                                    <i class="fas fa-clock mr-1" aria-hidden="true"></i>
+                                    <i class="fas fa-history mr-1"></i>
                                     Recent Activities
                                 </h3>
                                 <div class="card-tools">
-                                    <button type="button" class="btn btn-secondary btn-sm" onclick="refreshActivity()">
+                                    <button type="button" class="btn btn-tool" onclick="refreshActivity()">
                                         <i class="fas fa-sync-alt"></i>
                                     </button>
                                 </div>
-                            </header>
-                            <main class="card-body p-3 d-flex flex-column">
-                                <div class="activity-list flex-grow-1" role="log" aria-label="Recent activity timeline" aria-live="polite">
+                            </div>
+                            <div class="card-body p-0">
+                                <div class="activity-list p-4" role="log" aria-label="Recent activity timeline" style="max-height: 350px; overflow-y: auto;">
                                     {% if recent_activities %}
                                         <div class="timeline-wrapper">
                                             {% for activity in recent_activities %}
@@ -146,10 +269,10 @@
                                                     <div class="timeline-marker marker-{{ activity.type_color }}"></div>
                                                     <div class="timeline-content">
                                                         <div class="d-flex justify-content-between align-items-center mb-1">
-                                                            <span class="font-weight-bold text-dark" style="font-size: 0.9rem;">{{ activity.title }}</span>
+                                                            <span class="font-weight-bold text-dark dark-mode-text text-sm">{{ activity.title }}</span>
                                                             <small class="text-muted" style="font-size: 0.75rem;">{{ activity.time }}</small>
                                                         </div>
-                                                        <p class="text-muted mb-0 text-sm" style="line-height: 1.4;">
+                                                        <p class="text-muted mb-0 text-xs">
                                                             {{ activity.description }}
                                                         </p>
                                                     </div>
@@ -157,142 +280,55 @@
                                             {% endfor %}
                                         </div>
                                     {% else %}
-                                        <div class="text-center text-muted py-5 h-100 d-flex flex-column justify-content-center align-items-center">
-                                            <div class="mb-3">
-                                                <i class="fas fa-history fa-3x text-light"></i>
-                                            </div>
+                                        <div class="text-center text-muted py-5">
+                                            <i class="fas fa-history fa-2x mb-3 text-light-gray"></i>
                                             <p class="mb-0">No recent activity</p>
                                         </div>
                                     {% endif %}
                                 </div>
-                            </main>
+                            </div>
                         </div>
                     </div>
-                    <!-- Activity and Settings -->
-                    <div class="col-md-8 d-flex flex-column">
-                        <!-- Activity Statistics -->
-                        <div class="card">
-                            <div class="card-header">
-                                <h3 class="card-title">
-                                    <i class="fas fa-chart-line mr-2"></i>Activity Statistics
-                                </h3>
-                            </div>
-                            <div class="card-body">
-                                <div class="row">
-                                    <div class="col-md-3 col-sm-6 col-12">
-                                        <div class="info-box">
-                                            <span class="info-box-icon bg-info elevation-1"><i class="fas fa-upload"></i></span>
-                                            <div class="info-box-content">
-                                                <span class="info-box-text">Manual Uploads</span>
-                                                <span class="info-box-number">{{ user_stats.manual_uploads or 0 }}</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-3 col-sm-6 col-12">
-                                        <div class="info-box">
-                                            <span class="info-box-icon bg-success elevation-1"><i class="fas fa-robot"></i></span>
-                                            <div class="info-box-content">
-                                                <span class="info-box-text">Scraping</span>
-                                                <span class="info-box-number">{{ user_stats.scraping_count or 0 }}</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-3 col-sm-6 col-12">
-                                        <div class="info-box">
-                                            <span class="info-box-icon bg-warning elevation-1"><i class="fas fa-broom"></i></span>
-                                            <div class="info-box-content">
-                                                <span class="info-box-text">Data Cleaned</span>
-                                                <span class="info-box-number">{{ user_stats.cleaned_data or 0 }}</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-3 col-sm-6 col-12">
-                                        <div class="info-box">
-                                            <span class="info-box-icon bg-danger elevation-1"><i class="fas fa-brain"></i></span>
-                                            <div class="info-box-content">
-                                                <span class="info-box-text">Classified</span>
-                                                <span class="info-box-number">{{ user_stats.total_classifications or 0 }}</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <!-- Activity Chart -->
-                                <div class="chart" style="position: relative; height: 400px;">
-                                    <canvas id="activityChart" class="activity-chart"></canvas>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- Preferences -->
-                        <div class="card flex-grow-1">
+
+                    <!-- Preferences -->
+                    <div class="col-lg-4 col-md-12">
+                        <div class="card card-secondary card-outline mb-4 h-100">
                             <div class="card-header">
                                 <h3 class="card-title">
                                     <i class="fas fa-cog mr-2"></i>Preferences
                                 </h3>
                             </div>
-                            <div class="card-body">
-                                <form id="preferencesForm">
-                                    <div class="row">
-                                        <div class="col-md-6">
-                                            <div class="form-group">
-                                                <label for="language">Language</label>
-                                                <select class="form-control" id="language">
-                                                    <option value="id" {% if current_user.get_preferences().get('language') == 'id' %}selected{% endif %}>Bahasa Indonesia</option>
-                                                    <option value="en" {% if current_user.get_preferences().get('language') == 'en' %}selected{% endif %}>English</option>
-                                                </select>
-                                            </div>
-                                            <div class="form-group">
-                                                <label for="timezone">Timezone</label>
-                                                <select class="form-control" id="timezone">
-                                                    <option value="Asia/Jakarta" {% if current_user.get_preferences().get('timezone') == 'Asia/Jakarta' %}selected{% endif %}>Asia/Jakarta (WIB)</option>
-                                                    <option value="Asia/Makassar" {% if current_user.get_preferences().get('timezone') == 'Asia/Makassar' %}selected{% endif %}>Asia/Makassar (WITA)</option>
-                                                    <option value="Asia/Jayapura" {% if current_user.get_preferences().get('timezone') == 'Asia/Jayapura' %}selected{% endif %}>Asia/Jayapura (WIT)</option>
-                                                </select>
-                                            </div>
-                                            <div class="form-group">
-                                                <label for="itemsPerPage">Items Per Page</label>
-                                                <select class="form-control" id="itemsPerPage">
-                                                    <option value="10" {% if current_user.get_preferences().get('items_per_page') == 10 %}selected{% endif %}>10</option>
-                                                    <option value="25" {% if current_user.get_preferences().get('items_per_page') == 25 %}selected{% endif %}>25</option>
-                                                    <option value="50" {% if current_user.get_preferences().get('items_per_page') == 50 %}selected{% endif %}>50</option>
-                                                    <option value="100" {% if current_user.get_preferences().get('items_per_page') == 100 %}selected{% endif %}>100</option>
-                                                </select>
-                                            </div>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <div class="form-group">
-                                                <div class="custom-control custom-switch">
-                                                    <input type="checkbox" class="custom-control-input" id="emailNotifications" {% if current_user.get_preferences().get('email_notifications') %}checked{% endif %}>
-                                                    <label class="custom-control-label" for="emailNotifications">Email Notifications</label>
-                                                </div>
-                                            </div>
-                                            <div class="form-group">
-                                                <div class="custom-control custom-switch">
-                                                    <input type="checkbox" class="custom-control-input" id="autoRefresh" {% if current_user.get_preferences().get('auto_refresh') %}checked{% endif %}>
-                                                    <label class="custom-control-label" for="autoRefresh">Auto Refresh Data</label>
-                                                </div>
-                                            </div>
-                                            <div class="form-group">
-                                                <div class="custom-control custom-switch">
-                                                    <input type="checkbox" class="custom-control-input" id="darkMode" {% if current_user.get_preferences().get('dark_mode') %}checked{% endif %}>
-                                                    <label class="custom-control-label" for="darkMode">Dark Mode</label>
-                                                </div>
-                                            </div>
-                                            <div class="form-group">
-                                                <div class="custom-control custom-switch">
-                                                    <input type="checkbox" class="custom-control-input" id="compactView" {% if current_user.get_preferences().get('compact_view') %}checked{% endif %}>
-                                                    <label class="custom-control-label" for="compactView">Compact View</label>
-                                                </div>
-                                            </div>
+                            <div class="card-body d-flex flex-column">
+                                <form id="preferencesForm" class="d-flex flex-column h-100">
+                                    <div class="form-group">
+                                        <label for="timezone" class="text-sm text-dark dark-mode-text">Timezone</label>
+                                        <select class="form-control form-control-sm" id="timezone">
+                                            <option value="Asia/Jakarta" {% if current_user.get_preferences().get('timezone') == 'Asia/Jakarta' %}selected{% endif %}>Asia/Jakarta (WIB)</option>
+                                            <option value="Asia/Makassar" {% if current_user.get_preferences().get('timezone') == 'Asia/Makassar' %}selected{% endif %}>Asia/Makassar (WITA)</option>
+                                            <option value="Asia/Jayapura" {% if current_user.get_preferences().get('timezone') == 'Asia/Jayapura' %}selected{% endif %}>Asia/Jayapura (WIT)</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="itemsPerPage" class="text-sm text-dark dark-mode-text">Items Per Page</label>
+                                        <select class="form-control form-control-sm" id="itemsPerPage">
+                                            <option value="10" {% if current_user.get_preferences().get('items_per_page') == 10 %}selected{% endif %}>10</option>
+                                            <option value="25" {% if current_user.get_preferences().get('items_per_page') == 25 %}selected{% endif %}>25</option>
+                                            <option value="50" {% if current_user.get_preferences().get('items_per_page') == 50 %}selected{% endif %}>50</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <hr class="my-3">
+                                    
+                                    <div class="form-group mb-3">
+                                        <div class="custom-control custom-switch">
+                                            <input type="checkbox" class="custom-control-input" id="darkMode" {% if current_user.get_preferences().get('dark_mode') %}checked{% endif %}>
+                                            <label class="custom-control-label text-sm text-dark dark-mode-text" for="darkMode">Dark Mode</label>
                                         </div>
                                     </div>
-                                    <div class="row mt-3">
-                                        <div class="col-12">
-                                            <button type="button" class="btn btn-primary" onclick="savePreferences()">
-                                                <i class="fas fa-save mr-2"></i>Save Preferences
-                                            </button>
-                                        </div>
-                                    </div>
+                                    
+                                    <button type="button" class="btn btn-primary btn-block btn-profile-action mt-auto" onclick="savePreferences()">
+                                        <i class="fas fa-save mr-2"></i>Save
+                                    </button>
                                 </form>
                             </div>
                         </div>
@@ -300,50 +336,37 @@
                 </div>
             </div>
         </section>
+
     <!-- Edit Profile Modal -->
-    <div class="modal fade" id="editProfileModal" tabindex="-1" role="dialog">
+    <div class="modal fade" id="editProfileModal" tabindex="-1" role="dialog" aria-hidden="true">
         <div class="modal-dialog" role="document">
             <div class="modal-content">
-                <div class="modal-header">
+                <div class="modal-header bg-primary text-white">
                     <h5 class="modal-title">
                         <i class="fas fa-edit mr-2"></i>Edit Profile
                     </h5>
-                    <button type="button" class="close" data-dismiss="modal">
-                        <span>×</span>
+                    <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
                     </button>
                 </div>
                 <div class="modal-body">
                     <form id="editProfileForm">
                         <div class="form-group">
-                            <label for="editUsername">Username:</label>
-                            <input type="text"
-                                   class="form-control"
-                                   id="editUsername"
-                                   value="{{ current_user.username }}"
-                                   readonly>
-                            <small class="form-text text-muted">Username cannot be changed</small>
+                            <label for="editUsername">Username</label>
+                            <input type="text" class="form-control" id="editUsername" value="{{ current_user.username }}" readonly disabled>
+                            <small class="form-text text-muted">Username cannot be changed.</small>
                         </div>
                         <div class="form-group">
-                            <label for="editEmail">Email:</label>
-                            <input type="email"
-                                   class="form-control"
-                                   id="editEmail"
-                                   value="{{ current_user.email }}"
-                                   required>
+                            <label for="editEmail">Email Address</label>
+                            <input type="email" class="form-control" id="editEmail" value="{{ current_user.email }}" required>
                         </div>
                         <div class="form-group">
-                            <label for="editFullName">Full Name:</label>
-                            <input type="text"
-                                   class="form-control"
-                                   id="editFullName"
-                                   value="{{ current_user.full_name or '' }}">
+                            <label for="editFullName">Full Name</label>
+                            <input type="text" class="form-control" id="editFullName" value="{{ current_user.full_name or '' }}">
                         </div>
                         <div class="form-group">
-                            <label for="editBio">Bio:</label>
-                            <textarea class="form-control"
-                                      id="editBio"
-                                      rows="3"
-                                      placeholder="Tell us about yourself...">{{ current_user.bio or '' }}</textarea>
+                            <label for="editBio">Bio</label>
+                            <textarea class="form-control" id="editBio" rows="3" placeholder="Tell us about yourself...">{{ current_user.bio or '' }}</textarea>
                         </div>
                     </form>
                 </div>
@@ -354,39 +377,37 @@
             </div>
         </div>
     </div>
+
     <!-- Change Password Modal -->
-    <div class="modal fade"
-         id="changePasswordModal"
-         tabindex="-1"
-         role="dialog">
+    <div class="modal fade" id="changePasswordModal" tabindex="-1" role="dialog" aria-hidden="true">
         <div class="modal-dialog" role="document">
             <div class="modal-content">
-                <div class="modal-header">
+                <div class="modal-header bg-warning text-white">
                     <h5 class="modal-title">
                         <i class="fas fa-key mr-2"></i>Change Password
                     </h5>
-                    <button type="button" class="close" data-dismiss="modal">
-                        <span>×</span>
+                    <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
                     </button>
                 </div>
                 <div class="modal-body">
                     <form id="changePasswordForm">
                         <div class="form-group">
-                            <label for="currentPassword">Current Password:</label>
+                            <label for="currentPassword">Current Password</label>
                             <input type="password" class="form-control" id="currentPassword" required>
                         </div>
                         <div class="form-group">
-                            <label for="newPassword">New Password:</label>
+                            <label for="newPassword">New Password</label>
                             <input type="password" class="form-control" id="newPassword" required>
                             <div class="password-strength mt-2">
                                 <div class="progress progress-sm">
-                                    <div class="progress-bar" id="passwordStrength"></div>
+                                    <div class="progress-bar" id="passwordStrength" role="progressbar" style="width: 0%"></div>
                                 </div>
                                 <small class="text-muted" id="passwordStrengthText">Enter new password</small>
                             </div>
                         </div>
                         <div class="form-group">
-                            <label for="confirmNewPassword">Confirm New Password:</label>
+                            <label for="confirmNewPassword">Confirm New Password</label>
                             <input type="password" class="form-control" id="confirmNewPassword" required>
                         </div>
                     </form>
@@ -399,617 +420,716 @@
         </div>
     </div>
 {% endblock content %}
+
 {% block scripts %}
     <script>
-$(document).ready(function() {
-    // Initialize activity chart
-    initializeActivityChart();
-    
-    // Password strength checker
-    $('#newPassword').on('input', function() {
-        checkPasswordStrength($(this).val());
-    });
-
-    // Listen to theme changes
-    window.addEventListener('themeChanged', function(e) {
-        updateChartTheme(e.detail.theme);
-    });
-});
-
-let activityChart;
-
-function getChartColors() {
-    const isDark = document.body.classList.contains('dark-mode');
-    return {
-        textColor: isDark ? '#f8f9fa' : '#212529',
-        gridColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'
-    };
-}
-
-function updateChartTheme(theme) {
-    if (!activityChart) return;
-    const colors = getChartColors();
-    activityChart.options.plugins.legend.labels.color = colors.textColor;
-    activityChart.options.scales.x.ticks.color = colors.textColor;
-    activityChart.options.scales.x.grid.color = colors.gridColor;
-    activityChart.options.scales.y.ticks.color = colors.textColor;
-    activityChart.options.scales.y.grid.color = colors.gridColor;
-    activityChart.update();
-}
-
-function initializeActivityChart() {
-    // Pastikan Chart.js sudah dimuat
-    if (typeof Chart === 'undefined') {
-        return;
-    }
-    
-    const ctx = document.getElementById('activityChart').getContext('2d');
-    const colors = getChartColors();
-
-    activityChart = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul'],
-            datasets: [
-                {
-                    label: 'Upload',
-                    data: [12, 19, 3, 5, 2, 3, 8],
-                    borderColor: '#007bff',
-                    backgroundColor: 'rgba(0, 123, 255, 0.1)',
-                    tension: 0.4
-                },
-                {
-                    label: 'Classification',
-                    data: [8, 15, 12, 18, 10, 14, 20],
-                    borderColor: '#28a745',
-                    backgroundColor: 'rgba(40, 167, 69, 0.1)',
-                    tension: 0.4
-                },
-                {
-                    label: 'Cleaning',
-                    data: [5, 8, 6, 10, 7, 9, 12],
-                    borderColor: '#ffc107',
-                    backgroundColor: 'rgba(255, 193, 7, 0.1)',
-                    tension: 0.4
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    position: 'top',
-                    labels: {
-                        color: colors.textColor
+    function handleProfilePhotoUpload(input) {
+        if (input.files && input.files[0]) {
+            const file = input.files[0];
+            
+            // Client-side validation
+            const validTypes = ['image/jpeg', 'image/png', 'image/gif'];
+            if (!validTypes.includes(file.type)) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Invalid File Type',
+                    text: 'Please upload a JPEG, PNG, or GIF image.'
+                });
+                input.value = ''; // Reset input
+                return;
+            }
+            
+            if (file.size > 2 * 1024 * 1024) { // 2MB
+                Swal.fire({
+                    icon: 'error',
+                    title: 'File Too Large',
+                    text: 'Image size must be less than 2MB.'
+                });
+                input.value = ''; // Reset input
+                return;
+            }
+            
+            // Preview
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                // Show confirmation with preview
+                Swal.fire({
+                    title: 'Update Profile Picture?',
+                    text: 'This image will be set as your profile picture.',
+                    imageUrl: e.target.result,
+                    imageWidth: 200,
+                    imageHeight: 200,
+                    imageAlt: 'Preview',
+                    customClass: {
+                        image: 'img-circle img-thumbnail'
+                    },
+                    showCancelButton: true,
+                    confirmButtonText: 'Yes, Upload',
+                    cancelButtonText: 'Cancel',
+                    reverseButtons: true
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        uploadPhoto(file);
+                    } else {
+                        input.value = ''; // Reset if cancelled
                     }
-                }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    ticks: { color: colors.textColor },
-                    grid: { color: colors.gridColor }
-                },
-                x: {
-                    ticks: { color: colors.textColor },
-                    grid: { color: colors.gridColor }
-                }
-            }
+                });
+            };
+            reader.readAsDataURL(file);
         }
-    });
-}
-
-function showEditProfileModal() {
-    $('#editProfileModal').modal('show');
-}
-
-function saveProfile() {
-    const email = $('#editEmail').val();
-    const fullName = $('#editFullName').val();
-    const bio = $('#editBio').val();
-    
-    if (!email) {
-        Swal.fire({
-            icon: 'error',
-            title: 'Email Required',
-            text: 'Email cannot be empty'
-        });
-        return;
     }
     
-    // Show loading
-    Swal.fire({
-        title: 'Saving Profile',
-        text: 'Processing...',
-        allowOutsideClick: false,
-        didOpen: () => {
-            Swal.showLoading();
-        }
-    });
-    
-    // Send AJAX request to backend
-    $.ajax({
-        url: '/api/profile/edit',
-        method: 'POST',
-        headers: {
-            'X-CSRFToken': $('meta[name=csrf-token]').attr('content')
-        },
-        data: {
-            email: email,
-            full_name: fullName,
-            bio: bio
-        },
-        success: function(response) {
-            $('#editProfileModal').modal('hide');
-            Swal.fire({
-                icon: 'success',
-                title: 'Profile Updated Successfully',
-                text: response.message
-            }).then(() => {
-                location.reload();
-            });
-        },
-        error: function(xhr) {
-            let errorMessage = 'An error occurred while saving profile';
-            if (xhr.responseJSON && xhr.responseJSON.message) {
-                errorMessage = xhr.responseJSON.message;
-            }
-            Swal.fire({
-                icon: 'error',
-                title: 'Failed to Save Profile',
-                text: errorMessage
-            });
-        }
-    });
-}
-
-function showChangePasswordModal() {
-    $('#changePasswordModal').modal('show');
-}
-
-function changePassword() {
-    const currentPassword = $('#currentPassword').val();
-    const newPassword = $('#newPassword').val();
-    const confirmNewPassword = $('#confirmNewPassword').val();
-    
-    if (!currentPassword || !newPassword || !confirmNewPassword) {
-        Swal.fire({
-            icon: 'error',
-            title: 'Incomplete Fields',
-            text: 'All password fields must be filled'
-        });
-        return;
-    }
-    
-    if (newPassword !== confirmNewPassword) {
-        Swal.fire({
-            icon: 'error',
-            title: 'Password Mismatch',
-            text: 'New password and confirmation do not match'
-        });
-        return;
-    }
-    
-    if (newPassword.length < 6) {
-        Swal.fire({
-            icon: 'error',
-            title: 'Password Too Short',
-            text: 'New password must be at least 6 characters'
-        });
-        return;
-    }
-    
-    // Show loading
-    Swal.fire({
-        title: 'Changing Password',
-        text: 'Processing...',
-        allowOutsideClick: false,
-        didOpen: () => {
-            Swal.showLoading();
-        }
-    });
-    
-    // Send AJAX request to backend
-    $.ajax({
-        url: '/api/profile/change-password',
-        method: 'POST',
-        headers: {
-            'X-CSRFToken': $('meta[name=csrf-token]').attr('content')
-        },
-        data: {
-            current_password: currentPassword,
-            new_password: newPassword
-        },
-        success: function(response) {
-            $('#changePasswordModal').modal('hide');
-            $('#changePasswordForm')[0].reset();
-            Swal.fire({
-                icon: 'success',
-                title: 'Password Changed Successfully',
-                text: response.message
-            });
-        },
-        error: function(xhr) {
-            let errorMessage = 'An error occurred while changing password';
-            if (xhr.responseJSON && xhr.responseJSON.message) {
-                errorMessage = xhr.responseJSON.message;
-            }
-            Swal.fire({
-                icon: 'error',
-                title: 'Failed to Change Password',
-                text: errorMessage
-            });
-        }
-    });
-}
-
-function checkPasswordStrength(password) {
-    const strengthBar = $('#passwordStrength');
-    const strengthText = $('#passwordStrengthText');
-    
-    let strength = 0;
-    let strengthLabel = '';
-    let strengthClass = '';
-    
-    if (password.length >= 6) strength += 1;
-    if (password.match(/[a-z]/)) strength += 1;
-    if (password.match(/[A-Z]/)) strength += 1;
-    if (password.match(/[0-9]/)) strength += 1;
-    if (password.match(/[^a-zA-Z0-9]/)) strength += 1;
-    
-    switch (strength) {
-        case 0:
-        case 1:
-            strengthLabel = 'Very Weak';
-            strengthClass = 'bg-danger';
-            break;
-        case 2:
-            strengthLabel = 'Weak';
-            strengthClass = 'bg-warning';
-            break;
-        case 3:
-            strengthLabel = 'Medium';
-            strengthClass = 'bg-info';
-            break;
-        case 4:
-            strengthLabel = 'Strong';
-            strengthClass = 'bg-success';
-            break;
-        case 5:
-            strengthLabel = 'Very Strong';
-            strengthClass = 'bg-success';
-            break;
-    }
-    
-    const percentage = (strength / 5) * 100;
-    strengthBar.removeClass('bg-danger bg-warning bg-info bg-success')
-               .addClass(strengthClass)
-               .css('width', percentage + '%');
-    strengthText.text(strengthLabel);
-}
-
-function refreshActivity() {
-    // Show loading state
-    const refreshBtn = $('.card-tools button');
-    const originalIcon = refreshBtn.find('i');
-    originalIcon.removeClass('fa-sync-alt').addClass('fa-spinner fa-spin');
-    
-    // Simulate refresh (replace with actual AJAX call)
-    setTimeout(() => {
-        originalIcon.removeClass('fa-spinner fa-spin').addClass('fa-sync-alt');
+    function uploadPhoto(file) {
+        const formData = new FormData();
+        formData.append('photo', file);
         
         Swal.fire({
-            icon: 'success',
-            title: 'Activity Updated',
-            text: 'Latest activity data has been loaded',
-            timer: 2000,
-            showConfirmButton: false
+            title: 'Uploading...',
+            text: 'Please wait',
+            allowOutsideClick: false,
+            didOpen: () => {
+                Swal.showLoading();
+            }
         });
-    }, 1500);
-}
+        
+        $.ajax({
+            url: '/api/profile/upload-photo',
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': $('meta[name=csrf-token]').attr('content')
+            },
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function(response) {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Success',
+                    text: response.message,
+                    timer: 1500,
+                    showConfirmButton: false
+                }).then(() => {
+                    // Update header image immediately
+                    const headerImg = document.getElementById('header-profile-img');
+                    const headerIcon = document.getElementById('header-profile-icon');
+                    const newSrc = "/static/profile_pics/" + response.filename + "?v=" + new Date().getTime();
+                    
+                    if (headerImg) {
+                        headerImg.src = newSrc;
+                    } else if (headerIcon) {
+                        // Create img element and replace icon
+                        const newImg = document.createElement('img');
+                        newImg.src = newSrc;
+                        newImg.className = "user-image img-circle elevation-2";
+                        newImg.alt = "User Image";
+                        newImg.id = "header-profile-img";
+                        newImg.style = "width: 30px; height: 30px; object-fit: cover; margin-right: 8px;";
+                        
+                        headerIcon.parentNode.insertBefore(newImg, headerIcon);
+                        headerIcon.remove();
+                    }
+                    
+                    location.reload();
+                });
+            },
+            error: function(xhr) {
+                let errorMessage = 'Upload failed';
+                if (xhr.responseJSON && xhr.responseJSON.message) {
+                    errorMessage = xhr.responseJSON.message;
+                }
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: errorMessage
+                });
+            }
+        });
+    }
 
-// Save preferences function (if needed for future use)
-function savePreferences() {
-    const preferences = {
-        language: $('#language').val(),
-        timezone: $('#timezone').val(),
-        items_per_page: $('#itemsPerPage').val(),
-        default_dataset: $('#defaultDataset').val(),
-        email_notifications: $('#emailNotifications').is(':checked'),
-        auto_refresh: $('#autoRefresh').is(':checked'),
-        dark_mode: $('#darkMode').is(':checked'),
-        auto_classify: $('#autoClassify').is(':checked'),
-        show_probability: $('#showProbability').is(':checked'),
-        compact_view: $('#compactView').is(':checked')
-    };
-    
-    // Show loading
-    Swal.fire({
-        title: 'Saving Preferences',
-        text: 'Processing...',
-        allowOutsideClick: false,
-        didOpen: () => {
-            Swal.showLoading();
+    function deleteProfilePhoto() {
+        Swal.fire({
+            title: 'Remove Profile Picture?',
+            text: "Are you sure you want to remove your profile picture?",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: 'Yes, remove it!'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                Swal.fire({
+                    title: 'Removing...',
+                    text: 'Please wait',
+                    allowOutsideClick: false,
+                    didOpen: () => {
+                        Swal.showLoading();
+                    }
+                });
+                
+                $.ajax({
+                    url: '/api/profile/delete-photo',
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': $('meta[name=csrf-token]').attr('content')
+                    },
+                    success: function(response) {
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Removed!',
+                            text: response.message,
+                            timer: 1500,
+                            showConfirmButton: false
+                        }).then(() => {
+                            // Revert header to icon
+                            const headerImg = document.getElementById('header-profile-img');
+                            if (headerImg) {
+                                const newIcon = document.createElement('i');
+                                newIcon.className = "fas fa-user mr-2";
+                                newIcon.id = "header-profile-icon";
+                                newIcon.setAttribute("aria-hidden", "true");
+                                
+                                headerImg.parentNode.insertBefore(newIcon, headerImg);
+                                headerImg.remove();
+                            }
+                            
+                            location.reload();
+                        });
+                    },
+                    error: function(xhr) {
+                        let errorMessage = 'Failed to remove photo';
+                        if (xhr.responseJSON && xhr.responseJSON.message) {
+                            errorMessage = xhr.responseJSON.message;
+                        }
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Error',
+                            text: errorMessage
+                        });
+                    }
+                });
+            }
+        });
+    }
+
+    // Global variables for form state
+    let initialProfileData = {};
+
+    $(document).ready(function() {
+        // Move modals to body to prevent z-index issues with other elements
+        $('#editProfileModal').appendTo('body');
+        $('#changePasswordModal').appendTo('body');
+
+        // Initialize activity chart
+        initializeActivityChart();
+        
+        // Password strength checker
+        $('#newPassword').on('input', function() {
+            checkPasswordStrength($(this).val());
+        });
+
+        // Listen to theme changes
+        window.addEventListener('themeChanged', function(e) {
+            updateChartTheme(e.detail.theme);
+        });
+        
+        // Evaluate initial password security (mock)
+        evaluatePasswordSecurity();
+
+        // --- Edit Profile Modal Logic ---
+        const $editModal = $('#editProfileModal');
+        const $saveBtn = $editModal.find('.btn-primary'); // The Save Changes button
+        
+        // 1. Modal Isolation: Disable background interaction
+        $editModal.on('show.bs.modal', function () {
+            // Add class to body for CSS targeting
+            $('body').addClass('modal-open');
+            
+            // Explicitly disable background inputs to prevent interaction
+            $('.content-wrapper input, .content-wrapper select, .content-wrapper button, .content-wrapper a').not('#editProfileModal *').prop('disabled', true).addClass('disabled-by-modal');
+            
+            // Capture initial data
+            initialProfileData = {
+                email: $('#editEmail').val(),
+                fullName: $('#editFullName').val(),
+                bio: $('#editBio').val()
+            };
+            
+            // Disable save button initially
+            $saveBtn.prop('disabled', true);
+        });
+
+        $editModal.on('hidden.bs.modal', function () {
+            $('body').removeClass('modal-open');
+            
+            // Re-enable background inputs
+            $('.disabled-by-modal').prop('disabled', false).removeClass('disabled-by-modal');
+        });
+
+        // 2. Watch for changes
+        $('#editEmail, #editFullName, #editBio').on('input change', function() {
+            validateAndToggleSave();
+        });
+
+        function validateAndToggleSave() {
+            const currentData = {
+                email: $('#editEmail').val(),
+                fullName: $('#editFullName').val(),
+                bio: $('#editBio').val()
+            };
+            
+            const hasChanges = JSON.stringify(currentData) !== JSON.stringify(initialProfileData);
+            const isValid = validateEmail(currentData.email);
+            
+            $saveBtn.prop('disabled', !hasChanges || !isValid);
+        }
+
+        function validateEmail(email) {
+            const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            return re.test(email);
         }
     });
-    
-    // Send AJAX request to backend
-    $.ajax({
-        url: '/api/profile/save-preferences',
-        method: 'POST',
-        headers: {
-            'X-CSRFToken': $('meta[name=csrf-token]').attr('content')
-        },
-        data: preferences,
-        success: function(response) {
-            Swal.fire({
-                icon: 'success',
-                title: 'Preferences Saved',
-                text: response.message
-            });
-        },
-        error: function(xhr) {
-            let errorMessage = 'An error occurred while saving preferences';
-            if (xhr.responseJSON && xhr.responseJSON.message) {
-                errorMessage = xhr.responseJSON.message;
+
+    let activityChart;
+
+    function getChartColors() {
+        const isDark = document.body.classList.contains('dark-mode');
+        return {
+            textColor: isDark ? '#f8f9fa' : '#212529',
+            gridColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'
+        };
+    }
+
+    function updateChartTheme(theme) {
+        if (!activityChart) return;
+        const colors = getChartColors();
+        activityChart.options.plugins.legend.labels.color = colors.textColor;
+        activityChart.options.scales.x.ticks.color = colors.textColor;
+        activityChart.options.scales.x.grid.color = colors.gridColor;
+        activityChart.options.scales.y.ticks.color = colors.textColor;
+        activityChart.options.scales.y.grid.color = colors.gridColor;
+        activityChart.update();
+    }
+
+    function initializeActivityChart() {
+        if (typeof Chart === 'undefined') {
+            return;
+        }
+        
+        const ctx = document.getElementById('activityChart').getContext('2d');
+        const colors = getChartColors();
+        
+        // Use real data from backend
+        const chartData = {{ activity_chart_data | tojson }};
+
+        activityChart = new Chart(ctx, {
+            type: 'line',
+            data: chartData,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'top',
+                        labels: {
+                            color: colors.textColor
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: { color: colors.textColor },
+                        grid: { color: colors.gridColor }
+                    },
+                    x: {
+                        ticks: { color: colors.textColor },
+                        grid: { color: colors.gridColor }
+                    }
+                }
             }
+        });
+    }
+
+    function showEditProfileModal() {
+        $('#editProfileModal').modal('show');
+    }
+
+    function saveProfile() {
+        const email = $('#editEmail').val();
+        const fullName = $('#editFullName').val();
+        const bio = $('#editBio').val();
+        const $btn = $('#editProfileModal .btn-primary');
+        const originalBtnText = $btn.html();
+        
+        if (!email) {
             Swal.fire({
                 icon: 'error',
-                title: 'Failed to Save Preferences',
-                text: errorMessage
+                title: 'Email Required',
+                text: 'Email cannot be empty'
             });
+            return;
         }
-    });
-}
+        
+        // Button Loading State
+        $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-2"></i>Saving...');
+        
+        // Swal Loading
+        Swal.fire({
+            title: 'Saving Profile',
+            text: 'Processing...',
+            allowOutsideClick: false,
+            didOpen: () => {
+                Swal.showLoading();
+            }
+        });
+        
+        $.ajax({
+            url: '/api/profile/edit',
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': $('meta[name=csrf-token]').attr('content')
+            },
+            data: {
+                email: email,
+                full_name: fullName,
+                bio: bio
+            },
+            success: function(response) {
+                $('#editProfileModal').modal('hide');
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Profile Updated',
+                    text: response.message
+                }).then(() => {
+                    location.reload();
+                });
+            },
+            error: function(xhr) {
+                // Reset Button
+                $btn.prop('disabled', false).html(originalBtnText);
+                
+                let errorMessage = 'An error occurred';
+                if (xhr.responseJSON && xhr.responseJSON.message) {
+                    errorMessage = xhr.responseJSON.message;
+                }
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Failed to Save',
+                    text: errorMessage
+                });
+            }
+        });
+    }
 
-// Reset preferences function (if needed for future use)
-function resetPreferences() {
-    Swal.fire({
-        title: 'Reset Preferences?',
-        text: 'All preferences will be restored to default settings',
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonText: 'Yes, Reset',
-        cancelButtonText: 'Cancel'
-    }).then((result) => {
-        if (result.isConfirmed) {
-            // Reset form values to default
-            $('#language').val('en');
-            $('#timezone').val('Asia/Jakarta');
-            $('#itemsPerPage').val('25');
-            $('#defaultDataset').val('');
-            $('#emailNotifications').prop('checked', true);
-            $('#autoRefresh').prop('checked', false);
-            $('#darkMode').prop('checked', true);
-            $('#autoClassify').prop('checked', false);
-            $('#showProbability').prop('checked', true);
-            $('#compactView').prop('checked', false);
+    function showChangePasswordModal() {
+        $('#changePasswordModal').modal('show');
+    }
+
+    function changePassword() {
+        const currentPassword = $('#currentPassword').val();
+        const newPassword = $('#newPassword').val();
+        const confirmNewPassword = $('#confirmNewPassword').val();
+        
+        if (!currentPassword || !newPassword || !confirmNewPassword) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Incomplete Fields',
+                text: 'All password fields must be filled'
+            });
+            return;
+        }
+        
+        if (newPassword !== confirmNewPassword) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Password Mismatch',
+                text: 'New password and confirmation do not match'
+            });
+            return;
+        }
+        
+        if (newPassword.length < 6) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Password Too Short',
+                text: 'New password must be at least 6 characters'
+            });
+            return;
+        }
+        
+        Swal.fire({
+            title: 'Changing Password',
+            text: 'Processing...',
+            allowOutsideClick: false,
+            didOpen: () => {
+                Swal.showLoading();
+            }
+        });
+        
+        $.ajax({
+            url: '/api/profile/change-password',
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': $('meta[name=csrf-token]').attr('content')
+            },
+            data: {
+                current_password: currentPassword,
+                new_password: newPassword
+            },
+            success: function(response) {
+                $('#changePasswordModal').modal('hide');
+                $('#changePasswordForm')[0].reset();
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Password Changed',
+                    text: response.message
+                });
+            },
+            error: function(xhr) {
+                let errorMessage = 'An error occurred';
+                if (xhr.responseJSON && xhr.responseJSON.message) {
+                    errorMessage = xhr.responseJSON.message;
+                }
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Failed to Change Password',
+                    text: errorMessage
+                });
+            }
+        });
+    }
+
+    function checkPasswordStrength(password) {
+        const strengthBar = $('#passwordStrength');
+        const strengthText = $('#passwordStrengthText');
+        
+        let strength = 0;
+        let strengthLabel = '';
+        let strengthClass = '';
+        
+        if (password.length >= 6) strength += 1;
+        if (password.match(/[a-z]/)) strength += 1;
+        if (password.match(/[A-Z]/)) strength += 1;
+        if (password.match(/[0-9]/)) strength += 1;
+        if (password.match(/[^a-zA-Z0-9]/)) strength += 1;
+        
+        switch (strength) {
+            case 0:
+            case 1:
+                strengthLabel = 'Very Weak';
+                strengthClass = 'bg-danger';
+                break;
+            case 2:
+                strengthLabel = 'Weak';
+                strengthClass = 'bg-warning';
+                break;
+            case 3:
+                strengthLabel = 'Medium';
+                strengthClass = 'bg-info';
+                break;
+            case 4:
+                strengthLabel = 'Strong';
+                strengthClass = 'bg-success';
+                break;
+            case 5:
+                strengthLabel = 'Very Strong';
+                strengthClass = 'bg-success';
+                break;
+        }
+        
+        const percentage = (strength / 5) * 100;
+        strengthBar.removeClass('bg-danger bg-warning bg-info bg-success')
+                   .addClass(strengthClass)
+                   .css('width', percentage + '%');
+        strengthText.text(strengthLabel);
+    }
+
+    function refreshActivity() {
+        const refreshBtn = $('.card-tools button');
+        const originalIcon = refreshBtn.find('i');
+        originalIcon.removeClass('fa-sync-alt').addClass('fa-spinner fa-spin');
+        
+        setTimeout(() => {
+            originalIcon.removeClass('fa-spinner fa-spin').addClass('fa-sync-alt');
             
             Swal.fire({
                 icon: 'success',
-                title: 'Preferences Reset',
-                text: 'All preferences have been restored to default'
+                title: 'Activity Updated',
+                text: 'Latest activity data has been loaded',
+                timer: 1500,
+                showConfirmButton: false
             });
-        }
-    });
-}
+        }, 1500);
+    }
+
+    function savePreferences() {
+        const preferences = {
+            timezone: $('#timezone').val(),
+            items_per_page: $('#itemsPerPage').val(),
+            dark_mode: $('#darkMode').is(':checked'),
+            compact_view: $('#compactView').is(':checked')
+        };
+        
+        Swal.fire({
+            title: 'Saving Preferences',
+            text: 'Processing...',
+            allowOutsideClick: false,
+            didOpen: () => {
+                Swal.showLoading();
+            }
+        });
+        
+        $.ajax({
+            url: '/api/profile/save-preferences',
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': $('meta[name=csrf-token]').attr('content')
+            },
+            data: preferences,
+            success: function(response) {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Preferences Saved',
+                    text: response.message
+                });
+            },
+            error: function(xhr) {
+                let errorMessage = 'An error occurred';
+                if (xhr.responseJSON && xhr.responseJSON.message) {
+                    errorMessage = xhr.responseJSON.message;
+                }
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Failed to Save',
+                    text: errorMessage
+                });
+            }
+        });
+    }
+
+    function evaluatePasswordSecurity() {
+        // Mock function for demo
+        // In reality, check actual user password strength if possible or stored score
+        const badge = document.getElementById('securityBadge');
+        const progressBar = document.getElementById('securityProgressBar');
+        
+        // Assume strong for demo
+        badge.className = 'security-level-badge security-strong';
+        progressBar.className = 'progress-bar bg-success';
+        progressBar.style.width = '100%';
+        badge.innerHTML = '<i class="fas fa-shield-alt"></i> Strong';
+    }
     </script>
     <style>
-/* Timeline Activity List Styling */
-.activity-list {
-    min-height: 380px;
-    height: 100%;
-    overflow-y: auto;
-    padding-right: 5px;
-}
+    /* Profile specific styles */
+    /* 8px Grid System & Consistency */
+    :root {
+        --grid-unit: 8px;
+    }
 
-.activity-list::-webkit-scrollbar {
-    width: 4px;
-}
+    .card {
+        margin-bottom: 24px !important; /* 3 units */
+        border-radius: 12px !important; /* Soft UI rounded corners */
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
+        border: none !important;
+    }
 
-.activity-list::-webkit-scrollbar-track {
-    background: #f1f1f1;
-}
+    .card-header {
+        padding: 16px 24px !important; /* 2 units vertical, 3 units horizontal */
+        background-color: #fff !important;
+        border-bottom: 1px solid #f0f0f0 !important;
+        border-radius: 12px 12px 0 0 !important;
+    }
 
-.activity-list::-webkit-scrollbar-thumb {
-    background: #c1c1c1;
-    border-radius: 2px;
-}
+    .card-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin: 0;
+    }
 
-.activity-list::-webkit-scrollbar-thumb:hover {
-    background: #a8a8a8;
-}
+    .card-body {
+        padding: 24px !important; /* 3 units */
+    }
 
-.timeline-wrapper {
-    position: relative;
-    padding-left: 20px;
-    margin-left: 10px;
-    border-left: 2px solid #e9ecef;
-    padding-top: 5px;
-    padding-bottom: 5px;
-    min-height: 100%;
-}
+    .card-body.p-0 {
+        padding: 0 !important;
+    }
 
-.timeline-item {
-    position: relative;
-    padding-bottom: 20px;
-}
+    /* Button Consistency */
+    .btn-profile-action {
+        padding: 10px 16px !important; /* ~1.25 units vertical */
+        border-radius: 8px !important;
+        font-weight: 600;
+        font-size: 0.9rem;
+        min-height: 42px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
+        letter-spacing: 0.3px;
+    }
 
-.timeline-item:last-child {
-    padding-bottom: 0;
-}
+    .btn-profile-action:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 6px rgba(50, 50, 93, 0.11), 0 1px 3px rgba(0, 0, 0, 0.08);
+    }
+    
+    .btn-profile-action i {
+        margin-right: 8px !important;
+    }
 
-.timeline-marker {
-    position: absolute;
-    left: -27px;
-    top: 4px;
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    background-color: #fff;
-    border: 2px solid #6c757d;
-    z-index: 1;
-    box-shadow: 0 0 0 2px #fff;
-}
-
-.marker-primary { border-color: #007bff; }
-.marker-secondary { border-color: #6c757d; }
-.marker-success { border-color: #28a745; }
-.marker-danger { border-color: #dc3545; }
-.marker-warning { border-color: #ffc107; }
-.marker-info { border-color: #17a2b8; }
-.marker-light { border-color: #f8f9fa; }
-.marker-dark { border-color: #343a40; }
-
-.timeline-content {
-    background: transparent;
-}
-
-.badge-lg {
-    font-size: 0.9em;
-    padding: 0.5em 0.75em;
-}
-
-.timeline-inverse .timeline-item {
-    background: #fff;
-    border: 1px solid #dee2e6;
-    border-radius: 0.375rem;
-    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
-}
-
-.info-box {
-    transition: transform 0.2s;
-}
-
-.info-box:hover {
-    transform: translateY(-2px);
-}
-
-.password-strength .progress {
-    height: 4px;
-}
-
-.modal-header {
-    border-bottom: 1px solid #dee2e6;
-}
-
-.modal-footer {
-    border-top: 1px solid #dee2e6;
-}
-
-.card-header {
-    border-bottom: 1px solid rgba(0,0,0,.125);
-}
-
-.list-group-item {
-    border: 1px solid rgba(0,0,0,.125);
-}
-
-.timeline {
-    position: relative;
-    margin: 0 0 30px 0;
-    padding: 0;
-    list-style: none;
-}
-
-.timeline:before {
-    content: '';
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    width: 4px;
-    background: #dee2e6;
-    left: 31px;
-    margin: 0;
-    border-radius: 2px;
-}
+    .activity-list {
+        min-height: 200px;
+    }
+    
+    .timeline-wrapper {
+        position: relative;
+        padding-left: 20px;
+        margin-left: 5px;
+        border-left: 2px solid #e9ecef;
+    }
+    
+    .timeline-item {
+        position: relative;
+        padding-bottom: 20px;
+    }
+    
+    .timeline-item:last-child {
+        padding-bottom: 0;
+    }
+    
+    .timeline-marker {
+        position: absolute;
+        left: -27px;
+        top: 4px;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background-color: #fff;
+        border: 2px solid #6c757d;
+        z-index: 1;
+        box-shadow: 0 0 0 2px #fff;
+    }
+    
+    .marker-primary { border-color: #007bff; }
+    .marker-secondary { border-color: #6c757d; }
+    .marker-success { border-color: #28a745; }
+    .marker-danger { border-color: #dc3545; }
+    .marker-warning { border-color: #ffc107; }
+    .marker-info { border-color: #17a2b8; }
+    
+    .security-level-badge {
+        font-size: 0.9em;
+        padding: 0.2em 0.6em;
+        border-radius: 4px;
+        font-weight: bold;
+    }
+    
+    .security-strong { color: #28a745; background-color: rgba(40, 167, 69, 0.1); }
+    .security-good { color: #17a2b8; background-color: rgba(23, 162, 184, 0.1); }
+    .security-medium { color: #ffc107; background-color: rgba(255, 193, 7, 0.1); }
+    .security-weak { color: #dc3545; background-color: rgba(220, 53, 69, 0.1); }
+    
+    /* Z-Index Fixes - Removed to avoid conflict with extra_css block */
     </style>
-
-.w-85 {
-    width: 85% !important;
-}
 {% endblock scripts %}
-
-<script>
-// Password Security Indicator Functions
-function evaluatePasswordSecurity() {
-    // Password security evaluation simulation
-    // In real implementation, this would analyze the actual password
-    const features = {
-        length: true,
-        uppercase: true,
-        lowercase: true,
-        numbers: true,
-        special: false
-    };
-    
-    const score = Object.values(features).filter(Boolean).length;
-    updateSecurityIndicator(score, features);
-    checkPasswordAge();
-}
-
-function updateSecurityIndicator(score, features) {
-    const badge = document.getElementById('securityBadge');
-    const progressBar = document.getElementById('securityProgressBar');
-    const recommendations = document.getElementById('securityRecommendations');
-    
-    // Update badge and progress bar based on score
-    badge.className = 'security-level-badge';
-    progressBar.className = 'security-progress-bar';
-    
-    if (score >= 4) {
-        badge.classList.add('security-strong');
-        progressBar.classList.add('security-progress-strong');
-        badge.innerHTML = '<i class="fas fa-shield-alt"></i> Strong';
-        recommendations.style.display = 'none';
-    } else if (score >= 3) {
-        badge.classList.add('security-good');
-        progressBar.classList.add('security-progress-good');
-        badge.innerHTML = '<i class="fas fa-shield-check"></i> Good';
-        recommendations.style.display = 'block';
-    } else if (score >= 2) {
-        badge.classList.add('security-medium');
-        progressBar.classList.add('security-progress-medium');
-        badge.innerHTML = '<i class="fas fa-shield-virus"></i> Medium';
-        recommendations.style.display = 'block';
-    } else {
-        badge.classList.add('security-weak');
-        progressBar.classList.add('security-progress-weak');
-        badge.innerHTML = '<i class="fas fa-shield-virus"></i> Weak';
-        recommendations.style.display = 'block';
-    }
-}
-
-function checkPasswordAge() {
-    const lastChanged = document.getElementById('lastPasswordChange').textContent;
-    const warning = document.getElementById('passwordAgeWarning');
-    
-    // Password age check simulation
-    // In real implementation, this would calculate from last changed date
-    if (lastChanged === 'Never' || isPasswordOld(lastChanged)) {
-        warning.style.display = 'inline-block';
-    } else {
-        warning.style.display = 'none';
-    }
-}
-
-function isPasswordOld(dateString) {
-    // Check if password is old (>90 days) simulation
-    // In real implementation, this would calculate date difference
-    return false; // For demo, assume password is still new
-}
-
-// Initialize security indicator when page loads
-document.addEventListener('DOMContentLoaded', function() {
-    evaluatePasswordSecurity();
-});
-
-// Update security indicator when password is changed
-function onPasswordChanged() {
-    setTimeout(() => {
-        evaluatePasswordSecurity();
-        document.getElementById('lastPasswordChange').textContent = new Date().toLocaleDateString('en-US');
-    }, 500);
-}
-</script>

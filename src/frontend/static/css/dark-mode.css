@@ -188,11 +188,23 @@ body.dark-mode .table-hover tbody tr:hover {
 }
 
 /* Card Headers Contextual */
-body.dark-mode .card-success .card-header { background-color: #1e7e34; }
-body.dark-mode .card-primary .card-header { background-color: #0062cc; }
-body.dark-mode .card-info .card-header { background-color: #138496; }
-body.dark-mode .card-warning .card-header { background-color: #d39e00; color: var(--white); }
-body.dark-mode .card-danger .card-header { background-color: #bd2130; }
+body.dark-mode .card-success:not(.card-outline) .card-header { background-color: #1e7e34; }
+body.dark-mode .card-primary:not(.card-outline) .card-header { background-color: #0062cc; }
+body.dark-mode .card-info:not(.card-outline) .card-header { background-color: #138496; }
+body.dark-mode .card-warning:not(.card-outline) .card-header { background-color: #d39e00; color: var(--white); }
+body.dark-mode .card-danger:not(.card-outline) .card-header { background-color: #bd2130; }
+
+/* Card Outline Headers in Dark Mode */
+body.dark-mode .card-outline .card-header {
+    background-color: transparent !important;
+    color: var(--white) !important;
+    border-bottom-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Ensure card titles in outline cards are white */
+body.dark-mode .card-outline .card-title {
+    color: var(--white) !important;
+}
 
 /* Small Box */
 body.dark-mode .small-box h3,

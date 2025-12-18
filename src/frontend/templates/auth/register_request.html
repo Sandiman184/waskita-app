@@ -213,11 +213,13 @@
                             </div>
                         </div>
                         
-                        <div class="form-group">
-                            <button type="submit" class="btn btn-primary btn-block" id="submitBtn">
-                                <i class="fas fa-paper-plane mr-2"></i>
-                                Send Registration Request
-                            </button>
+                        <div class="row">
+                            <div class="col-12">
+                                <button type="submit" class="btn btn-primary btn-block" id="submitBtn">
+                                    <i class="fas fa-paper-plane mr-2"></i>
+                                    Send Registration Request
+                                </button>
+                            </div>
                         </div>
                     </form>
                     
@@ -522,7 +524,7 @@
                         timer: 2000,
                         showConfirmButton: false,
                         toast: true,
-                        position: 'top-end'
+                        position: 'top'
                     });
                 } else {
                     Swal.fire({
@@ -532,7 +534,7 @@
                         timer: 2000,
                         showConfirmButton: false,
                         toast: true,
-                        position: 'top-end',
+                        position: 'top',
                         customClass: {
                             popup: 'swal2-popup',
                             title: 'swal2-title',

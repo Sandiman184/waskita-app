@@ -10,6 +10,7 @@
     <li class="breadcrumb-item">
         <a href="{{ url_for("main.dashboard") }}">Home</a>
     </li>
+    <li class="breadcrumb-item">Admin Panel</li>
     <li class="breadcrumb-item active">Registration Requests</li>
 {% endblock breadcrumb %}
 
@@ -29,7 +30,7 @@
 }
 
 /* Size consistency for all form elements */
-.form-control, .btn {
+.form-control {
     height: 38px !important;
     min-height: 38px !important;
     line-height: 1.5 !important;
@@ -38,10 +39,21 @@
     border-radius: 4px !important;
 }
 
+.btn {
+    height: auto !important;
+    min-height: 32px !important;
+    padding: 6px 12px !important;
+    font-size: 12px !important;
+    border-radius: 4px !important;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
 /* Button consistency */
 .btn-block {
     width: 100% !important;
-    height: 38px !important;
+    min-height: 32px !important;
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;

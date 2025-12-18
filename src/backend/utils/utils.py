@@ -155,6 +155,39 @@ def active_user_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+def check_dataset_permission(dataset, user):
+    """
+    Check if a user has permission to access/modify a dataset.
+    Allowed if:
+    1. User is Admin
+    2. User is the uploader of the dataset
+    3. User owns any RawData in the dataset
+    4. User owns any RawDataScraper in the dataset
+    """
+    if not user or not user.is_authenticated:
+        return False
+
+    if user.is_admin():
+        return True
+        
+    if dataset.uploaded_by == user.id:
+        return True
+        
+    # Lazy import to avoid circular dependency
+    from models.models import RawData, RawDataScraper
+    
+    # Check raw data ownership
+    has_data = RawData.query.filter_by(dataset_id=dataset.id, uploaded_by=user.id).first()
+    if has_data:
+        return True
+        
+    # Check scraper data ownership
+    has_scraper_data = RawDataScraper.query.filter_by(dataset_id=dataset.id, scraped_by=user.id).first()
+    if has_scraper_data:
+        return True
+        
+    return False
+
 # Load resources for text processing
 KAMUS_PATH = os.path.join(os.path.dirname(__file__), 'data', 'kamus.txt')
 SLANG_PATH = os.path.join(os.path.dirname(__file__), 'data', 'slang.csv')
@@ -888,7 +921,7 @@ def get_apify_config():
         'base_url': os.getenv('APIFY_BASE_URL', 'https://api.apify.com/v2'),
         'actors': {
             'twitter': os.getenv('APIFY_TWITTER_ACTOR', 'kaitoeasyapi/twitter-x-data-tweet-scraper-pay-per-result-cheapest'),
-            'facebook': os.getenv('APIFY_FACEBOOK_ACTOR', 'apify/facebook-scraper'),
+            'facebook': os.getenv('APIFY_FACEBOOK_ACTOR', 'powerai/facebook-post-search-scraper'),
             'instagram': os.getenv('APIFY_INSTAGRAM_ACTOR', 'apify/instagram-scraper'),
             'tiktok': os.getenv('APIFY_TIKTOK_ACTOR', 'clockworks/free-tiktok-scraper')
         },
@@ -1826,82 +1859,43 @@ def get_role_based_feedback(user, action_type, resource_owner_id=None, resource_
         Tuple (message, category, http_status)
     """
     
-    # Check language preference
-    lang = 'id'
-    try:
-        if user and user.is_authenticated:
-            lang = user.get_preferences().get('language', 'id')
-    except:
-        pass
+    # Check language preference - Disabled to enforce standard language
+    # lang = 'id'
+    # try:
+    #     if user and user.is_authenticated:
+    #         lang = user.get_preferences().get('language', 'id')
+    # except:
+    #     pass
 
-    if lang == 'en':
-        action_messages = {
-            'view': 'view',
-            'edit': 'edit',
-            'delete': 'delete',
-            'create': 'create',
-            'access': 'access'
-        }
-        action_text = action_messages.get(action_type, 'access')
-        resource_text = f' {resource_name}' if resource_name else ''
-        
-        if user.is_admin():
-            if action_type == 'access':
-                return ('Access granted as administrator', 'info', 200)
-            else:
-                return (f'Successfully {action_text} {resource_text}', 'success', 200)
-        
-        elif resource_owner_id and user.id != resource_owner_id:
-            if action_type == 'view':
-                message = f'You do not have permission to {action_text} this data. Only admin or owner can {action_text} data.'
-            else:
-                message = f'Access denied! You do not have permission to {action_text} this data.'
-            return (message, 'error', 403)
-        
-        else:
-            if action_type == 'access':
-                return ('Access granted', 'info', 200)
-            else:
-                return (f'Successfully {action_text} {resource_text}', 'success', 200)
-
-    # Default (Indonesian)
+    # Standardize to English for feedback messages as requested
     action_messages = {
-        'view': 'melihat',
-        'edit': 'mengedit',
-        'delete': 'menghapus',
-        'create': 'membuat',
-        'access': 'mengakses'
+        'view': 'view',
+        'edit': 'edit',
+        'delete': 'delete',
+        'create': 'create',
+        'access': 'access'
     }
-    
-    action_text = action_messages.get(action_type, 'mengakses')
-    
-    if resource_name:
-        resource_text = f' {resource_name}'
-    else:
-        resource_text = ''
+    action_text = action_messages.get(action_type, 'access')
+    resource_text = f' {resource_name}' if resource_name else ''
     
     if user.is_admin():
-        # Admin feedback messages
         if action_type == 'access':
-            return ('Akses diberikan sebagai administrator', 'info', 200)
+            return ('Access granted as administrator', 'info', 200)
         else:
-            return (f'Berhasil {action_text}{resource_text}', 'success', 200)
+            return (f'Successfully {action_text} {resource_text}', 'success', 200)
     
     elif resource_owner_id and user.id != resource_owner_id:
-        # User mencoba mengakses resource milik orang lain
         if action_type == 'view':
-            message = f'Anda tidak memiliki izin untuk {action_text} data ini. Hanya admin atau pemilik data yang dapat {action_text} data.'
+            message = f'You do not have permission to {action_text} this data. Only admin or owner can {action_text} data.'
         else:
-            message = f'Akses ditolak! Anda tidak memiliki izin untuk {action_text} data ini. Hanya admin atau pemilik data yang dapat {action_text} data.'
-        
+            message = f'Access denied! You do not have permission to {action_text} this data.'
         return (message, 'error', 403)
     
     else:
-        # Regular user mengakses resource milik sendiri
         if action_type == 'access':
-            return ('Akses diberikan', 'info', 200)
+            return ('Access granted', 'info', 200)
         else:
-            return (f'Berhasil {action_text}{resource_text}', 'success', 200)
+            return (f'Successfully {action_text} {resource_text}', 'success', 200)
 
 
 def api_role_based_response(user, action_type, resource_owner_id=None, resource_name=None):

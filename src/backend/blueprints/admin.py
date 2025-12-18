@@ -1,8 +1,11 @@
+import threading
+import uuid
+import time
 from flask import Blueprint, render_template, request, flash, redirect, url_for, jsonify, current_app, session
 from flask_login import login_required, current_user
 from sqlalchemy import text
 from utils.utils import admin_required
-from models.models import db, User, Dataset, RawData, RawDataScraper, ClassificationResult, DatasetStatistics, CleanDataUpload, CleanDataScraper, UserActivity, ManualClassificationHistory
+from models.models import db, User, Dataset, RawData, RawDataScraper, ClassificationResult, DatasetStatistics, CleanDataUpload, CleanDataScraper, UserActivity, ManualClassificationHistory, ClassificationBatch, TrainingRun, TrainingMetric
 from utils.training_utils import train_models
 from utils.settings_utils import save_system_settings
 import pandas as pd
@@ -13,10 +16,310 @@ import io
 import zipfile
 from datetime import datetime
 from flask import send_file
+from urllib.parse import urlparse
 
 from utils.i18n import t
 
 admin_bp = Blueprint('admin', __name__)
+
+# Global dictionary to store training tasks
+# task_id -> {status, progress, message, results, error}
+training_tasks = {}
+
+# Global dictionary to store upload tasks
+# upload_id -> {status, progress, message, error, timestamp}
+upload_tasks = {}
+
+def process_indobert_upload(upload_id, temp_dir, final_filename, user_id):
+    """Background task to process uploaded IndoBERT model"""
+    current_app.logger.info(f"Starting IndoBERT processing task: {upload_id}")
+    try:
+        if upload_id not in upload_tasks:
+            current_app.logger.error(f"Upload ID {upload_id} not found in tasks")
+            return
+
+        upload_tasks[upload_id]['status'] = 'processing'
+        upload_tasks[upload_id]['message'] = 'Assembling file chunks...'
+        upload_tasks[upload_id]['progress'] = 10
+        current_app.logger.info(f"Task {upload_id}: Assembling chunks...")
+
+        # Assemble chunks
+        assembled_file_path = os.path.join(temp_dir, final_filename)
+        
+        # Check temp dir
+        if not os.path.exists(temp_dir):
+             raise ValueError(f"Temporary directory not found: {temp_dir}")
+
+        with open(assembled_file_path, 'wb') as outfile:
+            # List parts
+            parts = sorted([f for f in os.listdir(temp_dir) if f.startswith('part_')], key=lambda x: int(x.split('_')[1]))
+            total_parts = len(parts)
+            current_app.logger.info(f"Task {upload_id}: Found {total_parts} chunks")
+            
+            if total_parts == 0:
+                raise ValueError("No file chunks found")
+
+            for i, part in enumerate(parts):
+                part_path = os.path.join(temp_dir, part)
+                with open(part_path, 'rb') as infile:
+                    outfile.write(infile.read())
+                # Update progress during assembly (10-50%)
+                if total_parts > 0:
+                    progress = 10 + int((i / total_parts) * 40)
+                    upload_tasks[upload_id]['progress'] = progress
+        
+        current_app.logger.info(f"Task {upload_id}: Assembly complete. Cleaning up chunks...")
+        
+        # Cleanup parts
+        for part in parts:
+            try:
+                os.remove(os.path.join(temp_dir, part))
+            except:
+                pass
+
+        upload_tasks[upload_id]['message'] = 'Validating ZIP file...'
+        upload_tasks[upload_id]['progress'] = 60
+
+        # Validate ZIP
+        if not zipfile.is_zipfile(assembled_file_path):
+            raise ValueError("Assembled file is not a valid ZIP")
+            
+        current_app.logger.info(f"Task {upload_id}: ZIP validation passed")
+
+        upload_tasks[upload_id]['message'] = 'Extracting model files...'
+        upload_tasks[upload_id]['progress'] = 70
+
+        # Extract
+        indobert_path = current_app.config.get('MODEL_INDOBERT_PATH')
+        current_app.logger.info(f"Task {upload_id}: Extracting to {indobert_path}")
+        
+        # Clear existing directory
+        if os.path.exists(indobert_path):
+            shutil.rmtree(indobert_path)
+        os.makedirs(indobert_path, exist_ok=True)
+        
+        with zipfile.ZipFile(assembled_file_path, 'r') as zip_ref:
+            # Progress during extraction (70-90%)
+            file_list = zip_ref.namelist()
+            total_files = len(file_list)
+            
+            # Detect root folder (if all files are in a single top-level folder)
+            root_folder = None
+            if total_files > 0:
+                first_file = file_list[0]
+                if '/' in first_file:
+                    potential_root = first_file.split('/')[0]
+                    # Check if all files start with this folder
+                    if all(f.startswith(potential_root + '/') for f in file_list if '/' in f):
+                         root_folder = potential_root
+
+            current_app.logger.info(f"Task {upload_id}: Root folder detected: {root_folder}")
+
+            for i, file_info in enumerate(zip_ref.infolist()):
+                # Skip directories
+                if file_info.is_dir():
+                    continue
+                    
+                filename = file_info.filename
+                
+                # Strip root folder if exists
+                if root_folder and filename.startswith(root_folder + '/'):
+                    target_filename = filename[len(root_folder) + 1:]
+                else:
+                    target_filename = filename
+                
+                # Skip invalid filenames (e.g. __MACOSX)
+                if target_filename.startswith('__MACOSX') or target_filename.startswith('.'):
+                    continue
+                    
+                # Construct target path
+                target_path = os.path.join(indobert_path, target_filename)
+                
+                # Ensure directory exists
+                os.makedirs(os.path.dirname(target_path), exist_ok=True)
+                
+                # Extract file
+                with zip_ref.open(filename) as source, open(target_path, "wb") as target:
+                    shutil.copyfileobj(source, target)
+
+                if i % 10 == 0 and total_files > 0:
+                     progress = 70 + int((i / total_files) * 20)
+                     upload_tasks[upload_id]['progress'] = progress
+        
+        current_app.logger.info(f"Task {upload_id}: Extraction complete")
+
+        # Final cleanup
+        try:
+            os.remove(assembled_file_path)
+            os.rmdir(temp_dir)
+        except Exception as cleanup_err:
+            current_app.logger.warning(f"Task {upload_id}: Cleanup warning: {cleanup_err}")
+            
+        # Log activity
+        try:
+            activity = UserActivity(
+                user_id=user_id,
+                action='model_update',
+                description='Updated IndoBERT model',
+                details=f'Filename: {final_filename}',
+                icon='fa-brain',
+                color='success'
+            )
+            db.session.add(activity)
+            db.session.commit()
+            current_app.logger.info(f"Task {upload_id}: Activity logged")
+        except Exception as log_err:
+            current_app.logger.error(f"Failed to log upload activity: {log_err}")
+            db.session.rollback()
+
+        upload_tasks[upload_id]['status'] = 'completed'
+        upload_tasks[upload_id]['progress'] = 100
+        upload_tasks[upload_id]['message'] = 'Model successfully installed'
+        current_app.logger.info(f"Task {upload_id}: Process completed successfully")
+        
+    except Exception as e:
+        if upload_id in upload_tasks:
+            upload_tasks[upload_id]['status'] = 'failed'
+            upload_tasks[upload_id]['error'] = str(e)
+        current_app.logger.error(f"IndoBERT upload processing failed: {e}", exc_info=True)
+        # Cleanup
+        try:
+            if os.path.exists(temp_dir):
+                shutil.rmtree(temp_dir)
+        except:
+            pass
+    finally:
+        # Ensure DB session is closed if created in thread
+        db.session.remove()
+
+@admin_bp.route('/admin/upload/init', methods=['POST'])
+@login_required
+@admin_required
+def upload_init():
+    filename = request.form.get('filename')
+    if not filename:
+        return jsonify({'error': 'Filename required'}), 400
+        
+    upload_id = str(uuid.uuid4())
+    temp_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], 'temp_chunks', upload_id)
+    os.makedirs(temp_dir, exist_ok=True)
+    
+    upload_tasks[upload_id] = {
+        'status': 'uploading',
+        'progress': 0,
+        'message': 'Upload initialized',
+        'filename': filename,
+        'temp_dir': temp_dir,
+        'timestamp': time.time()
+    }
+    
+    return jsonify({'upload_id': upload_id})
+
+@admin_bp.route('/admin/upload/chunk', methods=['POST'])
+@login_required
+@admin_required
+def upload_chunk():
+    upload_id = request.form.get('upload_id')
+    chunk_index = request.form.get('chunk_index')
+    chunk = request.files.get('chunk')
+    
+    if not upload_id or chunk_index is None or not chunk:
+        return jsonify({'error': 'Missing parameters'}), 400
+        
+    if upload_id not in upload_tasks:
+        return jsonify({'error': 'Invalid upload ID'}), 404
+        
+    task = upload_tasks[upload_id]
+    chunk_path = os.path.join(task['temp_dir'], f'part_{chunk_index}')
+    chunk.save(chunk_path)
+    
+    return jsonify({'success': True})
+
+@admin_bp.route('/admin/upload/finish', methods=['POST'])
+@login_required
+@admin_required
+def upload_finish():
+    upload_id = request.form.get('upload_id')
+    if not upload_id or upload_id not in upload_tasks:
+        return jsonify({'error': 'Invalid upload ID'}), 404
+        
+    task = upload_tasks[upload_id]
+    task['status'] = 'pending_processing'
+    
+    # Start background processing with app context
+    app = current_app._get_current_object()
+    user_id = current_user.id
+    
+    def thread_with_context(app, upload_id, temp_dir, filename, user_id):
+        try:
+            with app.app_context():
+                process_indobert_upload(upload_id, temp_dir, filename, user_id)
+        except Exception as e:
+            # Last resort catch for thread setup errors
+            if upload_id in upload_tasks:
+                upload_tasks[upload_id]['status'] = 'failed'
+                upload_tasks[upload_id]['error'] = f"Thread Error: {str(e)}"
+            app.logger.error(f"Background upload thread crashed: {e}", exc_info=True)
+            
+    thread = threading.Thread(target=thread_with_context,
+                            args=(app, upload_id, task['temp_dir'], task['filename'], user_id))
+    thread.start()
+    
+    return jsonify({'success': True})
+
+@admin_bp.route('/admin/upload/status/<upload_id>')
+@login_required
+@admin_required
+def upload_status(upload_id):
+    if upload_id not in upload_tasks:
+        return jsonify({'error': 'Not found'}), 404
+    return jsonify(upload_tasks[upload_id])
+
+
+@admin_bp.route('/admin/model/retrain/status/<task_id>')
+@login_required
+@admin_required
+def get_training_status(task_id):
+    task = training_tasks.get(task_id)
+    if not task:
+        return jsonify({'error': 'Task not found'}), 404
+    return jsonify(task)
+
+def run_training_async(app, task_id, df, word2vec_model, user_id, filename, col_text, col_label, save_models):
+    """Background task for training"""
+    with app.app_context():
+        try:
+            def progress_callback(message, percent):
+                training_tasks[task_id]['message'] = message
+                training_tasks[task_id]['progress'] = percent
+            
+            results = train_models(
+                df=df,
+                word2vec_model=word2vec_model,
+                save_models=save_models,
+                user_id=user_id,
+                filename=filename,
+                col_text=col_text,
+                col_label=col_label,
+                progress_callback=progress_callback
+            )
+            
+            training_tasks[task_id]['status'] = 'completed'
+            training_tasks[task_id]['progress'] = 100
+            training_tasks[task_id]['message'] = 'Training completed successfully!'
+            training_tasks[task_id]['results'] = results
+            
+            # If temp training (save_models=False), store needed data in task for retrieval
+            if not save_models:
+                 # We need to persist filename etc to session later when user confirms
+                 # But we can't write to session from thread.
+                 # The frontend will have to resend or we assume filename is valid.
+                 pass
+            
+        except Exception as e:
+            training_tasks[task_id]['status'] = 'error'
+            training_tasks[task_id]['error'] = str(e)
+            current_app.logger.error(f"Async training error: {e}")
 
 @admin_bp.route('/admin')
 @admin_bp.route('/admin/users')
@@ -40,6 +343,65 @@ def user_management():
                           active_users=active_users,
                           admin_users=admin_users,
                           inactive_users=inactive_users)
+
+@admin_bp.route('/admin/model/retrain/delete/<int:run_id>')
+@login_required
+@admin_required
+def delete_training_run(run_id):
+    """Delete a training run and its associated metrics"""
+    try:
+        run = TrainingRun.query.get_or_404(run_id)
+        db.session.delete(run)
+        db.session.commit()
+        flash(f'Training run from {run.finished_at.strftime("%Y-%m-%d")} successfully deleted', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Failed to delete training run: {str(e)}', 'error')
+        current_app.logger.error(f"Delete training run error: {e}")
+    return redirect(url_for('admin.retrain_model'))
+
+@admin_bp.route('/admin/model/retrain/export/<int:run_id>')
+@login_required
+@admin_required
+def export_training_run(run_id):
+    run = TrainingRun.query.get_or_404(run_id)
+    
+    # Prepare data for CSV
+    data = []
+    for metric in run.metrics:
+        # Base metrics
+        row = {
+            'Model': metric.model_name,
+            'Accuracy': metric.accuracy,
+            'Precision (Weighted)': metric.precision,
+            'Recall (Weighted)': metric.recall,
+            'F1-Score (Weighted)': metric.f1
+        }
+        
+        # Add per-class details if available
+        if metric.detail_metrics:
+            details = metric.detail_metrics
+            for cls in ['radikal', 'non-radikal']:
+                if cls in details:
+                    row[f'Precision {cls}'] = details[cls].get('precision')
+                    row[f'Recall {cls}'] = details[cls].get('recall')
+                    row[f'F1 {cls}'] = details[cls].get('f1-score')
+        
+        data.append(row)
+        
+    df = pd.DataFrame(data)
+    
+    # Export to CSV
+    output = io.BytesIO()
+    df.to_csv(output, index=False)
+    output.seek(0)
+    
+    return send_file(
+        output,
+        mimetype='text/csv',
+        as_attachment=True,
+        download_name=f'training_results_{run_id}_{run.finished_at.strftime("%Y%m%d")}.csv'
+    )
 
 @admin_bp.route('/admin/classification/settings', methods=['GET', 'POST'])
 @login_required
@@ -173,150 +535,310 @@ def classification_settings():
     
     return render_template('admin/classification_settings.html', config=config, all_models=all_models)
 
+@admin_bp.route('/admin/model/retrain/history/delete', methods=['POST'])
+@login_required
+@admin_required
+def delete_retrain_history():
+    """Delete all training history"""
+    try:
+        # Import models inside function to ensure availability
+        from models.models import TrainingMetric, TrainingRun
+        
+        # Delete metrics first (FK dependency)
+        TrainingMetric.query.delete()
+        
+        # Delete runs
+        TrainingRun.query.delete()
+        
+        # Reset sequences
+        for table in ['training_metrics', 'training_runs']:
+            try:
+                db.session.execute(text(f"ALTER SEQUENCE {table}_id_seq RESTART WITH 1"))
+            except:
+                pass
+                
+        db.session.commit()
+        flash('Training history cleared successfully', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Failed to clear history: {str(e)}', 'error')
+        
+    return redirect(url_for('admin.retrain_model'))
+
+@admin_bp.route('/admin/model/retrain/finish/<task_id>')
+@login_required
+@admin_required
+def retrain_finish(task_id):
+    """Handle completion of async training"""
+    task = training_tasks.get(task_id)
+    if not task or task['status'] != 'completed':
+        flash('Training task not found or not completed', 'error')
+        return redirect(url_for('admin.retrain_model'))
+    
+    # Store results in session as expected by existing logic
+    results = task['results']
+    # Retrieve metadata stored in task (we need to add this to run_training_async)
+    # Wait, I didn't store metadata in task yet. Let's rely on what we passed.
+    
+    # We need to pass filename etc back to session
+    # Let's store it in task['metadata'] in the async starter
+    meta = task.get('metadata', {})
+    
+    session['training_results'] = results
+    session['training_filename'] = meta.get('filename')
+    session['training_col_text'] = meta.get('col_text')
+    session['training_col_label'] = meta.get('col_label')
+    
+    # Clean up task (optional, or expire later)
+    # training_tasks.pop(task_id, None) 
+    
+    # Fetch training history
+    history = TrainingRun.query.filter_by(is_applied=True).order_by(TrainingRun.finished_at.desc()).limit(20).all()
+    
+    # Format history for template
+    formatted_history = []
+    for run in history:
+        metrics_dict = {}
+        for metric in run.metrics:
+            metrics_dict[metric.model_name] = {
+                'accuracy': metric.accuracy,
+                'precision': metric.precision,
+                'recall': metric.recall,
+                'f1': metric.f1,
+                'detail_metrics': metric.detail_metrics,
+                'confusion_matrix': metric.confusion_matrix
+            }
+        
+        formatted_history.append({
+            'id': run.id,
+            'date': run.finished_at.strftime('%Y-%m-%d %H:%M:%S'),
+            'filename': run.filename,
+            'metrics': metrics_dict
+        })
+    
+    return render_template('admin/retrain.html', 
+                          results=results, 
+                          temp_mode=True, 
+                          mapping_mode=False, 
+                          last_results=formatted_history)
+
+def handle_train_request(is_ajax):
+    """Handle training initiation logic"""
+    filename = request.form.get('filename')
+    col_text = request.form.get('col_text')
+    col_label = request.form.get('col_label')
+    
+    if not filename or not col_text or not col_label:
+        msg = 'Please complete the training form'
+        if is_ajax: return jsonify({'error': msg}), 400
+        flash(msg, 'error')
+        return redirect(url_for('admin.retrain_model'))
+    
+    temp_path = os.path.join(current_app.config['UPLOAD_FOLDER'], 'temp', filename)
+    if not os.path.exists(temp_path):
+        msg = 'Dataset file not found. Please upload again.'
+        if is_ajax: return jsonify({'error': msg}), 400
+        flash(msg, 'error')
+        return redirect(url_for('admin.retrain_model'))
+    
+    try:
+        df = pd.read_csv(temp_path)
+        
+        # Dedupe columns
+        df = df.loc[:, ~df.columns.duplicated()]
+        
+        # Column mapping logic
+        if 'normalisasi_kalimat' in df.columns and col_text != 'normalisasi_kalimat':
+            df = df.drop(columns=['normalisasi_kalimat'])
+            
+        if 'label' in df.columns and col_label != 'label':
+            df = df.drop(columns=['label'])
+        
+        df = df.rename(columns={
+            col_text: 'normalisasi_kalimat',
+            col_label: 'label'
+        })
+        
+        # Validate after rename
+        if 'normalisasi_kalimat' not in df.columns or 'label' not in df.columns:
+             raise ValueError(f"Renaming failed. Columns expected: 'normalisasi_kalimat', 'label'. Found: {list(df.columns)}")
+        
+        # Check Word2Vec
+        word2vec_model = current_app.config.get('WORD2VEC_MODEL')
+        if not word2vec_model:
+            msg = 'Word2Vec model not loaded. Please restart application.'
+            if is_ajax: return jsonify({'error': msg}), 400
+            flash(msg, 'error')
+            return redirect(url_for('admin.retrain_model'))
+        
+        # Start Async Training
+        task_id = str(uuid.uuid4())
+        training_tasks[task_id] = {
+            'status': 'running',
+            'progress': 0,
+            'message': 'Initializing training...',
+            'metadata': {
+                'filename': filename,
+                'col_text': col_text,
+                'col_label': col_label
+            }
+        }
+        
+        app = current_app._get_current_object()
+        
+        thread = threading.Thread(target=run_training_async, args=(
+            app, task_id, df, word2vec_model, current_user.id, filename, 'normalisasi_kalimat', 'label', False
+        ))
+        thread.start()
+        
+        if is_ajax:
+            return jsonify({'task_id': task_id, 'status': 'started'})
+        else:
+            flash('Training started in background...', 'info')
+            return render_template('admin/retrain_loading.html', task_id=task_id)
+                              
+    except Exception as e:
+        msg = f'Training failed: {str(e)}'
+        if is_ajax: return jsonify({'error': msg}), 500
+        flash(msg, 'error')
+        current_app.logger.error(f"Training error: {e}")
+        return redirect(url_for('admin.retrain_model'))
+
+def handle_confirm_replace():
+    """Handle confirmation and model replacement logic"""
+    filename = session.get('training_filename')
+    col_text = session.get('training_col_text')
+    col_label = session.get('training_col_label')
+    
+    if not filename:
+        flash('Training session expired. Please repeat.', 'error')
+        return redirect(url_for('admin.retrain_model'))
+        
+    temp_path = os.path.join(current_app.config['UPLOAD_FOLDER'], 'temp', filename)
+    
+    try:
+        df = pd.read_csv(temp_path)
+        df = df.loc[:, ~df.columns.duplicated()]
+        
+        if 'normalisasi_kalimat' in df.columns and col_text != 'normalisasi_kalimat':
+            df = df.drop(columns=['normalisasi_kalimat'])
+            
+        if 'label' in df.columns and col_label != 'label':
+            df = df.drop(columns=['label'])
+            
+        df = df.rename(columns={
+            col_text: 'normalisasi_kalimat',
+            col_label: 'label'
+        })
+        
+        if 'normalisasi_kalimat' not in df.columns or 'label' not in df.columns:
+             raise ValueError(f"Renaming failed. Columns expected: 'normalisasi_kalimat', 'label'. Found: {list(df.columns)}")
+        
+        word2vec_model = current_app.config.get('WORD2VEC_MODEL')
+        user_id = current_user.id
+        
+        # Perform training using the STANDARDIZED column names
+        # We renamed the columns in the dataframe to 'normalisasi_kalimat' and 'label' above
+        results = train_models(df, word2vec_model, save_models=True, user_id=user_id, filename=filename, col_text='normalisasi_kalimat', col_label='label')
+        
+        flash('Model successfully retrained and deployed to production!', 'success')
+        
+        # Clear session
+        session.pop('training_results', None)
+        session.pop('training_filename', None)
+        session.pop('training_col_text', None)
+        session.pop('training_col_label', None)
+        
+        try:
+            os.remove(temp_path)
+        except:
+            pass
+            
+    except Exception as e:
+        flash(f'Failed to save model: {str(e)}', 'error')
+    
+    return redirect(url_for('admin.retrain_model'))
+
+def handle_file_upload():
+    """Handle CSV file upload logic"""
+    file = request.files['file']
+    if file.filename == '':
+        flash('No file selected', 'error')
+        return redirect(url_for('admin.retrain_model'))
+        
+    if file and file.filename.endswith('.csv'):
+        try:
+            temp_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], 'temp')
+            os.makedirs(temp_dir, exist_ok=True)
+            
+            filename = f"train_{int(pd.Timestamp.now().timestamp())}_{file.filename}"
+            file_path = os.path.join(temp_dir, filename)
+            file.save(file_path)
+            
+            df = pd.read_csv(file_path)
+            headers = df.columns.tolist()
+            
+            return render_template('admin/retrain.html',
+                                  results=None,
+                                  temp_mode=False,
+                                  mapping_mode=True,
+                                  filename=filename,
+                                  headers=headers,
+                                  last_results={})
+        except Exception as e:
+            flash(f'Error reading file: {str(e)}', 'error')
+            return redirect(url_for('admin.retrain_model'))
+    else:
+        flash('Only CSV files are allowed', 'error')
+        return redirect(url_for('admin.retrain_model'))
+
 @admin_bp.route('/admin/model/retrain', methods=['GET', 'POST'])
 @login_required
 @admin_required
 def retrain_model():
-    """Halaman retrain model"""
+    """Halaman retrain model - Refactored for better modularity"""
     if request.method == 'POST':
         action = request.form.get('action')
+        # Debug logging
+        is_ajax_check = request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.args.get('ajax')
+        current_app.logger.info(f"Retrain POST: action={action}, ajax={is_ajax_check}, headers={request.headers.get('X-Requested-With')}, args={request.args}")
         
         if action == 'train':
-            # Handle training logic
-            # 1. Get dataset
-            filename = request.form.get('filename')
-            col_text = request.form.get('col_text')
-            col_label = request.form.get('col_label')
-            
-            if not filename or not col_text or not col_label:
-                flash('Please complete the training form', 'error')
-                return redirect(url_for('admin.retrain_model'))
-            
-            temp_path = os.path.join(current_app.config['UPLOAD_FOLDER'], 'temp', filename)
-            if not os.path.exists(temp_path):
-                flash('Dataset file not found. Please upload again.', 'error')
-                return redirect(url_for('admin.retrain_model'))
-            
-            try:
-                df = pd.read_csv(temp_path)
-                
-                # Rename columns to match expected format
-                df = df.rename(columns={
-                    col_text: 'normalisasi_kalimat',
-                    col_label: 'label'
-                })
-                
-                # Train models
-                word2vec_model = current_app.config.get('WORD2VEC_MODEL')
-                if not word2vec_model:
-                    flash('Word2Vec model not loaded. Please restart application.', 'error')
-                    return redirect(url_for('admin.retrain_model'))
-                    
-                results = train_models(df, word2vec_model, save_models=False)
-                
-                # Store results in session for confirmation
-                session['training_results'] = results
-                session['training_filename'] = filename
-                session['training_col_text'] = col_text
-                session['training_col_label'] = col_label
-                
-                return render_template('admin/retrain.html', 
-                                      results=results, 
-                                      temp_mode=True, 
-                                      mapping_mode=False, 
-                                      last_results={})
-                                      
-            except Exception as e:
-                flash(f'Training failed: {str(e)}', 'error')
-                current_app.logger.error(f"Training error: {e}")
-                return redirect(url_for('admin.retrain_model'))
-
+            return handle_train_request(is_ajax_check)
         elif action == 'confirm_replace':
-            # Re-run training with save_models=True
-            filename = session.get('training_filename')
-            col_text = session.get('training_col_text')
-            col_label = session.get('training_col_label')
-            
-            if not filename:
-                flash('Training session expired. Please repeat.', 'error')
-                return redirect(url_for('admin.retrain_model'))
-                
-            temp_path = os.path.join(current_app.config['UPLOAD_FOLDER'], 'temp', filename)
-            
-            try:
-                df = pd.read_csv(temp_path)
-                df = df.rename(columns={
-                    col_text: 'normalisasi_kalimat',
-                    col_label: 'label'
-                })
-                
-                word2vec_model = current_app.config.get('WORD2VEC_MODEL')
-                
-                # Use user_id for logging history
-                user_id = current_user.id
-                
-                # Perform training
-                results = train_models(df, word2vec_model, save_models=True, user_id=user_id, filename=filename, col_text=col_text, col_label=col_label)
-                
-                flash('Model successfully retrained and deployed to production!', 'success')
-                
-                # Clear session
-                session.pop('training_results', None)
-                session.pop('training_filename', None)
-                session.pop('training_col_text', None)
-                session.pop('training_col_label', None)
-                
-                # Clean up temp file
-                try:
-                    os.remove(temp_path)
-                except:
-                    pass
-                    
-            except Exception as e:
-                flash(f'Failed to save model: {str(e)}', 'error')
-            
-            return redirect(url_for('admin.retrain_model'))
-            
+            return handle_confirm_replace()
         elif 'file' in request.files:
-            # Handle file upload
-            file = request.files['file']
-            if file.filename == '':
-                flash('No file selected', 'error')
-                return redirect(url_for('admin.retrain_model'))
-                
-            if file and file.filename.endswith('.csv'):
-                try:
-                    # Save to temp
-                    temp_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], 'temp')
-                    os.makedirs(temp_dir, exist_ok=True)
-                    
-                    filename = f"train_{int(pd.Timestamp.now().timestamp())}_{file.filename}"
-                    file_path = os.path.join(temp_dir, filename)
-                    file.save(file_path)
-                    
-                    # Read headers
-                    df = pd.read_csv(file_path)
-                    headers = df.columns.tolist()
-                    
-                    return render_template('admin/retrain.html',
-                                          results=None,
-                                          temp_mode=False,
-                                          mapping_mode=True,
-                                          filename=filename,
-                                          headers=headers,
-                                          last_results={})
-                except Exception as e:
-                    flash(f'Error reading file: {str(e)}', 'error')
-                    return redirect(url_for('admin.retrain_model'))
-            else:
-                flash('Only CSV files are allowed', 'error')
-                return redirect(url_for('admin.retrain_model'))
+            return handle_file_upload()
+
+    # Fetch training history
+    history = TrainingRun.query.filter_by(is_applied=True).order_by(TrainingRun.finished_at.desc()).limit(20).all()
+    
+    # Format history for template
+    formatted_history = []
+    for run in history:
+        metrics_dict = {}
+        for metric in run.metrics:
+            metrics_dict[metric.model_name] = {
+                'accuracy': metric.accuracy,
+                'precision': metric.precision,
+                'recall': metric.recall,
+                'f1': metric.f1,
+                'detail_metrics': metric.detail_metrics,
+                'confusion_matrix': metric.confusion_matrix
+            }
+        
+        formatted_history.append({
+            'id': run.id,
+            'date': run.finished_at.strftime('%Y-%m-%d %H:%M:%S'),
+            'filename': run.filename,
+            'metrics': metrics_dict
+        })
 
     return render_template('admin/retrain.html', 
                           results=None, 
                           temp_mode=False, 
                           mapping_mode=False, 
-                          last_results={})
+                          last_results=formatted_history)
 
 @admin_bp.route('/admin/database', methods=['GET'])
 @login_required
@@ -361,18 +883,13 @@ def database_backup():
         # Parse DB URL for pg_dump (if needed, but pg_dump handles connection strings)
         # However, subprocess environment might need PGPASSWORD
         
-        # Simple parsing of connection string to get password
-        # postgresql://user:password@host:port/dbname
+        # Parse database URL for robust parameter extraction
+        parsed = urlparse(db_url)
+        
+        # Setup env for password and other connection params
         env = os.environ.copy()
-        if 'PGPASSWORD' not in env and ':' in db_url and '@' in db_url:
-            try:
-                # Extract password roughly
-                part1 = db_url.split('@')[0]
-                if ':' in part1:
-                    password = part1.split(':')[-1]
-                    env['PGPASSWORD'] = password
-            except:
-                pass
+        env['PGPASSWORD'] = parsed.password or ''
+        # pg_dump can take connection string, but setting PGPASSWORD is safer for some versions
         
         command = f'pg_dump "{db_url}" --clean --if-exists --no-owner --no-acl'
         
@@ -435,34 +952,84 @@ def database_restore():
             # Get database URL
             db_url = current_app.config['SQLALCHEMY_DATABASE_URI']
             
-            # Setup env for password
+            # Parse database URL for robust parameter extraction
+            parsed = urlparse(db_url)
+            
+            # Setup env for password and other connection params
             env = os.environ.copy()
-            if 'PGPASSWORD' not in env and ':' in db_url and '@' in db_url:
-                try:
-                    part1 = db_url.split('@')[0]
-                    if ':' in part1:
-                        password = part1.split(':')[-1]
-                        env['PGPASSWORD'] = password
-                except:
-                    pass
+            env['PGPASSWORD'] = parsed.password or ''
+            env['PGUSER'] = parsed.username or 'postgres'
+            env['PGHOST'] = parsed.hostname or 'localhost'
+            env['PGPORT'] = str(parsed.port or 5432)
+            # Remove leading slash from path for database name
+            db_name = parsed.path.lstrip('/')
+            env['PGDATABASE'] = db_name
+            
+            # Ensure psql doesn't prompt for password and fails fast
+            env['PGCONNECT_TIMEOUT'] = '10'
 
-            # Command to restore
-            # psql "db_url" < file.sql
-            # Note: on Windows shell=True with < redirection can be tricky.
-            # Better to use stdin of Popen
+            # Terminate other connections to the database to prevent deadlocks
+            # WARNING: This kills all other sessions, including the web app's own pool if shared
+            try:
+                # Close current session to release its own connection
+                db.session.remove()
+                
+                # Kill other connections using a separate psql command or SQLAlchemy
+                # Using subprocess psql to avoid transaction block issues in current session
+                kill_cmd = [
+                    'psql',
+                    '-h', parsed.hostname or 'localhost',
+                    '-p', str(parsed.port or 5432),
+                    '-U', parsed.username or 'postgres',
+                    '-d', 'postgres', # Connect to 'postgres' db to kill connections to target db
+                    '-c', f"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '{db_name}' AND pid <> pg_backend_pid();"
+                ]
+                
+                # We need to set PGPASSWORD for this command too
+                kill_env = env.copy()
+                
+                current_app.logger.info(f"Terminating active connections to {db_name}...")
+                subprocess.run(kill_cmd, env=kill_env, check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                
+            except Exception as kill_err:
+                current_app.logger.warning(f"Failed to kill existing connections: {kill_err}")
+
+            # Command to restore using psql directly with file argument
+            # This avoids shell=True and stdin piping issues on Windows which can cause slowness/hanging
+            host = parsed.hostname or 'localhost'
+            port = str(parsed.port or 5432)
+            user = parsed.username or 'postgres'
             
-            command = f'psql "{db_url}"'
+            # Prepare command as list for safety and direct execution
+            command = [
+                'psql',
+                '-h', host,
+                '-p', port,
+                '-U', user,
+                '-d', db_name,
+                '-v', 'ON_ERROR_STOP=1',
+                '-w',  # Never prompt for password
+                '-f', temp_path
+            ]
             
-            with open(temp_path, 'r') as f:
-                process = subprocess.Popen(
-                    command,
-                    shell=True,
-                    stdin=f,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    env=env
-                )
+            current_app.logger.info(f"Starting database restore for {db_name} using file: {temp_path}")
+            
+            process = subprocess.Popen(
+                command,
+                shell=False, # Safer and avoids shell injection/parsing issues
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                env=env
+            )
+            
+            try:
+                # Add timeout (e.g., 10 minutes for large dumps)
+                stdout, stderr = process.communicate(timeout=600)
+            except subprocess.TimeoutExpired:
+                process.kill()
                 stdout, stderr = process.communicate()
+                current_app.logger.error("Restore process timed out")
+                raise Exception("Restore process timed out after 10 minutes")
             
             # Clean up
             try:
@@ -471,10 +1038,12 @@ def database_restore():
                 pass
                 
             if process.returncode != 0:
-                current_app.logger.error(f"Restore failed: {stderr.decode('utf-8')}")
-                raise Exception(f"Restore process failed: {stderr.decode('utf-8')}")
+                stderr_output = stderr.decode('utf-8')
+                current_app.logger.error(f"Restore failed: {stderr_output}")
+                raise Exception(f"Restore process failed: {stderr_output}")
                 
             flash('Database successfully restored from SQL', 'success')
+            current_app.logger.info("Database restore completed successfully")
             
         except Exception as e:
             flash(f"Failed to restore SQL: {str(e)}", 'error')
@@ -486,29 +1055,63 @@ def database_restore():
 @login_required
 @admin_required
 def logs_backup():
-    """Backup logs"""
+    """Backup logs (ZIP)"""
     try:
-        # Helper to serialize query results
-        def serialize_query(query_results):
-            return [{c.name: getattr(item, c.name).isoformat() if hasattr(getattr(item, c.name), 'isoformat') else getattr(item, c.name) 
-                     for c in item.__table__.columns} for item in query_results]
+        # Define logs directory
+        # Assuming logs are at project root/logs or similar. 
+        # Adjust path as necessary. Based on previous context, logs might be at ../../../logs from here or absolute path.
+        # Ideally, use configuration or relative path from app root.
+        
+        # Safe way to find logs dir:
+        # 1. Try Config if available
+        # 2. Fallback to common locations
+        
+        log_dir = current_app.config.get('LOG_FOLDER')
+        if not log_dir:
+             # Fallback: backend/../../logs -> project_root/logs
+             basedir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+             log_dir = os.path.join(basedir, 'logs')
+        
+        if not os.path.exists(log_dir):
+            flash('Logs directory not found', 'error')
+            return redirect(url_for('admin.database_management'))
 
-        data = serialize_query(UserActivity.query.all())
-
+        # Create in-memory zip
         mem = io.BytesIO()
-        mem.write(json.dumps(data, indent=2).encode('utf-8'))
-        mem.seek(0)
+        with zipfile.ZipFile(mem, 'w', zipfile.ZIP_DEFLATED) as zf:
+            # Add specific log files
+            target_logs = ['app.log', 'security.log', 'audit.log']
+            found_any = False
+            
+            for log_file in target_logs:
+                file_path = os.path.join(log_dir, log_file)
+                if os.path.exists(file_path):
+                    # Add to zip with simple name
+                    zf.write(file_path, arcname=log_file)
+                    found_any = True
+            
+            # Also try to add any other .log files if specific ones aren't enough
+            if not found_any:
+                 for root, dirs, files in os.walk(log_dir):
+                    for file in files:
+                        if file.endswith('.log'):
+                            zf.write(os.path.join(root, file), arcname=file)
+                            found_any = True
 
-        filename = f"backup_logs_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        mem.seek(0)
+        
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f"waskita_logs_{timestamp}.zip"
         
         return send_file(
             mem,
             as_attachment=True,
             download_name=filename,
-            mimetype='application/json'
+            mimetype='application/zip'
         )
     except Exception as e:
         flash(f'Failed to backup logs: {str(e)}', 'error')
+        current_app.logger.error(f"Log backup error: {e}")
         return redirect(url_for('admin.database_management'))
 
 @admin_bp.route('/admin/logs/reset', methods=['POST'])
@@ -541,40 +1144,69 @@ def database_reset():
         # Delete all data from tables (except User)
         # Order matters due to foreign keys
         
-        # 1. Delete classification results
+        # 1. Delete training metrics (must be before TrainingRun)
+        try:
+            from models.models import TrainingMetric
+            TrainingMetric.query.delete()
+        except:
+            pass # Maybe model not imported or table not exists
+            
+        # 2. Delete training runs
+        try:
+            TrainingRun.query.delete()
+        except:
+            pass
+            
+        # 3. Delete classification results
         ClassificationResult.query.delete()
         
-        # 2. Delete clean data
+        # 4. Delete clean data
         CleanDataUpload.query.delete()
         CleanDataScraper.query.delete()
         
-        # 3. Delete raw data
+        # 5. Delete raw data
         RawData.query.delete()
         RawDataScraper.query.delete()
         
-        # 4. Delete datasets
+        # 6. Delete classification batches (must be before datasets)
+        ClassificationBatch.query.delete()
+        
+        # 7. Delete datasets
         Dataset.query.delete()
         
-        # 5. Delete user activities (optional, but good for full reset)
+        # 8. Delete user activities (optional, but good for full reset)
         UserActivity.query.delete()
 
-        # 6. Delete manual history
+        # 9. Delete manual history
         ManualClassificationHistory.query.delete()
+
+        # 10. Delete OTP Registration History
+        try:
+            from models.models_otp import RegistrationRequest, AdminNotification, OTPEmailLog
+            # Delete dependent tables first
+            AdminNotification.query.delete()
+            OTPEmailLog.query.delete()
+            # Delete main table
+            RegistrationRequest.query.delete()
+        except Exception as e:
+            current_app.logger.error(f"Error resetting OTP tables: {e}")
         
-        # 7. Reset statistics
+        # 11. Reset statistics
         DatasetStatistics.query.delete()
             
         # Reset sequences
         tables = [
             'classification_results', 'clean_data_upload', 'clean_data_scraper',
-            'raw_data', 'raw_data_scraper', 'datasets', 'user_activities',
-            'dataset_statistics', 'manual_classification_history'
+            'raw_data', 'raw_data_scraper', 'classification_batches', 'datasets', 'user_activities',
+            'dataset_statistics', 'manual_classification_history', 'training_runs', 'training_metrics',
+            'registration_requests', 'admin_notifications', 'otp_email_logs'
         ]
         
         for table in tables:
             try:
                 db.session.execute(text(f"ALTER SEQUENCE {table}_id_seq RESTART WITH 1"))
             except Exception as seq_err:
+                 # Sequence might not exist or name might be different, log but continue
                  current_app.logger.warning(f"Could not reset sequence for {table}: {seq_err}")
 
         db.session.commit()

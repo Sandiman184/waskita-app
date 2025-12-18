@@ -2,6 +2,18 @@
 
 {% block title %}Registration History{% endblock %}
 
+{% block page_title %}
+    Registration History
+{% endblock page_title %}
+
+{% block breadcrumb %}
+    <li class="breadcrumb-item">
+        <a href="{{ url_for("main.dashboard") }}">Home</a>
+    </li>
+    <li class="breadcrumb-item">Admin Panel</li>
+    <li class="breadcrumb-item active">Registration History</li>
+{% endblock breadcrumb %}
+
 {% block extra_css %}
 <style>
 /* Consistent Table Styling */
@@ -100,8 +112,8 @@
 }
 
 .action-buttons .btn {
-    padding: 6px 10px;
-    font-size: 12px;
+    padding: 4px 8px; /* Compact for table actions */
+    font-size: 11px;
     border-radius: 4px;
     transition: all 0.2s ease;
     border: none;
@@ -110,6 +122,18 @@
 .action-buttons .btn:hover {
     transform: translateY(-1px);
     box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+
+/* Standardized Button Sizes */
+.btn:not(.btn-lg):not(.btn-sm) {
+    padding: 6px 12px;
+    font-size: 12px;
+    border-radius: 4px;
+}
+
+.btn-sm {
+    padding: 4px 8px;
+    font-size: 11px;
 }
 
 /* Card header styling */
@@ -283,26 +307,6 @@ body.dark-mode .small-box .icon {
 {% endblock %}
 
 {% block content %}
-<!-- Content Header (Page header) -->
-<div class="content-header">
-    <div class="container-fluid">
-        <div class="row mb-2">
-            <div class="col-sm-6">
-                <h1 class="m-0">
-                    <i class="fas fa-history mr-2"></i>
-                    Registration History
-                </h1>
-            </div>
-            <div class="col-sm-6">
-                <ol class="breadcrumb float-sm-right">
-                    <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">Home</a></li>
-                    <li class="breadcrumb-item active">Registration History</li>
-                </ol>
-            </div>
-        </div>
-    </div>
-</div>
-
 <!-- Main content -->
 <div class="content">
     <div class="container-fluid">

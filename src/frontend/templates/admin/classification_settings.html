@@ -9,6 +9,7 @@
     <li class="breadcrumb-item">
         <a href="{{ url_for("main.dashboard") }}">Home</a>
     </li>
+    <li class="breadcrumb-item">Admin Panel</li>
     <li class="breadcrumb-item active">AI Model Management</li>
 {% endblock breadcrumb %}
 {% block extra_css %}
@@ -19,7 +20,18 @@
     .form-group label { font-size: 0.95rem !important; font-weight: 500; }
     .custom-control-label { font-size: 0.9rem !important; }
     .form-text.text-muted { font-size: 0.85rem !important; }
-    .btn { font-size: 0.9rem !important; font-weight: 500; }
+    
+    /* Button Consistency */
+    .btn { 
+        padding: 6px 12px !important;
+        font-size: 12px !important;
+        font-weight: 500;
+        border-radius: 4px !important;
+    }
+    .btn-xs {
+        padding: 2px 6px !important;
+        font-size: 11px !important;
+    }
     
     /* Table Fonts */
     .table th { font-size: 0.9rem !important; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
@@ -159,18 +171,25 @@
                                     </div>
                                     <div class="card-body">
                                         <p class="text-muted small">Upload a .zip file containing the complete IndoBERT model (config.json, pytorch_model.bin, etc). The system will extract it automatically.</p>
-                                        <form method="POST" action="{{ url_for('admin.classification_settings') }}" enctype="multipart/form-data">
-                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                            <input type="hidden" name="action" value="upload_model">
-                                            <input type="hidden" name="model_type" value="indobert">
+                                        <div id="indobert-upload-ui">
                                             <div class="form-group">
                                                 <div class="custom-file">
-                                                    <input type="file" class="custom-file-input" id="indobertFile" name="model_file" accept=".zip" required>
-                                                    <label class="custom-file-label" for="indobertFile">Choose .zip file</label>
+                                                    <input type="file" class="custom-file-input" id="indobertChunkFile" accept=".zip">
+                                                    <label class="custom-file-label" for="indobertChunkFile">Choose .zip file (Max 1GB)</label>
                                                 </div>
                                             </div>
-                                            <button type="submit" class="btn btn-info btn-block"><i class="fas fa-upload mr-1"></i> Replace IndoBERT</button>
-                                        </form>
+                                            
+                                            <div id="upload-progress-container" style="display: none;">
+                                                <div class="progress mb-2">
+                                                    <div id="upload-progress-bar" class="progress-bar bg-info progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%">0%</div>
+                                                </div>
+                                                <small id="upload-status-text" class="text-muted">Preparing...</small>
+                                            </div>
+
+                                            <button type="button" id="btn-upload-indobert" class="btn btn-info btn-block mt-3">
+                                                <i class="fas fa-upload mr-1"></i> Start Upload (Chunked)
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -295,6 +314,147 @@
                     text: 'Please select at least one algorithm to use.',
                     confirmButtonText: 'OK',
                     confirmButtonColor: '#d33'
+                });
+            }
+        });
+
+        // Chunked Upload Logic
+        $('#indobertChunkFile').on('change', function() {
+            var fileName = $(this).val().split('\\').pop();
+            $(this).next('.custom-file-label').addClass("selected").html(fileName);
+        });
+
+        $('#btn-upload-indobert').on('click', function() {
+            var fileInput = document.getElementById('indobertChunkFile');
+            var file = fileInput.files[0];
+            
+            if (!file) {
+                Swal.fire('Error', 'Please select a file first', 'error');
+                return;
+            }
+            
+            if (!file.name.endsWith('.zip')) {
+                Swal.fire('Error', 'File must be a .zip archive', 'error');
+                return;
+            }
+
+            // Disable button
+            $(this).prop('disabled', true);
+            $('#upload-progress-container').show();
+            
+            // Chunk settings
+            var chunkSize = 2 * 1024 * 1024; // 2MB chunks
+            var totalChunks = Math.ceil(file.size / chunkSize);
+            var currentChunk = 0;
+            var uploadId = null;
+
+            function updateProgress(percent, message) {
+                $('#upload-progress-bar').css('width', percent + '%').text(Math.round(percent) + '%');
+                if (message) $('#upload-status-text').text(message);
+            }
+
+            function resetUpload() {
+                $('#btn-upload-indobert').prop('disabled', false);
+                $('#upload-progress-container').hide();
+                updateProgress(0, '');
+            }
+
+            // 1. Init Upload
+            $.ajax({
+                url: "{{ url_for('admin.upload_init') }}",
+                type: 'POST',
+                data: {
+                    filename: file.name,
+                    csrf_token: "{{ csrf_token() }}"
+                },
+                success: function(response) {
+                    uploadId = response.upload_id;
+                    uploadNextChunk();
+                },
+                error: function() {
+                    Swal.fire('Error', 'Failed to initialize upload', 'error');
+                    resetUpload();
+                }
+            });
+
+            function uploadNextChunk() {
+                var start = currentChunk * chunkSize;
+                var end = Math.min(start + chunkSize, file.size);
+                var chunk = file.slice(start, end);
+                
+                var formData = new FormData();
+                formData.append('upload_id', uploadId);
+                formData.append('chunk_index', currentChunk);
+                formData.append('chunk', chunk);
+                formData.append('csrf_token', "{{ csrf_token() }}");
+
+                $.ajax({
+                    url: "{{ url_for('admin.upload_chunk') }}",
+                    type: 'POST',
+                    data: formData,
+                    processData: false,
+                    contentType: false,
+                    success: function() {
+                        currentChunk++;
+                        var percent = (currentChunk / totalChunks) * 50; // Upload is 50% of process
+                        updateProgress(percent, 'Uploading chunk ' + currentChunk + ' of ' + totalChunks);
+                        
+                        if (currentChunk < totalChunks) {
+                            uploadNextChunk();
+                        } else {
+                            finishUpload();
+                        }
+                    },
+                    error: function() {
+                        Swal.fire('Error', 'Upload failed at chunk ' + currentChunk, 'error');
+                        resetUpload();
+                    }
+                });
+            }
+
+            function finishUpload() {
+                updateProgress(50, 'Assembling and verifying...');
+                
+                $.ajax({
+                    url: "{{ url_for('admin.upload_finish') }}",
+                    type: 'POST',
+                    data: {
+                        upload_id: uploadId,
+                        csrf_token: "{{ csrf_token() }}"
+                    },
+                    success: function() {
+                        pollStatus();
+                    },
+                    error: function() {
+                        Swal.fire('Error', 'Failed to finish upload', 'error');
+                        resetUpload();
+                    }
+                });
+            }
+
+            function pollStatus() {
+                $.ajax({
+                    url: "{{ url_for('admin.upload_status', upload_id='') }}" + uploadId,
+                    type: 'GET',
+                    success: function(data) {
+                        if (data.status === 'completed') {
+                            updateProgress(100, 'Completed!');
+                            Swal.fire('Success', 'IndoBERT model updated successfully!', 'success')
+                                .then(() => window.location.reload());
+                        } else if (data.status === 'failed') {
+                            Swal.fire('Error', data.error || 'Processing failed', 'error');
+                            resetUpload();
+                        } else {
+                            var backendProgress = data.progress || 0;
+                            var uiProgress = 50 + (backendProgress / 2);
+                            if (uiProgress > 100) uiProgress = 100;
+                            updateProgress(uiProgress, data.message);
+                            setTimeout(pollStatus, 1000);
+                        }
+                    },
+                    error: function() {
+                        setTimeout(pollStatus, 2000);
+                    }
                 });
             }
         });

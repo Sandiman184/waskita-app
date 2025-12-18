@@ -2,7 +2,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from flask_login import login_required, current_user
 from sqlalchemy import desc, text
 from models.models import db, Dataset, RawData, RawDataScraper, CleanDataUpload, CleanDataScraper, ClassificationResult, ClassificationBatch
-from utils.utils import active_user_required, check_permission_with_feedback, clean_text, check_cleaned_content_duplicate, get_jakarta_time, generate_activity_log
+from utils.utils import active_user_required, check_permission_with_feedback, clean_text, check_cleaned_content_duplicate, get_jakarta_time, generate_activity_log, check_dataset_permission
 from utils.security_utils import generate_secure_filename, SecurityValidator, log_security_event
 from utils.i18n import t
 import os
@@ -44,7 +44,10 @@ def details(id):
                 return redirect(url_for('dataset.management_table'))
 
         # Pagination parameters
-        per_page = 10
+        per_page = request.args.get('per_page', type=int)
+        if not per_page:
+            per_page = current_user.get_preferences().get('items_per_page', 10)
+            
         raw_page = request.args.get('raw_page', 1, type=int)
         clean_page = request.args.get('clean_page', 1, type=int)
         classified_page = request.args.get('classified_page', 1, type=int)
@@ -298,7 +301,10 @@ def management_table():
     """Dataset management with table view"""
     try:
         page = request.args.get('page', 1, type=int)
-        per_page = request.args.get('per_page', 25, type=int)
+        per_page = request.args.get('per_page', type=int)
+        if not per_page:
+            per_page = current_user.get_preferences().get('items_per_page', 25)
+            
         search = request.args.get('search', '', type=str)
         sort_by = request.args.get('sort_by', 'created_at', type=str)
         sort_order = request.args.get('sort_order', 'desc', type=str)
@@ -419,7 +425,7 @@ def clean_dataset(id):
         dataset = Dataset.query.get_or_404(id)
         
         # Check permission
-        if not current_user.is_admin() and dataset.uploaded_by != current_user.id:
+        if not check_dataset_permission(dataset, current_user):
             return jsonify({'success': False, 'message': 'Permission denied'}), 403
             
         # Check if already cleaned
@@ -804,6 +810,75 @@ def upload_data_legacy():
         # Log error
         current_app.logger.error(f"Upload error: {str(e)}")
         return jsonify({'success': False, 'message': f'Server Error: {str(e)}'}), 500
+
+@dataset_bp.route('/dataset/<int:id>/reset_data', methods=['POST'])
+@login_required
+def reset_dataset_data(id):
+    try:
+        dataset = Dataset.query.get_or_404(id)
+        
+        # Check permission
+        if not current_user.is_admin() and dataset.uploaded_by != current_user.id:
+            return jsonify({'success': False, 'message': 'Permission denied'}), 403
+
+        # 1. Clean Data Upload & Classification Results
+        clean_uploads = CleanDataUpload.query.filter_by(dataset_id=dataset.id).all()
+        if clean_uploads:
+            clean_upload_ids = [c.id for c in clean_uploads]
+            # Delete associated classification results
+            ClassificationResult.query.filter(
+                ClassificationResult.data_type == 'upload',
+                ClassificationResult.data_id.in_(clean_upload_ids)
+            ).delete(synchronize_session=False)
+            
+            # Delete clean data
+            for item in clean_uploads:
+                db.session.delete(item)
+            
+        # 2. Clean Data Scraper & Classification Results
+        clean_scrapers = CleanDataScraper.query.filter_by(dataset_id=dataset.id).all()
+        if clean_scrapers:
+            clean_scraper_ids = [c.id for c in clean_scrapers]
+            # Delete associated classification results
+            ClassificationResult.query.filter(
+                ClassificationResult.data_type == 'scraper',
+                ClassificationResult.data_id.in_(clean_scraper_ids)
+            ).delete(synchronize_session=False)
+            
+            # Delete clean data
+            for item in clean_scrapers:
+                db.session.delete(item)
+        
+        # 3. Raw Data
+        RawData.query.filter_by(dataset_id=dataset.id).delete(synchronize_session=False)
+        
+        # 4. Raw Data Scraper
+        RawDataScraper.query.filter_by(dataset_id=dataset.id).delete(synchronize_session=False)
+
+        # 5. Classification Batch
+        ClassificationBatch.query.filter_by(dataset_id=dataset.id).delete(synchronize_session=False)
+        
+        # 6. Reset Dataset Counters and Status
+        dataset.total_records = 0
+        dataset.cleaned_records = 0
+        dataset.classified_records = 0
+        dataset.status = 'Raw'
+        
+        db.session.commit()
+        
+        generate_activity_log(
+            action='delete',
+            description=f'Reset data for dataset: {dataset.name}',
+            user_id=current_user.id,
+            icon='fa-eraser',
+            color='warning'
+        )
+
+        return jsonify({'success': True, 'message': 'Semua data dalam dataset berhasil dihapus'})
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 @dataset_bp.route('/process_column_mapping', methods=['POST'])
 @login_required

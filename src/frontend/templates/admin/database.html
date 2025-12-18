@@ -10,6 +10,7 @@
     <li class="breadcrumb-item">
         <a href="{{ url_for("main.dashboard") }}">Home</a>
     </li>
+    <li class="breadcrumb-item">Admin Panel</li>
     <li class="breadcrumb-item active">Database Management</li>
 {% endblock breadcrumb %}
 
@@ -164,7 +165,11 @@
 <style>
     /* Standardized Font Sizes */
     .card .card-body h4.font-weight-bold { font-size: 1.1rem !important; line-height: 1.4; }
-    .card .btn { font-size: 0.9rem !important; }
+    .card .btn { 
+        font-size: 12px !important; 
+        padding: 6px 12px !important;
+        border-radius: 4px !important;
+    }
     .text-muted.small { font-size: 0.85rem !important; }
     
     .info-box-text { font-size: 0.9rem !important; font-weight: 600; }
@@ -179,8 +184,19 @@
         justify-content: center;
     }
     .icon-circle i { font-size: 1.25rem !important; }
-    .card .btn { padding: 6px 12px; font-size: 0.9rem; border-radius: 10px; }
-    .btn.btn-block.rounded-pill { min-height: 32px; height: auto; font-weight: 500; }
+    
+    /* Removed duplicate/conflicting styles and standardized */
+    .btn.btn-block.rounded-pill { 
+        min-height: 32px; 
+        height: auto; 
+        font-weight: 500; 
+        border-radius: 4px !important; /* Overriding pill for consistency if desired, or keep pill but small */
+    }
+    /* If pill shape is desired, we can keep it but ensure size is small */
+    .btn.rounded-pill {
+        border-radius: 50px !important;
+    }
+
     .card .card-body h4.font-weight-bold { font-size: 1.1rem; line-height: 1.4; margin-bottom: 0.5rem; }
     .bg-light-primary { background-color: rgba(0, 123, 255, 0.1); }
     .bg-light-success { background-color: rgba(40, 167, 69, 0.1); }

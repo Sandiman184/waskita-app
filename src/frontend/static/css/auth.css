@@ -182,19 +182,70 @@ body.dark-mode .register-page .input-group-append .btn {
 }
 
 /* Buttons */
+.btn {
+    border-radius: 25px;
+    padding: 12px 20px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+
+.btn-block {
+    display: flex;
+    width: 100%;
+    justify-content: center;
+    align-items: center;
+}
+
 .btn-primary {
     background: linear-gradient(135deg, var(--primary) 0%, #0056b3 100%);
     border: none;
-    border-radius: 25px;
-    padding: 12px 30px;
-    font-weight: 500;
-    transition: all 0.3s ease;
+    color: var(--white);
 }
 
 .btn-primary:hover {
     transform: translateY(-2px);
     box-shadow: 0 5px 15px rgba(0, 123, 255, 0.4);
     background: linear-gradient(135deg, #0056b3 0%, var(--primary) 100%);
+    color: var(--white);
+}
+
+.btn-success {
+    background: linear-gradient(135deg, var(--success) 0%, #218838 100%);
+    border: none;
+    color: var(--white);
+}
+
+.btn-success:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(40, 167, 69, 0.4);
+    background: linear-gradient(135deg, #218838 0%, var(--success) 100%);
+    color: var(--white);
+}
+
+.btn-danger {
+    background: linear-gradient(135deg, var(--danger) 0%, #c82333 100%);
+    border: none;
+    color: var(--white);
+}
+
+.btn-danger:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(220, 53, 69, 0.4);
+    background: linear-gradient(135deg, #c82333 0%, var(--danger) 100%);
+    color: var(--white);
+}
+
+.btn-refresh {
+    background: linear-gradient(135deg, var(--info) 0%, #117a8b 100%);
+    border: none;
+    color: var(--white);
+}
+
+.btn-refresh:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(23, 162, 184, 0.4);
+    background: linear-gradient(135deg, #117a8b 0%, var(--info) 100%);
+    color: var(--white);
 }
 
 .btn-primary:disabled {
@@ -203,6 +254,57 @@ body.dark-mode .register-page .input-group-append .btn {
     transform: none;
     box-shadow: none;
 }
+
+/* Fix for input group buttons (password toggle) */
+.input-group-append .btn {
+    border-radius: 0 25px 25px 0 !important;
+    padding: 10px 15px;
+    margin-left: -2px; /* Overlap border */
+    z-index: 10;
+}
+
+/* Secondary Button */
+.btn-secondary {
+    background-color: #6c757d;
+    border-color: #6c757d;
+    color: var(--white);
+}
+
+.btn-secondary:hover {
+    background-color: #5a6268;
+    border-color: #545b62;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(108, 117, 125, 0.4);
+}
+
+/* Outline Secondary Button */
+.btn-outline-secondary {
+    color: #ced4da;
+    border-color: #6c757d;
+    background-color: transparent;
+}
+
+.btn-outline-secondary:hover {
+    color: #fff;
+    background-color: #6c757d;
+    border-color: #6c757d;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(108, 117, 125, 0.4);
+}
+
+/* Input group buttons specific override */
+.input-group-append .btn-outline-secondary {
+    border-color: #4b545c; /* Match input border in dark mode */
+    color: #adb5bd;
+}
+
+.input-group-append .btn-outline-secondary:hover {
+    background-color: #4b545c;
+    color: #fff;
+    transform: none; /* No transform for input group buttons */
+    box-shadow: none;
+}
+
 
 /* Links */
 a {
@@ -376,6 +478,28 @@ body.dark-mode .strength-bar {
 .status-icon {
     font-size: 60px;
     margin-bottom: 15px;
+}
+
+/* Action Buttons Layout */
+.action-buttons {
+    margin-top: 2rem;
+}
+
+.primary-actions, 
+.secondary-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    margin-bottom: 15px;
+}
+
+.primary-actions .btn,
+.secondary-actions .btn {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 0; /* Override default if any */
 }
 
 .info-row {

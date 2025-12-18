@@ -41,6 +41,10 @@ class EmailService:
         Mengirim email dengan SMTP
         """
         try:
+            # Check for placeholder values
+            if self.smtp_username and 'your-email' in self.smtp_username:
+                return False, "Email configuration has not been set (using placeholders)"
+
             # Create message
             msg = MIMEMultipart('alternative')
             msg['Subject'] = subject
@@ -63,7 +67,14 @@ class EmailService:
             
             return True, None
             
+        except smtplib.SMTPAuthenticationError:
+            current_app.logger.error("SMTP Authentication Failed. Check MAIL_USERNAME and MAIL_PASSWORD.")
+            return False, "Authentication failed. Check email credentials."
+        except smtplib.SMTPException as e:
+            current_app.logger.error(f"SMTP Error: {str(e)}")
+            return False, f"SMTP Error: {str(e)}"
         except Exception as e:
+            current_app.logger.error(f"Failed to send email: {str(e)}")
             return False, str(e)
     
     def send_otp_to_user(self, registration_request):
@@ -235,7 +246,14 @@ class EmailService:
         """
         Email template for first login OTP
         """
-        expires_time = (datetime.utcnow() + timedelta(minutes=current_app.config['OTP_EXPIRY_MINUTES'])).strftime('%d/%m/%Y %H:%M UTC')
+        from utils.utils import format_datetime
+        
+        # Calculate expiry time in UTC
+        expires_at = datetime.utcnow() + timedelta(minutes=current_app.config['OTP_EXPIRY_MINUTES'])
+        
+        # Format to WIB using format_datetime utility
+        expires_time = format_datetime(expires_at, format_type='default')
+        
         return f"""
         <!DOCTYPE html>
         <html>
@@ -298,6 +316,11 @@ class EmailService:
         """
         Email template for OTP
         """
+        from utils.utils import format_datetime
+        
+        # Format expires_at to WIB
+        expires_time = format_datetime(expires_at, format_type='default')
+        
         return f"""
         <!DOCTYPE html>
         <html>
@@ -334,7 +357,7 @@ class EmailService:
                         <h3>Account Information:</h3>
                         <p><strong>Username:</strong> {username}</p>
                         <p><strong>Email:</strong> {email}</p>
-                        <p><strong>Code expires at:</strong> {expires_at.strftime('%d/%m/%Y %H:%M UTC')}</p>
+                        <p><strong>Code expires at:</strong> {expires_time}</p>
                     </div>
                     
                     <p><strong>Important Notes:</strong></p>
@@ -495,8 +518,14 @@ class EmailService:
             errors.append("MAIL_SERVER not configured")
         if not self.smtp_username:
             errors.append("MAIL_USERNAME not configured")
+        elif 'your-email' in self.smtp_username:
+            errors.append("MAIL_USERNAME is set to placeholder")
+            
         if not self.smtp_password:
             errors.append("MAIL_PASSWORD not configured")
+        elif 'your-16-digit' in self.smtp_password:
+            errors.append("MAIL_PASSWORD is set to placeholder")
+            
         if not self.from_email:
             errors.append("MAIL_DEFAULT_SENDER not configured")
             

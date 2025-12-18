@@ -128,7 +128,16 @@ class ApifyService:
         
         elif platform.lower() == 'facebook':
             # powerai/facebook-post-search-scraper
-            # Hardcoded location_uid as per requirement
+            # This actor expects "query" (string) or "queries" (list)
+            # and location_uid.
+            # However, looking at the actor documentation, it might need specific format.
+            # Assuming 'query' is the correct field for search keywords.
+            
+            # Hardcoded location_uid as per requirement (default 'id' means Indonesia or generic?)
+            # Usually location_uid 'id' refers to Indonesia if that's the intention, 
+            # but 'id' is also the ISO code. 
+            # Let's ensure maxResults is passed correctly as 'maxResults' (camelCase)
+            
             location_uid = 'id'
             recent_posts = kwargs.get('recent_posts', False)
             
@@ -136,7 +145,9 @@ class ApifyService:
                 "location_uid": location_uid,
                 "query": keywords,
                 "recent_posts": recent_posts,
-                "maxResults": max_results
+                "maxResults": max_results,
+                # Add typical parameters to ensure better results
+                "language": "id_ID"
             }
         
         try:
@@ -195,8 +206,9 @@ class ApifyService:
         if not token:
             raise Exception("APIFY_API_TOKEN not configured")
             
-        # Use clean=true to hide hidden fields and simplify the output
-        url = f"{ApifyService.BASE_URL}/datasets/{dataset_id}/items?token={token}&clean=true"
+        # Use clean=false to ensure we get all fields including hidden ones if necessary
+        # clean=true might hide fields that are important for mapping
+        url = f"{ApifyService.BASE_URL}/datasets/{dataset_id}/items?token={token}&clean=false"
         
         if limit is not None:
             url += f"&limit={limit}"

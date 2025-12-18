@@ -1,136 +1,158 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="csrf-token" content="{{ csrf_token() }}">
-    
-    <!-- Favicon -->
-    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='images/favicon.svg') }}">
-    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='images/favicon.ico') }}">
-    <link rel="shortcut icon" type="image/x-icon" href="{{ url_for('static', filename='images/favicon.ico') }}">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="description"
+              content="First Login OTP Verification - Waskita">
+        <meta name="csrf-token" content="{{ csrf_token() }}">
+        
+        <!-- Favicon -->
+        <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='images/favicon.svg') }}">
+        <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='images/favicon.ico') }}">
+        <link rel="shortcut icon" type="image/x-icon" href="{{ url_for('static', filename='images/favicon.ico') }}">
 
-    <title>First Login OTP Verification - Waskita</title>
-    
-    <!-- Bootstrap CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    
-    <!-- Font Awesome -->
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    
-    <!-- Auth Custom CSS -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
-</head>
-<body class="otp-page-body dark-mode">
-    <div class="container">
-        <div class="row justify-content-center">
-            <div class="col-md-8 col-lg-6">
-                <div class="card">
-                    <div class="card-header text-center text-white">
-                        <h4 class="mb-0 fw-semibold">
-                            <i class="fas fa-shield-check me-2"></i>
-                            OTP Verification
-                        </h4>
+        <title>OTP Verification - Waskita</title>
+        <!-- Google Font: Source Sans Pro -->
+        <link rel="stylesheet"
+              href="https://fonts.googleapis.com/css?family=Source+Sans+Pro:300,400,400i,700&display=fallback">
+        <!-- Font Awesome -->
+        <link rel="stylesheet"
+              href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+        <!-- AdminLTE CSS -->
+        <link rel="stylesheet"
+              href="https://cdn.jsdelivr.net/npm/admin-lte@3.2/dist/css/adminlte.min.css">
+        <!-- SweetAlert2 CSS -->
+        <link rel="stylesheet"
+              href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+        <!-- Auth Custom CSS -->
+        <link rel="stylesheet" href="{{ url_for('static', filename='css/variables.css') }}">
+        <link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
+    </head>
+    <body class="hold-transition login-page dark-mode">
+        <div class="login-box">
+            <div class="card card-outline card-primary">
+                <header class="card-header brand-header" role="banner">
+                    <div class="brand-logo">
+                        <img src="{{ url_for('static', filename='images/logo.webp') }}" alt="Waskita Logo" />
                     </div>
-                    <div class="card-body">
-                        <div class="text-center mb-3">
-                            <div class="otp-icon">
-                                <i class="fas fa-shield-alt"></i>
-                            </div>
-                            <h5 class="text-dark mb-2 fw-medium">Security Verification</h5>
-                            <p class="text-muted mb-0">
-                                Enter verification code to continue
-                            </p>
-                        </div>
+                    <h1 class="brand-text">WASKITA</h1>
+                    <p class="brand-subtitle mb-0">Content Classification System</p>
+                </header>
+                <main class="card-body" role="main">
+                    <div class="text-center mb-3">
+                        <i class="fas fa-shield-alt fa-3x text-primary mb-2"></i>
+                        <h5 class="login-box-msg pb-0">Security Verification</h5>
+                        <p class="text-muted small">Enter the 6-digit code sent to your email</p>
+                    </div>
 
-                        {% with messages = get_flashed_messages(with_categories=true) %}
-                            {% if messages %}
+                    <!-- Flash messages -->
+                    {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% if messages %}
+                            <div role="alert" aria-live="polite" aria-atomic="true">
                                 {% for category, message in messages %}
-                                    <div class="alert alert-{{ 'danger' if category == 'error' else 'success' }} alert-dismissible fade show mb-3" role="alert">
+                                    <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show"
+                                         role="alert">
                                         {{ message }}
-                                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                                        <button type="button" class="close" data-dismiss="alert" aria-label="Close message">
+                                            <span aria-hidden="true">×</span>
+                                        </button>
                                     </div>
                                 {% endfor %}
-                            {% endif %}
-                        {% endwith %}
+                            </div>
+                        {% endif %}
+                    {% endwith %}
 
-                        <form method="POST" action="{{ url_for('otp.verify_first_login_otp') }}">
-                            {{ form.hidden_tag() }}
-                            
-                            <div class="mb-3">
-                                <label for="otp" class="form-label text-dark fw-medium">
-                                    OTP Code
-                                </label>
-                                <input type="text" 
-                                       class="form-control" 
-                                       id="otp" 
-                                       name="otp" 
-                                       placeholder="Enter 6-digit OTP code" 
-                                       required
+                    <form method="post" action="{{ url_for('otp.verify_first_login_otp') }}" id="otpForm">
+                        {{ form.hidden_tag() }}
+                        <div class="form-group">
+                            <label for="otp" class="sr-only">OTP Code</label>
+                            <div class="input-group mb-3">
+                                <div class="input-group-prepend">
+                                    <span class="input-group-text">
+                                        <i class="fas fa-key"></i>
+                                    </span>
+                                </div>
+                                <input type="text"
+                                       id="otp"
+                                       name="otp"
+                                       class="form-control text-center"
+                                       placeholder="Enter 6-digit Code"
                                        maxlength="6"
                                        pattern="[0-9]{6}"
-                                       title="Enter 6 digit number"
                                        autocomplete="one-time-code"
-                                       autofocus>
-                                <div class="form-text text-muted">
-                                    Verification code is temporary
-                                </div>
-                            </div>
-
-                            <div class="d-grid">
-                                <button type="submit" class="btn btn-primary">
-                                    <i class="fas fa-check-circle me-2"></i>
-                                    Verify & Continue
-                                </button>
-                            </div>
-                        </form>
-
-                        <div class="text-center mt-3">
-                            <p class="text-muted mb-2 small">Didn't receive email?</p>
-                            <button id="resendBtn" class="btn btn-outline-secondary btn-sm" onclick="resendOTP()">
-                                <i class="fas fa-redo me-1"></i>
-                                Resend OTP
-                            </button>
-                            <div id="timer" class="text-muted small mt-2" style="display: none;">
-                                Can resend in <span id="countdown">60</span> seconds
+                                       required
+                                       style="letter-spacing: 5px; font-weight: bold; font-size: 1.2rem;">
                             </div>
                         </div>
+
+                        <div class="row">
+                            <div class="col-12">
+                                <button type="submit" class="btn btn-primary btn-block">
+                                    <i class="fas fa-check-circle mr-1"></i> Verify & Continue
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+
+                    <div class="mt-4 text-center">
+                        <p class="mb-1 text-muted small">Didn't receive the code?</p>
+                        <button type="button" 
+                                id="resendBtn" 
+                                class="btn btn-tool text-primary p-0" 
+                                onclick="resendOTP()">
+                            <i class="fas fa-redo mr-1"></i> Resend OTP
+                        </button>
+                        <div id="timer" class="text-muted small mt-2" style="display: none;">
+                            Can resend in <span id="countdown">60</span>s
+                        </div>
                     </div>
-                    
-                    <div class="card-footer text-center">
-                        <small class="text-muted">
-                            <i class="fas fa-info-circle me-1"></i>
-                            Security feature to protect your account
-                        </small>
-                    </div>
+                </main>
+                <div class="card-footer text-center">
+                    <small class="text-muted">
+                        <i class="fas fa-lock mr-1"></i>
+                        Secure verification powered by Waskita
+                    </small>
                 </div>
             </div>
         </div>
-    </div>
 
-    <!-- Bootstrap JS -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    
-    <script>
-        // Auto focus on OTP input
+        <!-- jQuery -->
+        <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+        <!-- Bootstrap 4 -->
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
+        <!-- AdminLTE App -->
+        <script src="https://cdn.jsdelivr.net/npm/admin-lte@3.2/dist/js/adminlte.min.js"></script>
+        <!-- SweetAlert2 -->
+        <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+        <script>
         document.addEventListener('DOMContentLoaded', function() {
             const otpInput = document.getElementById('otp');
             if (otpInput) {
                 otpInput.focus();
+                
+                // Allow only numbers
+                otpInput.addEventListener('input', function(e) {
+                    this.value = this.value.replace(/[^0-9]/g, '');
+                });
             }
             
-            // Start countdown timer
+            // Start countdown if we suspect user just landed (simple simulation, 
+            // in real app you might want to check server time)
             startCountdown();
         });
-        
-        let countdown = 60; // 1 minute in seconds
+
+        let countdown = 60;
         let countdownInterval;
-        
+
         function startCountdown() {
             const resendBtn = document.getElementById('resendBtn');
             const timer = document.getElementById('timer');
             
             resendBtn.disabled = true;
+            resendBtn.style.opacity = '0.5';
+            resendBtn.style.cursor = 'not-allowed';
             timer.style.display = 'block';
             
             countdownInterval = setInterval(function() {
@@ -140,79 +162,64 @@
                 if (countdown <= 0) {
                     clearInterval(countdownInterval);
                     resendBtn.disabled = false;
+                    resendBtn.style.opacity = '1';
+                    resendBtn.style.cursor = 'pointer';
                     timer.style.display = 'none';
+                    countdown = 60;
                 }
             }, 1000);
         }
-        
+
         function resendOTP() {
             const resendBtn = document.getElementById('resendBtn');
-            const timer = document.getElementById('timer');
             
-            // Show loading state
+            // Show loading
+            resendBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Sending...';
             resendBtn.disabled = true;
-            resendBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Sending...';
-            
-            // Send AJAX request to resend OTP
+
             fetch('{{ url_for("otp.resend_first_login_otp") }}', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-CSRFToken': '{{ csrf_token() }}'
+                    'X-CSRFToken': $('meta[name="csrf-token"]').attr('content')
                 }
             })
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    // Show success message
-                    showAlert('OTP successfully resent! Please check your email.', 'success');
-                    
-                    // Reset countdown
-                    countdown = 60;
-                    document.getElementById('countdown').textContent = countdown;
-                    timer.style.display = 'block';
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'OTP Resent',
+                        text: 'A new verification code has been sent to your email.',
+                        timer: 3000,
+                        showConfirmButton: false
+                    });
                     
                     // Restart countdown
-                    if (countdownInterval) {
-                        clearInterval(countdownInterval);
-                    }
+                    if (countdownInterval) clearInterval(countdownInterval);
+                    countdown = 60;
                     startCountdown();
-                    
                 } else {
-                    showAlert('Failed to resend OTP: ' + data.message, 'error');
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Failed',
+                        text: data.message || 'Failed to resend OTP',
+                    });
                     resendBtn.disabled = false;
                 }
-                
-                // Reset button text
-                resendBtn.innerHTML = '<i class="fas fa-redo me-1"></i> Resend OTP';
+                resendBtn.innerHTML = '<i class="fas fa-redo mr-1"></i> Resend OTP';
             })
             .catch(error => {
-                showAlert('An error occurred: ' + error, 'error');
+                console.error('Error:', error);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: 'An unexpected error occurred',
+                });
                 resendBtn.disabled = false;
-                resendBtn.innerHTML = '<i class="fas fa-redo me-1"></i> Resend OTP';
+                resendBtn.innerHTML = '<i class="fas fa-redo mr-1"></i> Resend OTP';
             });
         }
-        
-        function showAlert(message, type) {
-            // Create alert element
-            const alertDiv = document.createElement('div');
-            alertDiv.className = `alert alert-${type === 'error' ? 'danger' : 'success'} alert-dismissible fade show`;
-            alertDiv.innerHTML = `
-                ${message}
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            `;
-            
-            // Insert after form
-            const form = document.querySelector('form');
-            form.parentNode.insertBefore(alertDiv, form.nextSibling);
-            
-            // Auto remove after 5 seconds
-            setTimeout(() => {
-                if (alertDiv.parentNode) {
-                    alertDiv.remove();
-                }
-            }, 5000);
-        }
-    </script>
-</body>
+        </script>
+    </body>
 </html>

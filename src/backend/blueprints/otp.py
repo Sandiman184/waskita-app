@@ -96,7 +96,7 @@ def register_request():
         db.session.commit()
         
         # Log registration attempt
-        log_registration_attempt(username, email, request.remote_addr)
+        log_registration_attempt(username, email, request.remote_addr, True)
         
         flash('Registration request successful!', 'success')
         return redirect(url_for('otp.registration_status', request_id=registration_request.id))
@@ -104,6 +104,14 @@ def register_request():
     except Exception as e:
         db.session.rollback()
         current_app.logger.error(f"Error in register_request: {str(e)}")
+        # Log failure
+        log_registration_attempt(
+            request.form.get('username', 'unknown'), 
+            request.form.get('email', 'unknown'), 
+            request.remote_addr, 
+            False,
+            str(e)
+        )
         flash('System error occurred. Please try again.', 'error')
         return render_template('auth/register_request.html')
 
@@ -360,7 +368,11 @@ def registration_history():
     from utils.utils import format_datetime
     
     page = request.args.get('page', 1, type=int)
-    per_page = 20
+    per_page = request.args.get('per_page', type=int)
+    if not per_page:
+        # Since this is an admin page, we might check current_user preferences if available
+        # or stick to a default. Assuming admin user has preferences too.
+        per_page = current_user.get_preferences().get('items_per_page', 20)
     
     requests = RegistrationRequest.query.order_by(
         RegistrationRequest.created_at.desc()
@@ -501,19 +513,19 @@ def resend_first_login_otp():
             
             return jsonify({
                 'success': True, 
-                'message': 'OTP berhasil dikirim ulang. Silakan cek email Anda.'
+                'message': 'OTP resent successfully. Please check your email.'
             })
         else:
             return jsonify({
                 'success': False, 
-                'message': f'Gagal mengirim OTP: {message}'
+                'message': f'Failed to send OTP: {message}'
             }), 500
             
     except Exception as e:
         current_app.logger.error(f"Error in resend_first_login_otp: {str(e)}")
         return jsonify({
             'success': False, 
-            'message': 'Terjadi kesalahan sistem'
+            'message': 'System error occurred'
         }), 500
 
 @otp_bp.route('/api/registration-stats')
@@ -557,7 +569,7 @@ def resend_otp(request_id):
         registration_request = RegistrationRequest.query.get_or_404(request_id)
         
         if registration_request.status != 'pending':
-            return jsonify({'success': False, 'message': 'Permintaan sudah diproses'}), 400
+            return jsonify({'success': False, 'message': 'Request already processed'}), 400
         
         # Generate new OTP
         new_otp = generate_otp()
@@ -572,14 +584,14 @@ def resend_otp(request_id):
         success, message = email_service.send_otp_to_user(registration_request)
         
         if success:
-            return jsonify({'success': True, 'message': 'OTP baru berhasil dikirim ke user'})
+            return jsonify({'success': True, 'message': 'New OTP sent to user successfully'})
         else:
-            return jsonify({'success': False, 'message': f'Gagal mengirim OTP: {message}'}), 500
+            return jsonify({'success': False, 'message': f'Failed to send OTP: {message}'}), 500
             
     except Exception as e:
         db.session.rollback()
         current_app.logger.error(f"Error in resend_otp: {str(e)}")
-        return jsonify({'success': False, 'message': 'Terjadi kesalahan sistem'}), 500
+        return jsonify({'success': False, 'message': 'System error occurred'}), 500
 
 @otp_bp.route('/admin/delete-registration-request/<int:request_id>', methods=['POST'])
 @login_required
@@ -611,7 +623,7 @@ def delete_registration_request(request_id):
         
         return jsonify({
             'success': True,
-            'message': f'Permintaan registrasi untuk {username} berhasil dihapus'
+            'message': f'Registration request for {username} deleted successfully'
         })
         
     except Exception as e:
@@ -619,7 +631,7 @@ def delete_registration_request(request_id):
         current_app.logger.error(f"Error deleting registration request: {str(e)}")
         return jsonify({
             'success': False,
-            'message': 'Terjadi kesalahan sistem'
+            'message': 'System error occurred'
         }), 500
 
 @otp_bp.route('/admin/delete-all-registration-history', methods=['POST'])
@@ -638,7 +650,7 @@ def delete_all_registration_history():
         if not processed_requests:
             return jsonify({
                 'success': True,
-                'message': 'Tidak ada riwayat registrasi yang perlu dihapus',
+                'message': 'No registration history to delete',
                 'deleted_count': 0
             })
         
@@ -666,7 +678,7 @@ def delete_all_registration_history():
         
         return jsonify({
             'success': True,
-            'message': f'Berhasil menghapus {deleted_count} riwayat registrasi',
+            'message': f'Successfully deleted {deleted_count} registration history records',
             'deleted_count': deleted_count
         })
         
@@ -675,7 +687,7 @@ def delete_all_registration_history():
         current_app.logger.error(f"Error deleting all registration history: {str(e)}")
         return jsonify({
             'success': False,
-            'message': 'Terjadi kesalahan sistem saat menghapus semua riwayat'
+            'message': 'System error occurred while deleting all history'
         }), 500
 
 @otp_bp.route('/admin/delete-registration-history/<int:request_id>', methods=['POST'])
@@ -693,7 +705,7 @@ def delete_registration_history(request_id):
         if registration_request.status == 'pending':
             return jsonify({
                 'success': False,
-                'message': 'Tidak dapat menghapus permintaan yang masih pending. Gunakan halaman Pending Registrations.'
+                'message': 'Cannot delete pending request. Please use Pending Registrations page.'
             }), 400
         
         # First, delete all related AdminNotifications
@@ -715,7 +727,7 @@ def delete_registration_history(request_id):
         
         return jsonify({
             'success': True,
-            'message': f'Riwayat registrasi untuk {username} berhasil dihapus'
+            'message': f'Registration history for {username} deleted successfully'
         })
         
     except Exception as e:
@@ -723,5 +735,5 @@ def delete_registration_history(request_id):
         current_app.logger.error(f"Error deleting registration history: {str(e)}")
         return jsonify({
             'success': False,
-            'message': 'Terjadi kesalahan sistem'
+            'message': 'System error occurred'
         }), 500

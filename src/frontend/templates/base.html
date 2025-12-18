@@ -153,6 +153,13 @@
             transform: translate(-50%, -50%) !important;
             margin: 0 !important;
         }
+
+        /* FIX: Prevent layout shift (widening) when SweetAlert opens */
+        body.swal2-shown {
+            overflow-y: auto !important; /* Prevent scrollbar from disappearing */
+            padding-right: 0 !important; /* Prevent padding adjustment */
+        }
+        
         .main-sidebar {
             background: linear-gradient(180deg, #2c3e50 0%, #34495e 100%);
             box-shadow: 2px 0 10px rgba(0,0,0,0.1);
@@ -239,15 +246,22 @@
         .card {
             box-shadow: 0 2px 4px rgba(0,0,0,.1), 0 8px 16px rgba(0,0,0,.1);
         }
+        
+        /* Global Button Standardization */
+        .btn {
+            font-weight: 500;
+            border-radius: 4px;
+            padding: 6px 12px;
+            font-size: 12px;
+            transition: all 0.2s ease;
+        }
+        
         .btn-primary {
             background-color: #3498db;
             border-color: #3498db;
             color: #ffffff;
-            font-weight: 500;
-            border-radius: 6px;
-            padding: 0.75rem 1.5rem;
-            transition: all 0.2s ease;
         }
+        
         .btn-primary:hover {
             background-color: #2980b9;
             border-color: #2980b9;
@@ -255,10 +269,21 @@
             transform: translateY(-1px);
             box-shadow: 0 4px 8px rgba(52, 152, 219, 0.3);
         }
+        
         .btn-primary:focus {
             box-shadow: 0 0 0 0.2rem rgba(52, 152, 219, 0.5);
             outline: 2px solid #3498db;
             outline-offset: 2px;
+        }
+        
+        .btn-lg {
+            padding: 8px 16px;
+            font-size: 14px;
+        }
+        
+        .btn-sm {
+            padding: 4px 8px;
+            font-size: 11px;
         }
         .navbar-light {
             background-color: #ffffff;
@@ -488,9 +513,17 @@
                         </a>
                     </li>
                     <li class="nav-item dropdown">
-                        <a class="nav-link" data-toggle="dropdown" href="#" role="button" aria-haspopup="true" aria-expanded="false" aria-label="User menu">
-                            <i class="fas fa-user" aria-hidden="true"></i>
-                            <span class="ml-2">{{ current_user.username if current_user.is_authenticated else 'Guest' }}</span>
+                        <a class="nav-link d-flex align-items-center" data-toggle="dropdown" href="#" role="button" aria-haspopup="true" aria-expanded="false" aria-label="User menu">
+                            {% if current_user.is_authenticated and current_user.profile_picture %}
+                                <img src="{{ url_for('static', filename='profile_pics/' + current_user.profile_picture) }}?v={{ asset_version }}" 
+                                     class="user-image img-circle elevation-2" 
+                                     alt="User Image"
+                                     id="header-profile-img"
+                                     style="width: 30px; height: 30px; object-fit: cover; margin-right: 8px;">
+                            {% else %}
+                                <i class="fas fa-user mr-2" id="header-profile-icon" aria-hidden="true"></i>
+                            {% endif %}
+                            <span>{{ current_user.username if current_user.is_authenticated else 'Guest' }}</span>
                         </a>
                         <div class="dropdown-menu dropdown-menu-lg dropdown-menu-right" role="menu">
                             {% if current_user.is_authenticated %}
@@ -789,6 +822,19 @@
                     }
                 };
             })();
+
+            // Global Toast Notification
+            window.Toast = Swal.mixin({
+                toast: true,
+                position: 'top',
+                showConfirmButton: false,
+                timer: 3000,
+                timerProgressBar: true,
+                didOpen: (toast) => {
+                    toast.addEventListener('mouseenter', Swal.stopTimer)
+                    toast.addEventListener('mouseleave', Swal.resumeTimer)
+                }
+            });
 
             
             window.confirmAction = function(title, text, callback) {
@@ -1170,21 +1216,30 @@
             const toggleBtn = document.getElementById('theme-toggle');
             const body = document.body;
             const navbar = document.querySelector('.main-header');
-            const icon = toggleBtn.querySelector('i');
+            const icon = toggleBtn ? toggleBtn.querySelector('i') : null;
+            
+            // Get user preference from server-side
+            const isAuthenticated = {{ 'true' if current_user.is_authenticated else 'false' }};
+            // Note: userThemePref will be 'dark' or 'light' based on DB
+            const userThemePref = "{{ 'dark' if current_user.is_authenticated and current_user.get_preferences().get('dark_mode') else 'light' }}";
             
             function applyTheme(theme) {
                 if (theme === 'light') {
                     body.classList.remove('dark-mode');
-                    navbar.classList.remove('navbar-dark');
-                    navbar.classList.add('navbar-white', 'navbar-light');
+                    if (navbar) {
+                        navbar.classList.remove('navbar-dark');
+                        navbar.classList.add('navbar-white', 'navbar-light');
+                    }
                     if (icon) {
                         icon.classList.remove('fa-sun');
                         icon.classList.add('fa-moon');
                     }
                 } else {
                     body.classList.add('dark-mode');
-                    navbar.classList.remove('navbar-white', 'navbar-light');
-                    navbar.classList.add('navbar-dark');
+                    if (navbar) {
+                        navbar.classList.remove('navbar-white', 'navbar-light');
+                        navbar.classList.add('navbar-dark');
+                    }
                     if (icon) {
                         icon.classList.remove('fa-moon');
                         icon.classList.add('fa-sun');
@@ -1196,16 +1251,40 @@
                 window.dispatchEvent(new CustomEvent('themeChanged', { detail: { theme: theme } }));
             }
 
-            // Default to dark mode if not set
-            const savedTheme = localStorage.getItem('theme') || 'dark';
+            // Determine initial theme
+            let savedTheme = localStorage.getItem('theme');
+            
+            if (isAuthenticated) {
+                // If authenticated, DB preference takes precedence
+                savedTheme = userThemePref;
+            } else {
+                // Guest: use local storage or default to dark
+                savedTheme = savedTheme || 'dark';
+            }
+            
             applyTheme(savedTheme);
-
+            
             if (toggleBtn) {
                 toggleBtn.addEventListener('click', function(e) {
                     e.preventDefault();
                     const currentTheme = body.classList.contains('dark-mode') ? 'dark' : 'light';
                     const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
                     applyTheme(newTheme);
+                    
+                    // Sync with backend if logged in
+                    if (isAuthenticated) {
+                        const formData = new FormData();
+                        // API expects 'true' string for true
+                        formData.append('dark_mode', newTheme === 'dark' ? 'true' : 'false');
+                        
+                        fetch('/api/profile/save-preferences', {
+                            method: 'POST',
+                            headers: {
+                                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                            },
+                            body: formData
+                        }).catch(err => console.error('Failed to save theme preference', err));
+                    }
                 });
             }
         })();

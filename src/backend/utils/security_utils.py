@@ -30,7 +30,7 @@ if not security_logger.handlers:
     
     handler = RotatingFileHandler(
         os.path.join(log_dir, 'security.log'),
-        maxBytes=5*1024*1024,  # 5MB
+        maxBytes=100*1024*1024,  # 100MB
         backupCount=3,
         encoding='utf-8'
     )

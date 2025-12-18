@@ -7,7 +7,6 @@ from datetime import datetime, timedelta
 from models.models import db, User, UserActivity
 from utils.security_utils import SecurityValidator, log_security_event
 from utils.utils import generate_activity_log
-from utils.i18n import t
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -50,11 +49,16 @@ def login():
                     success, error_message = email_service.send_first_login_otp(user, otp_code)
 
                     if success:
-                        flash(t('This is your first login. Please check your email for further instructions.'), 'info')
+                        flash('This is your first login. Please check your email for further instructions.', 'info')
                         return redirect(url_for('otp.verify_first_login_otp'))
                     else:
                         current_app.logger.error(f"Failed to send first login OTP email: {error_message}")
-                        flash(t('Failed to send OTP email. Please contact administrator or try again later.'), 'error')
+                        # Show specific error if related to configuration
+                        if "configuration" in str(error_message).lower() or "credentials" in str(error_message).lower():
+                            flash(f'Email Error: {error_message}', 'error')
+                        else:
+                            flash('Failed to send OTP email. Please contact administrator or try again later.', 'error')
+                        
                         session.pop('first_login_user_id', None)
                         session.pop('first_login_otp', None)
                         session.pop('first_login_otp_expires', None)
@@ -83,7 +87,7 @@ def login():
                 )
 
                 next_page = request.args.get('next')
-                flash(t('Login successful!'), 'success')
+                flash('Login successful!', 'success')
                 return redirect(next_page) if next_page else redirect(url_for('main.dashboard'))
             
             else:
@@ -92,11 +96,11 @@ def login():
                     f"Failed login attempt for username: {form.username.data if form.username.data else 'unknown'}",
                     ip_address=request.remote_addr
                 )
-                flash(t('Incorrect username or password!'), 'error')
+                flash('Incorrect username or password!', 'error')
     else:
         if form.errors:
             current_app.logger.warning(f"Form validation errors: {form.errors}")
-            flash(t('There are errors in the form. Please try again.'), 'error')
+            flash('There are errors in the form. Please try again.', 'error')
     
     return render_template('auth/login.html', form=form)
 

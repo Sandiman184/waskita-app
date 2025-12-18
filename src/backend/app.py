@@ -46,7 +46,7 @@ logging.basicConfig(
 # Add rotating file handler for main application logs
 file_handler = RotatingFileHandler(
     os.path.join(log_dir, 'waskita.log'),
-    maxBytes=10*1024*1024,  # 10MB
+    maxBytes=100*1024*1024,  # 100MB to prevent frequent rotation on Windows
     backupCount=5,
     encoding='utf-8'
 )

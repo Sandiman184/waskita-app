@@ -185,6 +185,7 @@ def process_scraping_column_mapping():
          
     try:
         # Fetch all items from Apify
+        # Use clean=False to match the preview logic and get all fields
         items = ApifyService.get_dataset_items(apify_dataset_id)
         current_app.logger.info(f"Apify Dataset {apify_dataset_id} items count: {len(items)}")
         
@@ -202,6 +203,9 @@ def process_scraping_column_mapping():
                 platform = parts[0].lower()
             if len(parts) >= 2:
                 keyword = parts[1]
+        
+        # Fetch existing content for this dataset to prevent duplicates
+        existing_contents = set([r[0] for r in db.session.query(RawDataScraper.content).filter_by(dataset_id=dataset.id).all()])
         
         count = 0
         for raw_item in items:
@@ -224,6 +228,10 @@ def process_scraping_column_mapping():
                  
             # Skip empty content
             if not content:
+                continue
+            
+            # Check duplicate
+            if content in existing_contents:
                 continue
                 
             username = item.get(username_col, 'unknown')
@@ -364,21 +372,26 @@ def process_scraping_column_mapping():
                 views=views
             )
             db.session.add(raw_data)
+            existing_contents.add(content)
             count += 1
             
-        dataset.total_records = count
+        db.session.commit()
+        
+        # Update total records based on actual count in DB
+        actual_total = RawDataScraper.query.filter_by(dataset_id=dataset.id).count()
+        dataset.total_records = actual_total
         dataset.status = 'Raw'
         db.session.commit()
         
         generate_activity_log(
             action='scraping',
-            description=f'Completed scraping data processing: {dataset.name} ({count} records)',
+            description=f'Completed scraping data processing: {dataset.name} ({count} new records, total {actual_total})',
             user_id=current_user.id,
             icon='fa-save',
             color='success'
         )
         
-        return jsonify({'success': True, 'dataset_id': dataset.id, 'total_records': count})
+        return jsonify({'success': True, 'dataset_id': dataset.id, 'total_records': actual_total})
         
     except Exception as e:
         db.session.rollback()

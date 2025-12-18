@@ -9,6 +9,7 @@
     <li class="breadcrumb-item">
         <a href="{{ url_for("main.dashboard") }}">Home</a>
     </li>
+    <li class="breadcrumb-item">Admin Panel</li>
     <li class="breadcrumb-item active">User Management</li>
 {% endblock breadcrumb %}
 {% block extra_css %}
@@ -27,13 +28,25 @@
 }
 
 /* Size consistency for all form elements */
-.form-control, .btn {
+.form-control {
     height: 38px !important;
     min-height: 38px !important;
     line-height: 1.5 !important;
     padding: 6px 12px !important;
     font-size: 14px !important;
     border-radius: 4px !important;
+}
+
+/* Button consistency - Compact & Neat */
+.btn {
+    height: auto !important;
+    min-height: 32px !important;
+    padding: 6px 12px !important;
+    font-size: 12px !important;
+    border-radius: 4px !important;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 
 /* Specific for input group */
@@ -280,22 +293,22 @@ body.dark-mode .badge.bg-info {
 
 /* Action buttons styling */
 .btn-group .btn {
-    margin: 0 1px;
-    border-radius: 6px !important;
-    padding: 6px 10px;
+    margin: 0 2px;
+    border-radius: 4px !important;
+    padding: 5px 10px;
     font-size: 12px;
-    transition: all 0.3s ease;
+    transition: all 0.2s ease;
 }
 
 .btn-group .btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
 }
 
 .btn-sm {
-    padding: 6px 10px !important;
-    font-size: 12px !important;
-    line-height: 1.2 !important;
+    padding: 4px 8px !important;
+    font-size: 11px !important;
+    min-height: 28px !important;
 }
 
 /* Responsive improvements */

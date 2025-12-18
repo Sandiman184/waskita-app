@@ -1,11 +1,13 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app, send_file
 from flask_login import login_required, current_user
 from sqlalchemy import text, desc
 from models.models import db, Dataset, RawData, RawDataScraper, CleanDataUpload, CleanDataScraper, ClassificationResult, ManualClassificationHistory, ClassificationBatch
-from utils.utils import active_user_required, check_permission_with_feedback, vectorize_text, classify_content, generate_activity_log
+from utils.utils import active_user_required, check_permission_with_feedback, vectorize_text, classify_content, generate_activity_log, preprocess_for_model, check_dataset_permission
 from utils.i18n import t
 from datetime import datetime
 import numpy as np
+import pandas as pd
+import io
 import threading
 import time
 
@@ -114,13 +116,18 @@ def classify():
             'info': 'Active' if model is not None and is_visible else ('Hidden' if not is_visible else 'Not loaded')
         }
     
-    # Get clean data counts
-    clean_upload_count = CleanDataUpload.query.count()
-    clean_scraper_count = CleanDataScraper.query.count()
-    
     # Get classification results counts
-    radical_count = ClassificationResult.query.filter_by(prediction='Radikal').count()
-    non_radical_count = ClassificationResult.query.filter_by(prediction='Non-Radikal').count()
+    if current_user.is_admin():
+        clean_upload_count = CleanDataUpload.query.count()
+        clean_scraper_count = CleanDataScraper.query.count()
+        radical_count = ClassificationResult.query.filter_by(prediction='Radikal').count()
+        non_radical_count = ClassificationResult.query.filter_by(prediction='Non-Radikal').count()
+    else:
+        # Filter counts by user
+        clean_upload_count = CleanDataUpload.query.filter_by(cleaned_by=current_user.id).count()
+        clean_scraper_count = CleanDataScraper.query.filter_by(cleaned_by=current_user.id).count()
+        radical_count = ClassificationResult.query.filter_by(prediction='Radikal', classified_by=current_user.id).count()
+        non_radical_count = ClassificationResult.query.filter_by(prediction='Non-Radikal', classified_by=current_user.id).count()
     
     # NOTE: History fetching logic removed as requested.
     # Manual classification history is no longer displayed on this page.
@@ -196,12 +203,13 @@ def classify_manual_text():
         
         for model_name, model in active_models.items():
             # Determine text to use
-            # IndoBERT uses Raw Text
-            # Conventional models use the Vector generated above (which used preprocessed text internally)
-            # BUT classify_content might need the text parameter for IndoBERT or logging
+            # IndoBERT uses Preprocessed Text to match training data
+            current_text_input = text_input
+            if model_name == 'indobert':
+                current_text_input = preprocessed_text
             
             # Note: classify_content signature is (text_vector, model, text=None)
-            prediction, probabilities = classify_content(text_vector, model, text=text_input)
+            prediction, probabilities = classify_content(text_vector, model, text=current_text_input)
             
             # Ensure probabilities are python floats
             prob_rad = float(probabilities[1]) if len(probabilities) > 1 else 0.0
@@ -265,7 +273,9 @@ def results():
         
     # Get all classification results with pagination
     page = request.args.get('page', 1, type=int)
-    per_page = request.args.get('per_page', 20, type=int)
+    per_page = request.args.get('per_page', type=int)
+    if not per_page:
+        per_page = current_user.get_preferences().get('items_per_page', 20)
     
     # Identify the dataset to show
     dataset_id_param = request.args.get('dataset_id')
@@ -273,6 +283,10 @@ def results():
     
     if dataset_id_param:
         target_dataset = db.session.get(Dataset, dataset_id_param)
+        # Verify permission
+        if target_dataset and not check_dataset_permission(target_dataset, current_user):
+            flash(t('You do not have permission to access this dataset'), 'error')
+            return redirect(url_for('classification.results'))
     
     # If no specific dataset requested, or requested one not found, use latest
     if not target_dataset:
@@ -602,11 +616,12 @@ def process_classification_background(app, dataset_id, user_id):
                     if model_name not in visible_algorithms:
                         continue
 
-                    # Determine text to use
-                    text_input = item.cleaned_content
-                    # For IndoBERT, use raw content
+                    # For IndoBERT, use preprocessed text to match training data
                     if model_name == 'indobert':
-                         text_input = raw_content
+                         text_input = preprocess_for_model(raw_content)
+                    else:
+                         # For logging/other purposes if needed, though they use vector
+                         text_input = item.cleaned_content
                     
                     # Classify
                     prediction, probabilities = classify_content(text_vector, model, text_input)
@@ -1011,9 +1026,12 @@ def classify_selected_datasets():
                         
                         # Determine text to use
                         text_input = item.cleaned_content
-                        # For IndoBERT, use RAW CONTENT to preserve semantic meaning (stopwords, punctuation)
+                        # For IndoBERT, use preprocessed text to match training data (Stemmed + Stopwords removed)
                         if model_name == 'indobert':
-                             text_input = item.raw_data.content if item.raw_data else item.content
+                            # Get raw content
+                            raw_content_val = item.raw_data.content if item.raw_data else item.content
+                            # Apply preprocessing including stemming
+                            text_input = preprocess_for_model(raw_content_val)
                             
                         prediction, probabilities = classify_content(text_vector, model, text_input)
                         
@@ -1059,9 +1077,12 @@ def classify_selected_datasets():
                         
                         # Determine text to use
                         text_input = item.cleaned_content
-                        # For IndoBERT, use RAW CONTENT to preserve semantic meaning (stopwords, punctuation)
+                        # For IndoBERT, use preprocessed text to match training data (Stemmed + Stopwords removed)
                         if model_name == 'indobert':
-                             text_input = item.raw_data_scraper.content if item.raw_data_scraper else item.content
+                             # Get raw content
+                             raw_content_val = item.raw_data_scraper.content if item.raw_data_scraper else item.content
+                             # Apply preprocessing including stemming
+                             text_input = preprocess_for_model(raw_content_val)
 
                         prediction, probabilities = classify_content(text_vector, model, text_input)
                         
@@ -1135,3 +1156,190 @@ def classify_selected_datasets():
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'message': f'Error: {str(e)}'}), 500
+
+@classification_bp.route('/api/export/classification-results', methods=['POST'])
+@login_required
+@active_user_required
+def export_classification_results():
+    try:
+        data = request.get_json()
+        export_format = data.get('format', 'csv')
+        dataset_id = data.get('dataset_id')
+        
+        # Get visible algorithms
+        visible_algorithms = current_app.config.get('VISIBLE_ALGORITHMS')
+        classification_models = current_app.config.get('CLASSIFICATION_MODELS', {})
+        
+        # If no visible algorithms set (None), use all
+        if visible_algorithms is None:
+            visible_algorithms = list(classification_models.keys())
+            
+        # Determine datasets to fetch
+        target_datasets = []
+        if dataset_id:
+            ds = db.session.get(Dataset, dataset_id)
+            if ds:
+                # Check permission
+                if not current_user.is_admin() and ds.uploaded_by != current_user.id:
+                    return jsonify({'success': False, 'message': 'Permission denied'}), 403
+                target_datasets.append(ds)
+        else:
+            # Fetch all datasets available to user
+            query = Dataset.query.filter(Dataset.status == 'Classified')
+            if not current_user.is_admin():
+                query = query.filter(Dataset.uploaded_by == current_user.id)
+            target_datasets = query.order_by(desc(Dataset.updated_at)).all()
+            
+        export_data = []
+        
+        for ds in target_datasets:
+            # Fetch clean upload data
+            clean_uploads = CleanDataUpload.query.filter_by(dataset_id=ds.id).all()
+            
+            # Fetch clean scraper data
+            clean_scrapers = db.session.query(CleanDataScraper).join(
+                RawDataScraper, CleanDataScraper.raw_data_scraper_id == RawDataScraper.id
+            ).filter(RawDataScraper.dataset_id == ds.id).all()
+            
+            # Combine items
+            items = []
+            for item in clean_uploads:
+                items.append({
+                    'id': item.id,
+                    'type': 'upload',
+                    'username': item.username,
+                    'content': item.cleaned_content,
+                    'original_content': item.raw_data.content if item.raw_data else item.content,
+                    'url': item.url,
+                    'created_at': item.created_at
+                })
+                
+            for item in clean_scrapers:
+                items.append({
+                    'id': item.id,
+                    'type': 'scraper',
+                    'username': item.username,
+                    'content': item.cleaned_content,
+                    'original_content': item.raw_data_scraper.content if item.raw_data_scraper else item.content,
+                    'url': item.url,
+                    'created_at': item.created_at
+                })
+                
+            # Fetch all results for these items
+            if not items:
+                continue
+                
+            upload_ids = [i['id'] for i in items if i['type'] == 'upload']
+            scraper_ids = [i['id'] for i in items if i['type'] == 'scraper']
+            
+            results_query = ClassificationResult.query.filter(
+                ((ClassificationResult.data_type == 'upload') & (ClassificationResult.data_id.in_(upload_ids))) |
+                ((ClassificationResult.data_type == 'scraper') & (ClassificationResult.data_id.in_(scraper_ids)))
+            )
+            
+            # Filter by visible algorithms
+            if visible_algorithms:
+                results_query = results_query.filter(ClassificationResult.model_name.in_(visible_algorithms))
+                
+            all_results = results_query.all()
+            
+            # Map results to items
+            # Key: f"{data_type}_{data_id}" -> {model_name: result}
+            results_map = {}
+            for res in all_results:
+                key = f"{res.data_type}_{res.data_id}"
+                if key not in results_map:
+                    results_map[key] = {}
+                results_map[key][res.model_name] = res
+                
+            # Build export rows
+            for item in items:
+                row = {
+                    'Dataset': ds.name,
+                    'Username': item['username'],
+                    'Content': item['content'],
+                    'Original Content': item['original_content'],
+                    'URL': item['url'],
+                    'Data Type': item['type'],
+                    'Date': item['created_at'].strftime('%Y-%m-%d %H:%M:%S') if item['created_at'] else ''
+                }
+                
+                key = f"{item['type']}_{item['id']}"
+                item_results = results_map.get(key, {})
+                
+                # Only add data for models that actually have results AND are visible
+                for model_name, res in item_results.items():
+                    if model_name in visible_algorithms:
+                        model_col = model_name.replace('_', ' ').title()
+                        row[f'{model_col} Prediction'] = res.prediction
+                        row[f'{model_col} Probability'] = f"{max(res.probability_radikal, res.probability_non_radikal):.4f}"
+                        
+                export_data.append(row)
+                
+        if not export_data:
+            return jsonify({'success': False, 'message': 'No data to export'}), 404
+            
+        # Create DataFrame
+        df = pd.DataFrame(export_data)
+        
+        # Reorder columns to match visible_algorithms order and ensure consistent structure
+        base_columns = ['Dataset', 'Username', 'Content', 'Original Content', 'URL', 'Data Type', 'Date']
+        
+        # Identify dynamic model columns present in the dataframe
+        dynamic_cols = [c for c in df.columns if c not in base_columns]
+        
+        # Sort dynamic columns based on visible_algorithms order
+        def get_model_sort_key(col_name):
+            # Map column name back to model index
+            for i, model in enumerate(visible_algorithms):
+                display_name = model.replace('_', ' ').title()
+                if col_name.startswith(display_name):
+                    # Prioritize Prediction then Probability
+                    is_prob = 'Probability' in col_name
+                    return i * 10 + (1 if is_prob else 0)
+            return 999
+
+        dynamic_cols.sort(key=get_model_sort_key)
+        
+        # Final column list
+        final_cols = base_columns + dynamic_cols
+        
+        # Reindex to enforce order (only includes columns that actually have data)
+        df = df[final_cols]
+        
+        # Fill NaNs with '-' for cleaner look (or empty string if preferred, but - implies "not applicable/missing")
+        df.fillna('-', inplace=True)
+        
+        # Export
+        output = io.BytesIO()
+        if export_format == 'csv':
+            df.to_csv(output, index=False, encoding='utf-8-sig') # utf-8-sig for Excel compatibility
+            mimetype = 'text/csv'
+            filename = f'classification_results_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
+        else: # excel
+            # Try using openpyxl
+            try:
+                with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                    df.to_excel(writer, index=False, sheet_name='Results')
+                mimetype = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                filename = f'classification_results_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
+            except ImportError:
+                 # Fallback to CSV if openpyxl is missing
+                 current_app.logger.warning("openpyxl not found, falling back to CSV")
+                 output = io.BytesIO()
+                 df.to_csv(output, index=False, encoding='utf-8-sig')
+                 mimetype = 'text/csv'
+                 filename = f'classification_results_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
+        
+        output.seek(0)
+        
+        return send_file(
+            output,
+            mimetype=mimetype,
+            as_attachment=True,
+            download_name=filename
+        )
+        
+    except Exception as e:
+        current_app.logger.error(f"Export error: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500

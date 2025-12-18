@@ -3,6 +3,8 @@ from flask_login import login_required, current_user
 from sqlalchemy import desc, func
 from models.models import db, RawData, RawDataScraper, DatasetStatistics, CleanDataUpload, CleanDataScraper, ClassificationResult, UserActivity
 from utils.utils import active_user_required, format_datetime
+from datetime import datetime, timedelta
+import calendar
 
 main_bp = Blueprint('main', __name__)
 
@@ -132,9 +134,11 @@ def profile():
     
     # Get recent activities
     if current_user.is_admin():
-        recent_activities = UserActivity.query.order_by(desc(UserActivity.created_at)).limit(10).all()
+        recent_activities = UserActivity.query.order_by(desc(UserActivity.created_at)).limit(5).all()
+        all_activities_query = UserActivity.query
     else:
-        recent_activities = UserActivity.query.filter_by(user_id=current_user.id).order_by(desc(UserActivity.created_at)).limit(10).all()
+        recent_activities = UserActivity.query.filter_by(user_id=current_user.id).order_by(desc(UserActivity.created_at)).limit(5).all()
+        all_activities_query = UserActivity.query.filter_by(user_id=current_user.id)
         
     formatted_activities = []
     for activity in recent_activities:
@@ -148,9 +152,85 @@ def profile():
             'type_color': activity.color # profile.html uses type_color
         })
 
+    # Calculate Activity Statistics for Chart (Last 6 Months)
+    end_date = datetime.utcnow()
+    start_date = end_date - timedelta(days=180)
+    
+    activities_stats = all_activities_query.filter(UserActivity.created_at >= start_date).all()
+    
+    # Initialize buckets for last 6 months
+    monthly_stats = {}
+    for i in range(6):
+        date = end_date - timedelta(days=30 * i)
+        month_key = date.strftime('%b') # Jan, Feb, etc.
+        monthly_stats[month_key] = {
+            'upload': 0,
+            'scraping': 0, 
+            'cleaning': 0,
+            'classification': 0
+        }
+    
+    # Reverse to have chronological order (oldest to newest)
+    month_labels = list(monthly_stats.keys())[::-1]
+    
+    # Fill with data
+    for act in activities_stats:
+        month_key = act.created_at.strftime('%b')
+        if month_key in monthly_stats:
+            action = act.action.lower()
+            if 'upload' in action:
+                monthly_stats[month_key]['upload'] += 1
+            elif 'scraping' in action:
+                monthly_stats[month_key]['scraping'] += 1
+            elif 'cleaning' in action:
+                monthly_stats[month_key]['cleaning'] += 1
+            elif 'classification' in action:
+                monthly_stats[month_key]['classification'] += 1
+                
+    # Prepare chart data
+    upload_data = [monthly_stats[m]['upload'] for m in month_labels]
+    scraping_data = [monthly_stats[m]['scraping'] for m in month_labels]
+    cleaning_data = [monthly_stats[m]['cleaning'] for m in month_labels]
+    classification_data = [monthly_stats[m]['classification'] for m in month_labels]
+    
+    activity_chart_data = {
+        'labels': month_labels,
+        'datasets': [
+            {
+                'label': 'Upload',
+                'data': upload_data,
+                'borderColor': '#007bff', # Primary
+                'backgroundColor': 'rgba(0, 123, 255, 0.1)',
+                'tension': 0.4
+            },
+            {
+                'label': 'Scraping',
+                'data': scraping_data,
+                'borderColor': '#17c1e8', # Info
+                'backgroundColor': 'rgba(23, 193, 232, 0.1)',
+                'tension': 0.4
+            },
+            {
+                'label': 'Cleaning',
+                'data': cleaning_data,
+                'borderColor': '#ffc107', # Warning
+                'backgroundColor': 'rgba(255, 193, 7, 0.1)',
+                'tension': 0.4
+            },
+            {
+                'label': 'Classification',
+                'data': classification_data,
+                'borderColor': '#82d616', # Success
+                'backgroundColor': 'rgba(130, 214, 22, 0.1)',
+                'tension': 0.4
+            }
+        ]
+    }
+
     return render_template('profile.html',
                           user_stats=user_stats,
-                          recent_activities=formatted_activities)
+                          recent_activities=formatted_activities,
+                          activity_chart_data=activity_chart_data)
 
 @main_bp.route('/dashboard/stats')
 @login_required

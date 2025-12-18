@@ -67,7 +67,12 @@ def process_cleaning(dataset_id, user_id):
             print(f"Error cleaning scraper {raw_scraper.id}: {str(e)}")
             
     dataset.status = 'Cleaned'
-    dataset.cleaned_records = processed_count
+    
+    # Update cleaned_records count based on actual database records
+    clean_upload_count = CleanDataUpload.query.filter_by(dataset_id=dataset.id).count()
+    clean_scraper_count = CleanDataScraper.query.filter_by(dataset_id=dataset.id).count()
+    dataset.cleaned_records = clean_upload_count + clean_scraper_count
+    
     db.session.commit()
     
     return processed_count
@@ -176,8 +181,19 @@ def process_bulk_cleaning(app, dataset_ids, task_id, user_id):
                     except Exception as e:
                         progress_dict['errors'].append(f"Error cleaning scraper {raw_scraper.id}: {str(e)}")
                 
+                # Update status and counts
                 dataset.status = 'Cleaned'
-                dataset.cleaned_records = (dataset.cleaned_records or 0) + (processed_count - current_dataset_processed_start)
+                
+                # Update cleaned_records count based on actual database records
+                # This ensures accuracy even if process was restarted or duplicates were skipped
+                clean_upload_count = CleanDataUpload.query.filter_by(dataset_id=dataset.id).count()
+                
+                # For scrapers, we need to join or filter carefully
+                # CleanDataScraper stores dataset_id directly as per model definition
+                clean_scraper_count = CleanDataScraper.query.filter_by(dataset_id=dataset.id).count()
+                
+                dataset.cleaned_records = clean_upload_count + clean_scraper_count
+                
                 db.session.commit()
             
             progress_dict['status'] = 'completed'

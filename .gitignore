@@ -318,3 +318,8 @@ tmp/
 .Trashes
 ehthumbs.db
 Thumbs.db
+# Waskita Custom Ignores
+.env
+uploads/
+src/frontend/static/profile_pics/
+*.DS_Store

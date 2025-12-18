@@ -37,10 +37,10 @@ class SecurityLogger:
         for handler in self.security_logger.handlers[:]:
             self.security_logger.removeHandler(handler)
         
-        # Rotating file handler (10MB max, keep 5 files)
+        # Rotating file handler (100MB max, keep 5 files)
         security_handler = RotatingFileHandler(
             os.path.join(log_dir, 'security.log'),
-            maxBytes=10*1024*1024,
+            maxBytes=100*1024*1024,
             backupCount=5
         )
         security_handler.setLevel(logging.INFO)
@@ -61,7 +61,7 @@ class SecurityLogger:
         
         audit_handler = RotatingFileHandler(
             os.path.join(log_dir, 'audit.log'),
-            maxBytes=10*1024*1024,
+            maxBytes=100*1024*1024,
             backupCount=10
         )
         audit_handler.setFormatter(security_formatter)

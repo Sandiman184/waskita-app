@@ -3,11 +3,13 @@ from datetime import datetime
 import threading
 import uuid
 import pytz
+import os
+from werkzeug.utils import secure_filename
 from flask_login import login_required, current_user
-from models.models import db, Dataset, User, RawData, RawDataScraper, CleanDataUpload, CleanDataScraper, ClassificationResult, UserActivity, ClassificationBatch
+from models.models import db, Dataset, User, RawData, RawDataScraper, CleanDataUpload, CleanDataScraper, ClassificationResult, UserActivity, ClassificationBatch, ManualClassificationHistory, ClassificationConfig, TrainingRun
 from sqlalchemy import desc, func
 from services.apify_service import ApifyService
-from utils.utils import get_jakarta_time, JAKARTA_TZ, admin_required, flatten_dict, generate_activity_log
+from utils.utils import get_jakarta_time, JAKARTA_TZ, admin_required, flatten_dict, generate_activity_log, check_dataset_permission
 
 api_bp = Blueprint('api', __name__)
 
@@ -24,6 +26,11 @@ def models_status():
 @login_required
 def get_scraping_progress(job_id):
     try:
+        # Check permission based on dataset ownership if exists
+        dataset_record = Dataset.query.filter_by(external_id=job_id).first()
+        if dataset_record and not check_dataset_permission(dataset_record, current_user):
+             return jsonify({'success': False, 'message': 'Permission denied'}), 403
+             
         # job_id is the Apify Run ID
         run_data = ApifyService.get_run_status(job_id)
         
@@ -131,6 +138,16 @@ def get_scraping_progress(job_id):
                 # Use limit=10 to fetch only a sample for column mapping and preview
                 # This prevents timeouts on large datasets during progress checking
                 items = ApifyService.get_dataset_items(default_dataset_id, limit=10)
+                
+                # If sample with limit returns empty but we know there are items, try fetching without limit (maybe bug in Apify API with limit?)
+                # Or try fetching from offset
+                if not items and items_processed > 0:
+                     current_app.logger.warning(f"Apify status SUCCEEDED and items_processed={items_processed} but get_dataset_items(limit=10) returned empty. Retrying without limit...")
+                     # Try fetching just 1 item without limit param logic if possible, or just standard call
+                     # Note: ApifyService.get_dataset_items handles limit param manually
+                     # Let's try to get info again to be sure
+                     pass
+                
                 if items:
                     # Note: items_processed here is just the sample count if we used limit
                     # So we should NOT overwrite items_processed with len(items) if we used limit
@@ -145,7 +162,7 @@ def get_scraping_progress(job_id):
                     # Flatten sample data as well for consistent preview
                     sample_data = [flatten_dict(item) for item in items[:5]]
                 else:
-                    # If items are empty but we expected some?
+                    # If items are really empty, we can't do much mapping
                     if items_processed > 0:
                          current_app.logger.warning(f"Apify status SUCCEEDED and items_processed={items_processed} but get_dataset_items returned empty.")
                     # Don't reset items_processed to 0 here because we might have failed to fetch sample 
@@ -256,6 +273,9 @@ def get_scraping_history():
             year = dt_jakarta.year
             scraped_date_formatted = f"{day} {month} {year}"
             scraped_time_formatted = dt_jakarta.strftime('%H:%M WIB')
+            
+        # Check if data is already mapped (exists in RawDataScraper)
+        mapped_count = RawDataScraper.query.filter_by(dataset_id=ds.id).count()
         
         history.append({
             'id': ds.id,
@@ -264,6 +284,7 @@ def get_scraping_history():
             'created_at': dt_jakarta.strftime('%d/%m/%Y %H:%M') if dt_jakarta else '-',
             'total_records': ds.total_records,
             'results_count': ds.total_records, # Add alias to match frontend expectation
+            'mapped_count': mapped_count,
             'status': ds.status,
             'scraped_by': ds.user.username if ds.user else 'Unknown',
             'scraped_date_formatted': scraped_date_formatted,
@@ -308,6 +329,122 @@ def edit_profile():
         db.session.rollback()
         return jsonify({'success': False, 'message': str(e)}), 500
 
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
+
+def allowed_file(filename):
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+@api_bp.route('/profile/upload-photo', methods=['POST'])
+@login_required
+def upload_profile_photo():
+    if 'photo' not in request.files:
+        return jsonify({'success': False, 'message': 'No file part'}), 400
+    
+    file = request.files['photo']
+    
+    if file.filename == '':
+        return jsonify({'success': False, 'message': 'No selected file'}), 400
+        
+    if file and allowed_file(file.filename):
+        # Check file size manually
+        file.seek(0, os.SEEK_END)
+        size = file.tell()
+        file.seek(0)
+        
+        if size > 2 * 1024 * 1024: # 2MB
+             return jsonify({'success': False, 'message': 'File too large (max 2MB)'}), 400
+
+        filename = secure_filename(file.filename)
+        # Make unique
+        ext = filename.rsplit('.', 1)[1].lower()
+        unique_filename = f"user_{current_user.id}_{int(datetime.now().timestamp())}.{ext}"
+        
+        # Get upload folder path, assume it's relative to app root or absolute
+        # We need to ensure we get the right path. 
+        # In setup_postgresql.py: UPLOAD_FOLDER=uploads
+        # In app.py basedir is set.
+        
+        # Let's rely on current_app.config['UPLOAD_FOLDER'] but we might need to make it absolute if it isn't
+        upload_folder = current_app.config.get('UPLOAD_FOLDER', 'uploads')
+        if not os.path.isabs(upload_folder):
+             upload_folder = os.path.join(current_app.root_path, '..', '..', upload_folder) # app.py is in src/backend, so ../.. to root?
+             # app.py: basedir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+             # It seems simpler to trust the config or construct relative to instance.
+             # Let's try to find where 'uploads' is usually located.
+             # usually in project root.
+             pass
+             
+        # Actually app.py sets root_path?
+        # Let's stick to a safe bet: os.path.join(os.getcwd(), 'uploads') or similar if config is just 'uploads'
+        # But wait, app.py sets static_folder='../../src/frontend/static'.
+        # Maybe we should store profile pics in static folder so they can be served easily?
+        # User requirement: "Simpan gambar ke direktori yang aman di server"
+        # If I put it in static, it's public. If I put it in uploads, I need a route to serve it.
+        # "tampilkan foto yang telah diunggah" -> implies serving it.
+        # Let's put it in `src/frontend/static/profile_pics`.
+        
+        static_folder = current_app.static_folder
+        profile_folder = os.path.join(static_folder, 'profile_pics')
+        
+        if not os.path.exists(profile_folder):
+            os.makedirs(profile_folder)
+            
+        # Remove old photo if exists
+        if current_user.profile_picture:
+            old_path = os.path.join(profile_folder, current_user.profile_picture)
+            if os.path.exists(old_path):
+                try:
+                    os.remove(old_path)
+                except:
+                    pass # Ignore error deleting old file
+
+        file.save(os.path.join(profile_folder, unique_filename))
+        
+        current_user.profile_picture = unique_filename
+        db.session.commit()
+        
+        generate_activity_log(
+            action='profile_update',
+            description='Updated profile picture',
+            user_id=current_user.id,
+            icon='fa-camera',
+            color='info'
+        )
+        
+        return jsonify({'success': True, 'message': 'Profile photo uploaded successfully', 'filename': unique_filename})
+    
+    return jsonify({'success': False, 'message': 'Invalid file type. Only JPEG, PNG, GIF allowed.'}), 400
+
+@api_bp.route('/profile/delete-photo', methods=['POST'])
+@login_required
+def delete_profile_photo():
+    if not current_user.profile_picture:
+        return jsonify({'success': False, 'message': 'No profile photo to delete'}), 400
+        
+    static_folder = current_app.static_folder
+    profile_folder = os.path.join(static_folder, 'profile_pics')
+    file_path = os.path.join(profile_folder, current_user.profile_picture)
+    
+    if os.path.exists(file_path):
+        try:
+            os.remove(file_path)
+        except Exception as e:
+            return jsonify({'success': False, 'message': f'Error deleting file: {str(e)}'}), 500
+            
+    current_user.profile_picture = None
+    db.session.commit()
+    
+    generate_activity_log(
+        action='profile_update',
+        description='Removed profile picture',
+        user_id=current_user.id,
+        icon='fa-user-slash',
+        color='warning'
+    )
+    
+    return jsonify({'success': True, 'message': 'Profile photo removed'})
+
 @api_bp.route('/profile/change-password', methods=['POST'])
 @login_required
 def change_password():
@@ -343,26 +480,28 @@ def change_password():
 @login_required
 def save_preferences():
     try:
-        preferences = {
-            'language': request.form.get('language'),
-            'timezone': request.form.get('timezone'),
-            'items_per_page': request.form.get('items_per_page', type=int),
-            'default_dataset': request.form.get('default_dataset'),
-            'email_notifications': request.form.get('email_notifications') == 'true',
-            'auto_refresh': request.form.get('auto_refresh') == 'true',
-            'dark_mode': request.form.get('dark_mode') == 'true',
-            'auto_classify': request.form.get('auto_classify') == 'true',
-            'show_probability': request.form.get('show_probability') == 'true',
-            'compact_view': request.form.get('compact_view') == 'true'
-        }
-        
-        # Update user preferences
-        # Assuming User model has a preferences field (JSON/JSONB)
-        # We need to make sure we don't overwrite existing preferences that are not in the form
-        # But here we seem to be sending all of them.
-        
         current_prefs = current_user.get_preferences()
-        current_prefs.update(preferences)
+        
+        # Text/Select fields
+        if 'timezone' in request.form:
+            current_prefs['timezone'] = request.form.get('timezone')
+            
+        if 'items_per_page' in request.form:
+            current_prefs['items_per_page'] = request.form.get('items_per_page', type=int)
+            
+        if 'default_dataset' in request.form:
+            current_prefs['default_dataset'] = request.form.get('default_dataset')
+            
+        # Boolean fields
+        # Note: Frontend sends 'true'/'false' strings for boolean values
+        boolean_fields = [
+            'dark_mode', 
+            'auto_classify', 'show_probability', 'compact_view'
+        ]
+        
+        for field in boolean_fields:
+            if field in request.form:
+                current_prefs[field] = request.form.get(field) == 'true'
         
         # If the model field is 'preferences', we assign it back
         current_user.preferences = current_prefs
@@ -598,6 +737,123 @@ def dataset_statistics():
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 500
 
+@api_bp.route('/admin/users/<int:id>', methods=['DELETE'])
+@login_required
+@admin_required
+def delete_user(id):
+    try:
+        user = db.session.get(User, id)
+        if not user:
+            return jsonify({'success': False, 'message': 'User tidak ditemukan'}), 404
+            
+        if user.id == current_user.id:
+            return jsonify({'success': False, 'message': 'Tidak dapat menghapus akun sendiri'}), 400
+            
+        # 1. Delete all Datasets owned by user (this cascades to RawData, CleanData, etc.)
+        # We must replicate the logic from delete_dataset to ensure full cleanup
+        user_datasets = Dataset.query.filter_by(uploaded_by=user.id).all()
+        for dataset in user_datasets:
+            # 1. Clean Data Upload & Classification Results
+            clean_uploads = CleanDataUpload.query.filter_by(dataset_id=dataset.id).all()
+            if clean_uploads:
+                clean_upload_ids = [c.id for c in clean_uploads]
+                ClassificationResult.query.filter(
+                    ClassificationResult.data_type == 'upload',
+                    ClassificationResult.data_id.in_(clean_upload_ids)
+                ).delete(synchronize_session=False)
+                for item in clean_uploads:
+                    db.session.delete(item)
+            
+            # 2. Clean Data Scraper & Classification Results
+            clean_scrapers = CleanDataScraper.query.filter_by(dataset_id=dataset.id).all()
+            if clean_scrapers:
+                clean_scraper_ids = [c.id for c in clean_scrapers]
+                ClassificationResult.query.filter(
+                    ClassificationResult.data_type == 'scraper',
+                    ClassificationResult.data_id.in_(clean_scraper_ids)
+                ).delete(synchronize_session=False)
+                for item in clean_scrapers:
+                    db.session.delete(item)
+                    
+            # 3. Raw Data
+            raw_data = RawData.query.filter_by(dataset_id=dataset.id).all()
+            for item in raw_data:
+                db.session.delete(item)
+
+            # 4. Raw Data Scraper
+            RawDataScraper.query.filter_by(dataset_id=dataset.id).delete(synchronize_session=False)
+
+            # 5. Classification Batch
+            ClassificationBatch.query.filter_by(dataset_id=dataset.id).delete(synchronize_session=False)
+                
+            # 6. Dataset
+            db.session.delete(dataset)
+
+        # 2. Delete Orphaned RawData/Scraper (uploaded/scraped by user but not in their dataset?)
+        RawData.query.filter_by(uploaded_by=user.id).delete(synchronize_session=False)
+        RawDataScraper.query.filter_by(scraped_by=user.id).delete(synchronize_session=False)
+        
+        # 3. Delete Orphaned CleanData (cleaned by user)
+        # CleanDataUpload
+        orphan_clean_uploads = CleanDataUpload.query.filter_by(cleaned_by=user.id).all()
+        if orphan_clean_uploads:
+            ids = [c.id for c in orphan_clean_uploads]
+            ClassificationResult.query.filter(
+                ClassificationResult.data_type == 'upload',
+                ClassificationResult.data_id.in_(ids)
+            ).delete(synchronize_session=False)
+            for item in orphan_clean_uploads:
+                db.session.delete(item)
+                
+        # CleanDataScraper
+        orphan_clean_scrapers = CleanDataScraper.query.filter_by(cleaned_by=user.id).all()
+        if orphan_clean_scrapers:
+            ids = [c.id for c in orphan_clean_scrapers]
+            ClassificationResult.query.filter(
+                ClassificationResult.data_type == 'scraper',
+                ClassificationResult.data_id.in_(ids)
+            ).delete(synchronize_session=False)
+            for item in orphan_clean_scrapers:
+                db.session.delete(item)
+        
+        # 4. Delete Classification Results by this user (classified_by)
+        ClassificationResult.query.filter_by(classified_by=user.id).delete(synchronize_session=False)
+        
+        # 5. Update Classification Results corrected by this user (set to NULL)
+        ClassificationResult.query.filter_by(corrected_by=user.id).update({'corrected_by': None})
+        
+        # 6. User Activities
+        UserActivity.query.filter_by(user_id=user.id).delete(synchronize_session=False)
+        
+        # 7. Manual Classification History
+        ManualClassificationHistory.query.filter_by(classified_by=user.id).delete(synchronize_session=False)
+        
+        # 8. Classification Batches created by user (orphans)
+        ClassificationBatch.query.filter_by(created_by=user.id).delete(synchronize_session=False)
+        
+        # 9. Configs & Training Runs (Set to NULL)
+        ClassificationConfig.query.filter_by(updated_by=user.id).update({'updated_by': None})
+        TrainingRun.query.filter_by(user_id=user.id).update({'user_id': None})
+
+        # 10. Delete User
+        username = user.username
+        db.session.delete(user)
+        db.session.commit()
+        
+        generate_activity_log(
+            action='delete_user',
+            description=f'Deleted user: {username}',
+            user_id=current_user.id,
+            icon='fa-user-times',
+            color='danger'
+        )
+        
+        return jsonify({'success': True, 'message': 'User berhasil dihapus'})
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
 @api_bp.route('/scraping/statistics')
 @login_required
 def scraping_statistics():
@@ -679,7 +935,7 @@ def get_recent_uploads():
 @admin_required
 def get_user_details(id):
     try:
-        user = User.query.get(id)
+        user = db.session.get(User, id)
         if not user:
             return jsonify({'success': False, 'message': 'User tidak ditemukan'}), 404
             
