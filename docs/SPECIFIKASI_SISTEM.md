@@ -39,7 +39,7 @@ Dokumen ini merinci spesifikasi teknis, fungsional, dan kebutuhan sistem untuk a
 | **App Server** | Gunicorn | WSGI HTTP Server untuk menjalankan Flask di production. |
 | **Database** | PostgreSQL | Penyimpanan data relasional (User, Dataset, Hasil). |
 | **ORM** | SQLAlchemy | Abstraksi database dan manajemen model. |
-| **ML Libraries** | Scikit-learn, Transformers, PyTorch | Training dan inferensi klasifikasi teks. |
+| **ML Libraries** | Scikit-learn, Transformers, PyTorch, Gensim | Training dan inferensi klasifikasi teks. |
 | **NLP Libraries** | Sastrawi, NLTK | Preprocessing teks Bahasa Indonesia (Stopword, Stemming). |
 | **Task Queue** | Celery + Redis (Opsional) | Untuk background task berat (Scraping/Training). |
 | **Frontend UI** | Soft UI Dashboard (Bootstrap 5) | Desain antarmuka modern, responsif, dan support Dark Mode. |
@@ -59,9 +59,19 @@ Dokumen ini merinci spesifikasi teknis, fungsional, dan kebutuhan sistem untuk a
 3.  **Preprocessing:** Pembersihan data otomatis (hapus emoji, url, normalisasi kata).
 
 ### C. Klasifikasi & AI
-1.  **Model:** Naive Bayes Classifier dengan ekstraksi fitur Word2Vec/TF-IDF.
-2.  **Output:** Label "Radikal" / "Non-Radikal" beserta skor probabilitas.
-3.  **Fine-Tuning:** Fitur untuk melatih ulang model dengan dataset baru (Admin only).
+Aplikasi mendukung **Multi-Model Classification** yang memungkinkan pengguna memilih algoritma sesuai kebutuhan:
+
+1.  **Deep Learning Model:**
+    *   **IndoBERT:** Fine-tuned `indobenchmark/indobert-base-p1`. Akurasi tinggi dengan pemahaman konteks.
+2.  **Conventional ML Models (via Word2Vec Features):**
+    *   **Naive Bayes:** GaussianNB.
+    *   **SVM:** RBF Kernel + CalibratedClassifierCV.
+    *   **Random Forest:** Balanced Class Weight.
+    *   **Logistic Regression.**
+    *   **KNN:** 5 Neighbors.
+    *   **Decision Tree.**
+3.  **Output:** Label "Radikal" / "Non-Radikal" beserta skor probabilitas (Confidence Score).
+4.  **Fine-Tuning:** Fitur untuk melatih ulang model dengan dataset baru (Admin only).
 
 ### D. Antarmuka Pengguna (UI/UX)
 1.  **Responsive Design:** Tampilan menyesuaikan layar Desktop, Tablet, dan Mobile.

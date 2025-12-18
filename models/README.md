@@ -5,20 +5,17 @@ Direktori ini menyimpan model-model Machine Learning yang digunakan oleh aplikas
 ## 📂 Struktur Folder
 
 *   **`classifiers/`**: Menyimpan model klasifikasi konvensional (scikit-learn).
-    *   `Naive Bayes_classifier_model.joblib`: Model utama (MultinomialNB).
-    *   `SVM_classifier_model.joblib`: Model pendukung (Support Vector Machine).
-    *   `Random Forest_classifier_model.joblib`
-    *   `Logistic Regression_classifier_model.joblib`
-    *   `Decision Tree_classifier_model.joblib`
-    *   `KNN_classifier_model.joblib`
-
+    *   `Naive Bayes_classifier_model.joblib`: Model **GaussianNB**.
+    *   `SVM_classifier_model.joblib`: Model **SVC (RBF Kernel)** yang dibungkus `CalibratedClassifierCV` (Sigmoid) untuk probabilitas.
+    *   `Random Forest_classifier_model.joblib`: Model **RandomForestClassifier** (class_weight='balanced').
+    *   `Logistic Regression_classifier_model.joblib`: Model **LogisticRegression**.
+    *   `Decision Tree_classifier_model.joblib`: Model **DecisionTreeClassifier** (class_weight='balanced').
+    *   `KNN_classifier_model.joblib`: Model **KNeighborsClassifier** (n_neighbors=5).
 *   **`embeddings/`**: Menyimpan model representasi kata.
-    *   `word2vec_model.joblib`: Model Word2Vec (Gensim) yang dilatih pada korpus Bahasa Indonesia (Wiki + Social Media).
-
+    *   `word2vec_model.joblib`: Model **Word2Vec (Gensim)** yang dilatih pada korpus Bahasa Indonesia (Wiki + Social Media).
 *   **`indobert/`**: Menyimpan model Transformer fine-tuned.
     *   `config.json`, `pytorch_model.bin`, `tokenizer.json`, dll.
-    *   Model ini berbasis `indobenchmark/indobert-base-p1` yang telah dilatih ulang dengan dataset radikalisme.
-
+    *   Model ini berbasis **`indobenchmark/indobert-base-p1`** yang telah dilatih ulang (*fine-tuned*) dengan dataset radikalisme.
 *   **`label_encoder/`**:
     *   `label_encoder.joblib`: Encoder untuk mengubah label teks ("Radikal", "Non-Radikal") menjadi numerik.
 

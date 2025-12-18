@@ -9,7 +9,7 @@
 
 ## 🌟 Fitur Utama
 
-*   **Klasifikasi Cerdas:** Menggunakan algoritma **Naive Bayes** yang diperkuat dengan **Word2Vec** dan **IndoBERT**.
+*   **Multi-Model AI Classification:** Mendukung **7 Algoritma** sekaligus (IndoBERT, SVM, Naive Bayes, dll) untuk perbandingan akurasi.
 *   **Multi-Platform Scraping:** Mendukung input data dari Twitter, TikTok, dan Facebook (via Apify).
 *   **Preprocessing Otomatis:** Pembersihan teks (Emoji, URL, Simbol) secara otomatis sebelum analisis.
 *   **Dashboard Interaktif:** Visualisasi data real-time dengan tema *Dark Mode* yang elegan.
@@ -18,42 +18,32 @@
 
 ---
 
-## 🧠 Machine Learning & AI Engine
+## 🧠 Algoritma & Model AI (Artificial Intelligence)
 
-Waskita menggunakan pendekatan **Hybrid AI** yang menggabungkan kecepatan *Classical Machine Learning* dengan akurasi *Deep Learning* untuk mendeteksi konten radikal.
+Aplikasi Waskita menggunakan pendekatan **Hybrid** yang menggabungkan Machine Learning konvensional dan Deep Learning untuk akurasi maksimal. Berikut adalah algoritma yang aktif digunakan dalam sistem (per 18 Desember 2025):
 
-### 1. Model Klasifikasi
+### 1. Deep Learning (State-of-the-Art)
+*   **IndoBERT (Indonesian BERT)**: Menggunakan base model `indobenchmark/indobert-base-p1` yang telah di-*fine-tune* khusus dengan dataset radikalisme.
+    *   **Teknologi**: Transformers (Hugging Face), PyTorch.
+    *   **Keunggulan**: Mampu memahami konteks kalimat dan nuansa bahasa Indonesia (Contextual Embedding) jauh lebih baik daripada model konvensional.
+    *   **Input**: Raw Text (dengan tokenisasi otomatis).
 
-#### A. IndoBERT (State-of-the-Art)
-Model utama kami berbasis **Transformer** yang dikhususkan untuk Bahasa Indonesia.
-*   **Base Model:** `indobenchmark/indobert-base-p1`
-*   **Arsitektur:** 12-layer, 768-hidden, 12-heads, 110M parameters.
-*   **Fine-Tuning:** Model dilatih ulang (*fine-tuned*) secara spesifik menggunakan dataset radikalisme dengan parameter:
-    *   *Max Sequence Length:* 128 token
-    *   *Optimizer:* AdamW (LR: 2e-5)
-    *   *Batch Size:* 16
-*   **Keunggulan:** Mampu memahami konteks kalimat yang kompleks (misal: sarkasme atau idiom radikal) yang sering terlewat oleh model konvensional.
+### 2. Machine Learning Konvensional
+Model-model ini menggunakan **Word2Vec** (Gensim) untuk ekstraksi fitur (*Feature Extraction*) yang mengubah teks menjadi vektor numerik sebelum diklasifikasikan.
 
-#### B. Naive Bayes & Classical Models (Baseline)
-Sebagai pembanding dan *fallback* yang cepat, kami juga menyediakan implementasi:
-*   **Algoritma:** Gaussian Naive Bayes (via Scikit-Learn).
-*   **Feature Extraction:** Menggunakan **Word2Vec** (Gensim) untuk mengubah teks menjadi representasi vektor numerik sebelum diklasifikasikan.
-*   **Model Lain:** Mendukung juga SVM, Random Forest, dan Logistic Regression untuk benchmarking.
+*   **Naive Bayes (GaussianNB)**: Model probabilistik dasar yang cepat dan efisien.
+*   **Support Vector Machine (SVM)**: Menggunakan kernel **RBF** dan dibungkus dengan `CalibratedClassifierCV` (Sigmoid) untuk menghasilkan probabilitas yang akurat.
+*   **Random Forest**: *Ensemble method* yang menggunakan banyak *decision trees* dengan `class_weight='balanced'` untuk menangani ketidakseimbangan data.
+*   **Logistic Regression**: Model linier statistik yang kuat untuk klasifikasi biner.
+*   **K-Nearest Neighbors (KNN)**: Mengklasifikasikan data berdasarkan kemiripan jarak vektor dengan 5 tetangga terdekat (`n_neighbors=5`).
+*   **Decision Tree**: Model pohon keputusan tunggal dengan `class_weight='balanced'`.
 
-### 2. Pipeline Pemrosesan Data (NLP)
-
-Setiap input teks melewati tahapan preprocessing yang ketat sebelum masuk ke model:
-1.  **Cleaning:** Menghapus Emoji, URL, Mention (@user), Hashtag (#), dan tanda baca berlebih.
-2.  **Case Folding:** Konversi ke huruf kecil.
-3.  **Label Normalization:** Standardisasi label (0: Non-Radikal, 1: Radikal).
-4.  **Vectorization:**
-    *   *IndoBERT:* Tokenisasi menggunakan `AutoTokenizer` (WordPiece).
-    *   *Naive Bayes:* Embedding menggunakan model Word2Vec yang telah dilatih pada korpus Bahasa Indonesia.
-
-### 3. Active Learning
-Sistem dilengkapi fitur **Active Learning** untuk meningkatkan akurasi seiring waktu.
-*   **Uncertainty Sampling:** Sistem otomatis mendeteksi data yang "membingungkan" bagi model (entropy tinggi).
-*   **Human-in-the-loop:** Admin dapat memverifikasi/melabeli ulang data tersebut untuk *retraining* model, membuat Waskita semakin pintar dari waktu ke waktu.
+### 3. Pipeline Pemrosesan Data
+1.  **Preprocessing**: Cleaning (Hapus Emoji, URL, Mention), Case Folding, Stopword Removal (Sastrawi), dan Stemming (Sastrawi).
+2.  **Vectorization**:
+    *   *ML Konvensional*: Menggunakan model **Word2Vec** yang dilatih pada korpus Wikipedia Indonesia + Data Media Sosial.
+    *   *Deep Learning*: Menggunakan **IndoBERT Tokenizer**.
+3.  **Classification**: Sistem dapat menjalankan single model atau multiple models sekaligus untuk perbandingan (voting).
 
 ---
 
