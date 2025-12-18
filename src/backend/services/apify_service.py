@@ -29,6 +29,8 @@ class ApifyService:
         if not actor_id:
             raise Exception(f"No Apify Actor configured for platform: {platform}")
 
+        current_app.logger.info(f"Starting Apify job for platform: {platform}, Actor ID: {actor_id}")
+
         # Ensure actor_id uses ~ instead of / for API URL compatibility if needed, 
         # but standard API v2 usually accepts 'username/actorname' in path.
         # Actually for 'acts/{actorId}/runs', it prefers the actor ID or 'username~actorname'.
