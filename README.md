@@ -3,7 +3,7 @@
 **Waskita** adalah platform intelijen digital berbasis Artificial Intelligence (AI) yang dirancang untuk memantau dan menganalisis penyebaran konten radikal di berbagai platform media sosial. Mengadopsi pendekatan **Hybrid Model** (kombinasi Deep Learning & Machine Learning), aplikasi ini menyajikan deteksi dini yang akurat serta visualisasi tren interaktif melalui dashboard modern (Soft UI) untuk mendukung mitigasi penyebaran narasi ekstremisme.
 
 > **Status:** 🟢 Active Maintenance  
-> **Versi:** 1.4 (Februari 2025)
+> **Versi:** 1.4 (Desember 2025)
 
 ---
 
