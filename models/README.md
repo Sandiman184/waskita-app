@@ -1,51 +1,48 @@
-# Models Directory
+# 🧠 Waskita ML Models
 
-Folder ini berisi model machine learning yang digunakan oleh aplikasi Waskita untuk klasifikasi konten radikal.
+Direktori ini menyimpan model-model Machine Learning yang digunakan oleh aplikasi Waskita untuk klasifikasi konten radikal.
 
-## Struktur Folder
+## 📂 Struktur Folder
 
-```
-models/
-├── embeddings/
-│   └── wiki_word2vec_csv_updated.model  # Model Word2Vec untuk preprocessing text
-└── navesbayes/
-    ├── naive_bayes_model1.pkl           # Model Naive Bayes untuk klasifikasi
-    ├── naive_bayes_model2.pkl           # Model Naive Bayes alternatif
-    └── naive_bayes_model3.pkl           # Model Naive Bayes tambahan
-```
+*   **`classifiers/`**: Menyimpan model klasifikasi konvensional (scikit-learn).
+    *   `Naive Bayes_classifier_model.joblib`: Model utama (MultinomialNB).
+    *   `SVM_classifier_model.joblib`: Model pendukung (Support Vector Machine).
+    *   `Random Forest_classifier_model.joblib`
+    *   `Logistic Regression_classifier_model.joblib`
+    *   `Decision Tree_classifier_model.joblib`
+    *   `KNN_classifier_model.joblib`
 
-## File Model yang Diperlukan
+*   **`embeddings/`**: Menyimpan model representasi kata.
+    *   `word2vec_model.joblib`: Model Word2Vec (Gensim) yang dilatih pada korpus Bahasa Indonesia (Wiki + Social Media).
 
-### 1. Word2Vec Model
-- **File**: `embeddings/wiki_word2vec_csv_updated.model`
-- **Fungsi**: Mengkonversi teks menjadi vektor numerik untuk preprocessing
-- **Format**: Gensim Word2Vec model
+*   **`indobert/`**: Menyimpan model Transformer fine-tuned.
+    *   `config.json`, `pytorch_model.bin`, `tokenizer.json`, dll.
+    *   Model ini berbasis `indobenchmark/indobert-base-p1` yang telah dilatih ulang dengan dataset radikalisme.
 
-### 2. Naive Bayes Models
-- **File**: `navesbayes/naive_bayes_model1.pkl`
-- **File**: `navesbayes/naive_bayes_model2.pkl`
-- **File**: `navesbayes/naive_bayes_model3.pkl`
-- **Fungsi**: Klasifikasi teks sebagai Radikal atau Non-Radikal
-- **Format**: Scikit-learn pickle files
+*   **`label_encoder/`**:
+    *   `label_encoder.joblib`: Encoder untuk mengubah label teks ("Radikal", "Non-Radikal") menjadi numerik.
 
-## Cara Mendapatkan Model
+## ⚠️ Catatan Penting
 
-Model-model ini tidak disertakan dalam repository karena ukurannya yang besar. Untuk mendapatkan model:
+1.  **File Besar (LFS):** Beberapa model (terutama IndoBERT dan Word2Vec) memiliki ukuran file yang besar (>100MB). Pastikan Anda menggunakan **Git LFS** jika ingin mengelola versi model ini di repository.
+    ```bash
+    git lfs install
+    git lfs track "*.bin"
+    git lfs track "*.joblib"
+    ```
 
-1. **Hubungi pengembang** melalui kontak yang tersedia di CONTRIBUTING.md
-2. **Download dari sumber resmi** jika tersedia
-3. **Train model sendiri** menggunakan dataset yang sesuai
+2.  **Missing Models:** Jika folder ini kosong setelah cloning, berarti model belum dilatih atau tidak disertakan dalam repo. Anda perlu:
+    *   Menjalankan script training ulang (via Admin Dashboard).
+    *   Atau mendownload pre-trained models dari penyimpanan eksternal (Google Drive/S3) jika tersedia.
 
-## Konfigurasi
+3.  **Disable Model Loading:** Untuk development ringan tanpa memuat model berat, set environment variable:
+    ```ini
+    DISABLE_MODEL_LOADING=True
+    ```
 
-Path model dikonfigurasi di `config.py`:
-- `WORD2VEC_MODEL_PATH`
-- `NAIVE_BAYES_MODEL1_PATH`
-- `NAIVE_BAYES_MODEL2_PATH`
-- `NAIVE_BAYES_MODEL3_PATH`
+## 🔄 Cara Melatih Ulang (Retraining)
 
-## Catatan Keamanan
-
-- Pastikan model berasal dari sumber terpercaya
-- Verifikasi integritas file sebelum digunakan
-- Jangan commit file model ke repository (sudah ada di .gitignore)
+1.  Upload dataset baru via dashboard aplikasi.
+2.  Masuk ke menu **Admin Panel > Retrain Model**.
+3.  Pilih algoritma yang ingin dilatih ulang.
+4.  Tunggu proses selesai (background job via Celery/Thread).
