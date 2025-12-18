@@ -1,6 +1,6 @@
 # 📡 Waskita — Analisis Konten Radikal
 
-**Waskita** adalah aplikasi berbasis web yang dirancang untuk mendeteksi dan mengklasifikasikan konten radikal di media sosial menggunakan Machine Learning (Naive Bayes & IndoBERT). Aplikasi ini dilengkapi dengan dashboard analitik modern (Soft UI) untuk memantau tren penyebaran konten.
+**Waskita** adalah platform intelijen digital berbasis Artificial Intelligence (AI) yang dirancang untuk memantau dan menganalisis penyebaran konten radikal di berbagai platform media sosial. Mengadopsi pendekatan **Hybrid Model** (kombinasi Deep Learning & Machine Learning), aplikasi ini menyajikan deteksi dini yang akurat serta visualisasi tren interaktif melalui dashboard modern (Soft UI) untuk mendukung mitigasi penyebaran narasi ekstremisme.
 
 > **Status:** 🟢 Active Maintenance  
 > **Versi:** 1.4 (Februari 2025)
