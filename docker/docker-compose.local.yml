@@ -2,7 +2,7 @@ services:
   # Override untuk service web agar berjalan dengan konfigurasi development
   web:
     env_file:
-      - ../.env.docker
+      - ../.env
     environment:
       - FLASK_CONFIG=development
       - DOTENV_OVERRIDE=False
@@ -21,10 +21,10 @@ services:
       - ENABLE_SSL=false
       - NGINX_SERVER_NAME=localhost
     volumes:
-      - ../static:/var/www/static
+      - ../src/frontend/static:/var/www/static
     # Jangan gunakan volume mounts dari base compose file
 
-  # Override untuk service database agar memakai .env.docker
+  # Override untuk service database agar memakai .env
   db:
     env_file:
-      - ../.env.docker
+      - ../.env
