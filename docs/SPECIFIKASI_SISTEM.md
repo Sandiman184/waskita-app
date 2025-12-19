@@ -92,7 +92,20 @@ Aplikasi menggunakan konfigurasi berbasis **12-Factor App** melalui file `.env`:
 
 ---
 
-## 6. Skenario Deployment
+## 7. Batasan Sistem
 
-*   **Lokal (Dev):** Flask Development Server (`flask run`) atau Docker Compose Local.
-*   **Produksi:** VPS dengan Docker Compose (Nginx -> Gunicorn -> Flask), SSL via Certbot.
+*   **Ukuran File Upload:** 
+    *   Maksimal 10GB per file (diperbarui untuk mendukung model IndoBERT dan Word2Vec skala besar).
+    *   Menggunakan mekanisme **Chunked Upload** (pecahan 2MB) untuk menghindari timeout server pada file besar.
+    *   Didukung fitur **Automatic Retry** (hingga 10 kali) untuk menangani koneksi tidak stabil saat upload.
+*   **Waktu Proses:** Klasifikasi massal (>10.000 data) memerlukan waktu pemrosesan background.
+*   **Dependensi Eksternal:** Fitur scraping bergantung pada ketersediaan API pihak ketiga (Apify).
+*   **Bahasa:** Model ML dioptimalkan khusus untuk Bahasa Indonesia (termasuk bahasa gaul/slang medsos).
+
+---
+
+## 8. Pemeliharaan (Maintenance)
+
+*   **Backup:** Backup database harian disarankan (bisa diotomatisasi via script cronjob di VPS).
+*   **Log Rotation:** Log aplikasi dirotasi otomatis (maksimal 10MB x 3 file) agar tidak memenuhi disk.
+*   **Update Model:** Model perlu dilatih ulang secara berkala jika ada tren bahasa baru atau pergeseran topik radikalisme.

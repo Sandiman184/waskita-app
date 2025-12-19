@@ -1,45 +1,43 @@
-# 🧠 Waskita ML Models
+# Machine Learning Models Configuration
 
-Direktori ini menyimpan model-model Machine Learning yang digunakan oleh aplikasi Waskita untuk klasifikasi konten radikal.
+This directory contains the machine learning models required for the Waskita application.
+Due to their large size, some model files are not included in the repository and must be downloaded or trained manually.
 
-## 📂 Struktur Folder
+## Directory Structure
 
-*   **`classifiers/`**: Menyimpan model klasifikasi konvensional (scikit-learn).
-    *   `Naive Bayes_classifier_model.joblib`: Model **GaussianNB**.
-    *   `SVM_classifier_model.joblib`: Model **SVC (RBF Kernel)** yang dibungkus `CalibratedClassifierCV` (Sigmoid) untuk probabilitas.
-    *   `Random Forest_classifier_model.joblib`: Model **RandomForestClassifier** (class_weight='balanced').
-    *   `Logistic Regression_classifier_model.joblib`: Model **LogisticRegression**.
-    *   `Decision Tree_classifier_model.joblib`: Model **DecisionTreeClassifier** (class_weight='balanced').
-    *   `KNN_classifier_model.joblib`: Model **KNeighborsClassifier** (n_neighbors=5).
-*   **`embeddings/`**: Menyimpan model representasi kata.
-    *   `word2vec_model.joblib`: Model **Word2Vec (Gensim)** yang dilatih pada korpus Bahasa Indonesia (Wiki + Social Media).
-*   **`indobert/`**: Menyimpan model Transformer fine-tuned.
-    *   `config.json`, `pytorch_model.bin`, `tokenizer.json`, dll.
-    *   Model ini berbasis **`indobenchmark/indobert-base-p1`** yang telah dilatih ulang (*fine-tuned*) dengan dataset radikalisme.
-*   **`label_encoder/`**:
-    *   `label_encoder.joblib`: Encoder untuk mengubah label teks ("Radikal", "Non-Radikal") menjadi numerik.
+Ensure the following directory structure and files exist:
 
-## ⚠️ Catatan Penting
+```
+models/
+├── embeddings/
+│   └── word2vec_model.joblib             # Word2Vec Model (Required)
+├── classifiers/
+│   ├── Naive Bayes_classifier_model.joblib
+│   ├── SVM_classifier_model.joblib
+│   ├── Random Forest_classifier_model.joblib
+│   ├── Logistic Regression_classifier_model.joblib
+│   ├── Decision Tree_classifier_model.joblib
+│   └── KNN_classifier_model.joblib
+├── label_encoder/
+│   └── label_encoder.joblib
+└── indobert/
+    ├── config.json
+    ├── model.safetensors
+    ├── tokenizer.json
+    └── ... (HuggingFace model files)
+```
 
-1.  **File Besar (LFS):** Beberapa model (terutama IndoBERT dan Word2Vec) memiliki ukuran file yang besar (>100MB). Pastikan Anda menggunakan **Git LFS** jika ingin mengelola versi model ini di repository.
-    ```bash
-    git lfs install
-    git lfs track "*.bin"
-    git lfs track "*.joblib"
-    ```
+## Troubleshooting Missing Models
 
-2.  **Missing Models:** Jika folder ini kosong setelah cloning, berarti model belum dilatih atau tidak disertakan dalam repo. Anda perlu:
-    *   Menjalankan script training ulang (via Admin Dashboard).
-    *   Atau mendownload pre-trained models dari penyimpanan eksternal (Google Drive/S3) jika tersedia.
+If you see errors like `File Word2Vec model tidak ditemukan` in the logs:
 
-3.  **Disable Model Loading:** Untuk development ringan tanpa memuat model berat, set environment variable:
-    ```ini
-    DISABLE_MODEL_LOADING=True
-    ```
+1.  **Check File Existence**: Verify that `models/embeddings/wiki_word2vec_csv_updated.model` exists.
+2.  **Training**: If the files are missing, you may need to run the training pipeline to generate them.
+    *   Run the training script: `python src/backend/train_models.py` (if available) or check the documentation for model download links.
+3.  **Environment Variables**: The model paths can be overridden in `.env` or `docker-compose.yml`.
+    *   Default Word2Vec path: `/app/models/embeddings/wiki_word2vec_csv_updated.model` (in Docker).
 
-## 🔄 Cara Melatih Ulang (Retraining)
+## Docker Setup
 
-1.  Upload dataset baru via dashboard aplikasi.
-2.  Masuk ke menu **Admin Panel > Retrain Model**.
-3.  Pilih algoritma yang ingin dilatih ulang.
-4.  Tunggu proses selesai (background job via Celery/Thread).
+When running with Docker, this `models/` directory is mounted to `/app/models` inside the container.
+Any changes you make here (adding/removing models) will be reflected in the container after a restart.

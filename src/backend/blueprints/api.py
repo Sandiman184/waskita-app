@@ -13,6 +13,10 @@ from utils.utils import get_jakarta_time, JAKARTA_TZ, admin_required, flatten_di
 
 api_bp = Blueprint('api', __name__)
 
+@api_bp.route('/health')
+def health_check():
+    return jsonify({'status': 'healthy'}), 200
+
 @api_bp.route('/models-status')
 def models_status():
     word2vec_model = current_app.config.get('WORD2VEC_MODEL')

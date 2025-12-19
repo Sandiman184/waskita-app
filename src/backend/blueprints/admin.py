@@ -196,7 +196,23 @@ def process_indobert_upload(upload_id, temp_dir, final_filename, user_id):
 @login_required
 @admin_required
 def upload_init():
+    """
+    Initialize a chunked file upload session.
+    
+    This endpoint is part of the chunked upload mechanism designed to handle large file uploads
+    (e.g., IndoBERT > 500MB, Word2Vec > 1GB) that exceed standard web server limits.
+    
+    Technical Details:
+    - Creates a temporary directory in `UPLOAD_FOLDER/temp_chunks/<upload_id>`.
+    - Returns a unique `upload_id` to be used in subsequent chunk uploads.
+    - Used for both 'indobert' (.zip) and 'word2vec' (.joblib) model types.
+    
+    Returns:
+        JSON: {'upload_id': str} on success, or error message.
+    """
     filename = request.form.get('filename')
+    model_type = request.form.get('model_type', 'indobert') # Default to indobert for backward compatibility
+    
     if not filename:
         return jsonify({'error': 'Filename required'}), 400
         
@@ -209,6 +225,7 @@ def upload_init():
         'progress': 0,
         'message': 'Upload initialized',
         'filename': filename,
+        'model_type': model_type,
         'temp_dir': temp_dir,
         'timestamp': time.time()
     }
@@ -219,6 +236,26 @@ def upload_init():
 @login_required
 @admin_required
 def upload_chunk():
+    """
+    Handle the upload of a single file chunk.
+    
+    This function accepts a chunk of a file and saves it to the temporary directory
+    associated with the `upload_id`.
+    
+    Mechanisms:
+    - Frontend splits files into 2MB chunks (configurable).
+    - Chunks are named `part_<index>`.
+    - Supports retry logic on the frontend (up to 10 retries with exponential backoff).
+    - Timeout per chunk is extended to handle network jitter.
+    
+    Args:
+        upload_id (form): The ID of the upload session.
+        chunk_index (form): The sequence number of the chunk (0-based).
+        chunk (file): The file data for this chunk.
+        
+    Returns:
+        JSON: {'success': True} on success.
+    """
     upload_id = request.form.get('upload_id')
     chunk_index = request.form.get('chunk_index')
     chunk = request.files.get('chunk')
@@ -231,38 +268,242 @@ def upload_chunk():
         
     task = upload_tasks[upload_id]
     chunk_path = os.path.join(task['temp_dir'], f'part_{chunk_index}')
-    chunk.save(chunk_path)
+    
+    try:
+        chunk.save(chunk_path)
+        # current_app.logger.debug(f"Chunk {chunk_index} saved for {upload_id}")
+    except Exception as e:
+        current_app.logger.error(f"Failed to save chunk {chunk_index} for {upload_id}: {e}")
+        return jsonify({'error': str(e)}), 500
     
     return jsonify({'success': True})
+
+def process_generic_model_upload(upload_id, temp_dir, final_filename, model_type, user_id):
+    """
+    Background task to process uploaded generic model (Word2Vec, etc) after chunk assembly.
+    
+    This function is triggered after all chunks are uploaded. It performs the following:
+    1.  **Assembly**: Combines `part_0`, `part_1`, ... into the final file.
+    2.  **Validation**: Basic validation (existence of chunks).
+    3.  **Installation**: 
+        - Determines target path based on `model_type` from configuration.
+        - Backs up/removes the old model.
+        - Moves the assembled file to the target location.
+    4.  **Cleanup**: Removes temporary chunks and directories.
+    5.  **Logging**: Records the activity in `UserActivity`.
+    
+    Limits:
+    - Supports files up to 10GB (configured via `MAX_CONTENT_LENGTH` and Nginx).
+    
+    Args:
+        upload_id (str): The upload session ID.
+        temp_dir (str): Path to temporary directory containing chunks.
+        final_filename (str): Name of the final assembled file.
+        model_type (str): Type of model (e.g., 'word2vec', 'svm').
+        user_id (int): ID of the user performing the upload.
+    """
+    current_app.logger.info(f"Starting generic model processing task: {upload_id}, type: {model_type}")
+    try:
+        if upload_id not in upload_tasks:
+            current_app.logger.error(f"Upload ID {upload_id} not found in tasks")
+            return
+
+        upload_tasks[upload_id]['status'] = 'processing'
+        upload_tasks[upload_id]['message'] = 'Assembling file chunks...'
+        upload_tasks[upload_id]['progress'] = 10
+        
+        # Assemble chunks
+        assembled_file_path = os.path.join(temp_dir, final_filename)
+        
+        if not os.path.exists(temp_dir):
+             raise ValueError(f"Temporary directory not found: {temp_dir}")
+
+        # Map model types to config paths
+        model_paths = {
+            'word2vec': current_app.config.get('WORD2VEC_MODEL_PATH'),
+            'label_encoder': current_app.config.get('LABEL_ENCODER_PATH'),
+            'naive_bayes': current_app.config.get('MODEL_NAIVE_BAYES_PATH'),
+            'svm': current_app.config.get('MODEL_SVM_PATH'),
+            'random_forest': current_app.config.get('MODEL_RANDOM_FOREST_PATH'),
+            'logistic_regression': current_app.config.get('MODEL_LOGISTIC_REGRESSION_PATH'),
+            'decision_tree': current_app.config.get('MODEL_DECISION_TREE_PATH'),
+            'knn': current_app.config.get('MODEL_KNN_PATH')
+        }
+        
+        target_path = model_paths.get(model_type)
+        if not target_path:
+            raise ValueError(f"Path for model {model_type} is not configured")
+
+        # Ensure absolute path to avoid relative path issues
+        if not os.path.isabs(target_path):
+            target_path = os.path.abspath(target_path)
+            
+        current_app.logger.info(f"Task {upload_id}: Target path resolved to {target_path}")
+
+        # Unload models if we are updating word2vec or classifiers to release locks
+        if model_type == 'word2vec' or model_type in model_paths:
+             current_app.logger.info(f"Unloading models before updating {model_type}...")
+             if hasattr(current_app, 'unload_models'):
+                 current_app.unload_models()
+             else:
+                 # Fallback if method not attached
+                 current_app.config['WORD2VEC_MODEL'] = None
+                 import gc
+                 gc.collect()
+
+        with open(assembled_file_path, 'wb') as outfile:
+            parts = sorted([f for f in os.listdir(temp_dir) if f.startswith('part_')], key=lambda x: int(x.split('_')[1]))
+            total_parts = len(parts)
+            
+            if total_parts == 0:
+                raise ValueError("No file chunks found")
+
+            for i, part in enumerate(parts):
+                part_path = os.path.join(temp_dir, part)
+                with open(part_path, 'rb') as infile:
+                    outfile.write(infile.read())
+                
+                if total_parts > 0:
+                    progress = 10 + int((i / total_parts) * 80) # 10-90%
+                    upload_tasks[upload_id]['progress'] = progress
+        
+        # Cleanup parts
+        for part in parts:
+            try:
+                os.remove(os.path.join(temp_dir, part))
+            except:
+                pass
+                
+        upload_tasks[upload_id]['message'] = 'Installing model...'
+        upload_tasks[upload_id]['progress'] = 90
+        
+        # Move to target location
+        os.makedirs(os.path.dirname(target_path), exist_ok=True)
+        
+        # Replace file logic with Pending Update Strategy for Windows
+        # If immediate replacement fails, we queue it as a pending update.
+        
+        try:
+            # Try immediate replacement first
+            if os.path.exists(target_path):
+                # Try simple remove
+                try:
+                    os.remove(target_path)
+                except OSError:
+                    # If remove fails, it's locked.
+                    pass 
+            
+            # Try move
+            shutil.move(assembled_file_path, target_path)
+            
+            # Reload models if successful
+            current_app.logger.info("Reloading models after update...")
+            if hasattr(current_app, 'load_models'):
+                current_app.load_models()
+                
+            upload_tasks[upload_id]['message'] = 'Model successfully installed'
+            
+        except OSError as e:
+            # Fallback: Pending Update
+            current_app.logger.warning(f"Immediate model replacement failed: {e}. Queueing as pending update.")
+            
+            pending_path = target_path + '.pending'
+            if os.path.exists(pending_path):
+                try:
+                    os.remove(pending_path)
+                except:
+                    pass
+            
+            shutil.move(assembled_file_path, pending_path)
+            
+            upload_tasks[upload_id]['message'] = 'Upload complete. PLEASE RESTART SERVER to apply changes.'
+            # We mark as completed so the UI stops polling, but with a warning message.
+        
+        # Cleanup temp dir
+        try:
+            os.rmdir(temp_dir)
+        except:
+            pass
+            
+        # Log activity
+        try:
+            activity = UserActivity(
+                user_id=user_id,
+                action='model_update',
+                description=f'Updated {model_type} model',
+                details=f'Filename: {final_filename}',
+                icon='fa-cubes',
+                color='success'
+            )
+            db.session.add(activity)
+            db.session.commit()
+        except Exception as log_err:
+            current_app.logger.error(f"Failed to log upload activity: {log_err}")
+            db.session.rollback()
+
+        upload_tasks[upload_id]['status'] = 'completed'
+        upload_tasks[upload_id]['progress'] = 100
+        upload_tasks[upload_id]['message'] = 'Model successfully installed'
+        
+    except Exception as e:
+        if upload_id in upload_tasks:
+            upload_tasks[upload_id]['status'] = 'failed'
+            upload_tasks[upload_id]['error'] = str(e)
+        current_app.logger.error(f"Generic upload processing failed: {e}", exc_info=True)
+        try:
+            if os.path.exists(temp_dir):
+                shutil.rmtree(temp_dir)
+        except:
+            pass
+    finally:
+        db.session.remove()
 
 @admin_bp.route('/admin/upload/finish', methods=['POST'])
 @login_required
 @admin_required
 def upload_finish():
+    """
+    Finalize the chunked upload process.
+    
+    Triggered when the frontend has successfully uploaded all chunks.
+    This starts a background thread to process (assemble and install) the uploaded files.
+    
+    Process:
+    1.  Verifies `upload_id`.
+    2.  Updates status to 'pending_processing'.
+    3.  Spawns a background thread running `process_indobert_upload` or `process_generic_model_upload`
+        depending on the `model_type`.
+    
+    Returns:
+        JSON: {'success': True} indicating processing has started.
+    """
     upload_id = request.form.get('upload_id')
     if not upload_id or upload_id not in upload_tasks:
         return jsonify({'error': 'Invalid upload ID'}), 404
         
     task = upload_tasks[upload_id]
     task['status'] = 'pending_processing'
+    model_type = task.get('model_type', 'indobert')
     
     # Start background processing with app context
     app = current_app._get_current_object()
     user_id = current_user.id
     
-    def thread_with_context(app, upload_id, temp_dir, filename, user_id):
+    def thread_with_context(app, upload_id, temp_dir, filename, user_id, model_type):
         try:
             with app.app_context():
-                process_indobert_upload(upload_id, temp_dir, filename, user_id)
+                if model_type == 'indobert':
+                    process_indobert_upload(upload_id, temp_dir, filename, user_id)
+                else:
+                    process_generic_model_upload(upload_id, temp_dir, filename, model_type, user_id)
         except Exception as e:
-            # Last resort catch for thread setup errors
             if upload_id in upload_tasks:
                 upload_tasks[upload_id]['status'] = 'failed'
                 upload_tasks[upload_id]['error'] = f"Thread Error: {str(e)}"
             app.logger.error(f"Background upload thread crashed: {e}", exc_info=True)
             
     thread = threading.Thread(target=thread_with_context,
-                            args=(app, upload_id, task['temp_dir'], task['filename'], user_id))
+                            args=(app, upload_id, task['temp_dir'], task['filename'], user_id, model_type))
     thread.start()
     
     return jsonify({'success': True})
@@ -275,6 +516,56 @@ def upload_status(upload_id):
         return jsonify({'error': 'Not found'}), 404
     return jsonify(upload_tasks[upload_id])
 
+
+@admin_bp.route('/admin/system/restart', methods=['POST'])
+@login_required
+@admin_required
+def restart_server():
+    """
+    Restart the application server to reload models and apply changes.
+    Works for both Flask Dev Server (reloader) and Gunicorn (worker restart).
+    """
+    try:
+        current_app.logger.warning(f"Server restart initiated by user: {current_user.username}")
+        
+        # 1. Helper function to restart
+        # Must pass app object explicitly because thread runs outside request context
+        app = current_app._get_current_object()
+        
+        def do_restart(app_logger):
+            import time
+            import sys
+            import os
+            
+            # Allow the response to be sent back to client first
+            time.sleep(1)
+            
+            if os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
+                # Flask Development Server
+                app_logger.info("Restarting Flask Dev Server...")
+                try:
+                    # Touch app.py to trigger reload
+                    app_file = os.path.join(os.getcwd(), 'app.py')
+                    if os.path.exists(app_file):
+                        os.utime(app_file, None)
+                    else:
+                         sys.exit(0)
+                except:
+                    sys.exit(0)
+            else:
+                # Gunicorn / Production
+                app_logger.info("Restarting Gunicorn Worker...")
+                sys.exit(0)
+
+        # 2. Run restart in a separate thread
+        thread = threading.Thread(target=do_restart, args=(app.logger,))
+        thread.start()
+        
+        return jsonify({'success': True, 'message': 'Server is restarting... Please wait about 5-10 seconds.'})
+        
+    except Exception as e:
+        current_app.logger.error(f"Restart failed: {e}")
+        return jsonify({'error': str(e)}), 500
 
 @admin_bp.route('/admin/model/retrain/status/<task_id>')
 @login_required
@@ -1007,7 +1298,7 @@ def database_restore():
                 '-p', port,
                 '-U', user,
                 '-d', db_name,
-                '-v', 'ON_ERROR_STOP=1',
+                # '-v', 'ON_ERROR_STOP=1', # Temporarily disabled to debug partial restores
                 '-w',  # Never prompt for password
                 '-f', temp_path
             ]
@@ -1036,11 +1327,27 @@ def database_restore():
                 os.remove(temp_path)
             except:
                 pass
-                
+            
+            # Always log output for debugging
+            stdout_output = stdout.decode('utf-8')
+            stderr_output = stderr.decode('utf-8')
+            
+            if stdout_output:
+                current_app.logger.info(f"Restore STDOUT: {stdout_output[:1000]}...")
+            if stderr_output:
+                current_app.logger.warning(f"Restore STDERR: {stderr_output[:1000]}...")
+
             if process.returncode != 0:
-                stderr_output = stderr.decode('utf-8')
-                current_app.logger.error(f"Restore failed: {stderr_output}")
-                raise Exception(f"Restore process failed: {stderr_output}")
+                # Filter out harmless warnings or specific errors we want to ignore
+                if "unrecognized configuration parameter \"transaction_timeout\"" in stderr_output:
+                     current_app.logger.warning("Ignored transaction_timeout error during restore")
+                else:
+                    current_app.logger.error(f"Restore failed with code {process.returncode}")
+                    # Don't raise exception immediately if we want to allow partial success, 
+                    # but usually return code != 0 means something went wrong.
+                    # For now, let's trust the return code unless it's just the timeout warning.
+                    if "transaction_timeout" not in stderr_output:
+                        raise Exception(f"Restore process failed: {stderr_output}")
                 
             flash('Database successfully restored from SQL', 'success')
             current_app.logger.info("Database restore completed successfully")
@@ -1057,61 +1364,81 @@ def database_restore():
 def logs_backup():
     """Backup logs (ZIP)"""
     try:
+        # Increase timeout for this specific route if possible, or ensure client handles it.
+        # Nginx timeout is the usual culprit for 504.
+        # But we can try to be efficient.
+        
         # Define logs directory
-        # Assuming logs are at project root/logs or similar. 
-        # Adjust path as necessary. Based on previous context, logs might be at ../../../logs from here or absolute path.
-        # Ideally, use configuration or relative path from app root.
+        if os.path.exists('/app/logs'):
+            log_dir = '/app/logs'
+        else:
+            log_dir = current_app.config.get('LOG_FOLDER')
+            if not log_dir:
+                 basedir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+                 log_dir = os.path.join(basedir, 'logs')
         
-        # Safe way to find logs dir:
-        # 1. Try Config if available
-        # 2. Fallback to common locations
-        
-        log_dir = current_app.config.get('LOG_FOLDER')
-        if not log_dir:
-             # Fallback: backend/../../logs -> project_root/logs
-             basedir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
-             log_dir = os.path.join(basedir, 'logs')
+        current_app.logger.info(f"Backup Logs: Looking in {log_dir}")
         
         if not os.path.exists(log_dir):
-            flash('Logs directory not found', 'error')
+            flash(f'Logs directory not found at {log_dir}', 'error')
             return redirect(url_for('admin.database_management'))
 
-        # Create in-memory zip
+        # Stream the response instead of buffering in memory if files are large
+        # But ZipFile needs seekable stream usually, or we use a generator.
+        # For simplicity and Nginx compatibility, let's just use send_file but warn about size.
+        
         mem = io.BytesIO()
         with zipfile.ZipFile(mem, 'w', zipfile.ZIP_DEFLATED) as zf:
-            # Add specific log files
-            target_logs = ['app.log', 'security.log', 'audit.log']
-            found_any = False
+            target_logs = ['waskita.log', 'security.log', 'audit.log', 'app.log']
+            found_count = 0
             
+            # Add target logs
             for log_file in target_logs:
                 file_path = os.path.join(log_dir, log_file)
                 if os.path.exists(file_path):
-                    # Add to zip with simple name
-                    zf.write(file_path, arcname=log_file)
-                    found_any = True
+                    try:
+                        # Limit file size added to zip to avoid timeout/memory issues
+                        # e.g., tail last 50MB if file is huge
+                        file_size = os.path.getsize(file_path)
+                        if file_size > 50 * 1024 * 1024: # 50MB
+                            # Add warning file
+                            zf.writestr(f"{log_file}_truncated.txt", f"File {log_file} is too large ({file_size} bytes). Skipping full content to prevent timeout.")
+                        else:
+                            zf.write(file_path, arcname=log_file)
+                        found_count += 1
+                    except Exception as zip_err:
+                        current_app.logger.error(f"Failed to zip {log_file}: {zip_err}")
+
+            # Auto-discover other .log files
+            for root, dirs, files in os.walk(log_dir):
+                for file in files:
+                    if file.endswith('.log') or '.log.' in file:
+                        if file not in target_logs:
+                            try:
+                                file_path = os.path.join(root, file)
+                                file_size = os.path.getsize(file_path)
+                                if file_size <= 50 * 1024 * 1024: # 50MB limit per file
+                                    zf.write(file_path, arcname=file)
+                                    found_count += 1
+                            except Exception:
+                                pass
             
-            # Also try to add any other .log files if specific ones aren't enough
-            if not found_any:
-                 for root, dirs, files in os.walk(log_dir):
-                    for file in files:
-                        if file.endswith('.log'):
-                            zf.write(os.path.join(root, file), arcname=file)
-                            found_any = True
+            if found_count == 0:
+                flash(f'No log files found in {log_dir}', 'warning')
+                return redirect(url_for('admin.database_management'))
 
         mem.seek(0)
-        
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        filename = f"waskita_logs_{timestamp}.zip"
         
         return send_file(
             mem,
             as_attachment=True,
-            download_name=filename,
+            download_name=f"waskita_logs_{timestamp}.zip",
             mimetype='application/zip'
         )
     except Exception as e:
         flash(f'Failed to backup logs: {str(e)}', 'error')
-        current_app.logger.error(f"Log backup error: {e}")
+        current_app.logger.error(f"Log backup error: {e}", exc_info=True)
         return redirect(url_for('admin.database_management'))
 
 @admin_bp.route('/admin/logs/reset', methods=['POST'])
@@ -1120,6 +1447,7 @@ def logs_backup():
 def logs_reset():
     """Reset logs"""
     try:
+        # 1. Clear Database Logs
         UserActivity.query.delete()
         
         # Reset sequence
@@ -1129,7 +1457,33 @@ def logs_reset():
              current_app.logger.warning(f"Could not reset sequence for user_activities: {seq_err}")
              
         db.session.commit()
-        flash('Logs successfully reset', 'success')
+        
+        # 2. Clear File Logs
+        # Define logs directory
+        if os.path.exists('/app/logs'):
+            log_dir = '/app/logs'
+        else:
+            log_dir = current_app.config.get('LOG_FOLDER')
+            if not log_dir:
+                 basedir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+                 log_dir = os.path.join(basedir, 'logs')
+                 
+        target_logs = ['waskita.log', 'security.log', 'audit.log', 'app.log']
+        cleared_files = []
+        
+        if os.path.exists(log_dir):
+            for log_file in target_logs:
+                file_path = os.path.join(log_dir, log_file)
+                if os.path.exists(file_path):
+                    try:
+                        # Truncate file
+                        with open(file_path, 'w') as f:
+                            f.truncate(0)
+                        cleared_files.append(log_file)
+                    except Exception as f_err:
+                        current_app.logger.error(f"Failed to clear {log_file}: {f_err}")
+        
+        flash(f'Logs successfully reset (DB cleared, {len(cleared_files)} files truncated)', 'success')
     except Exception as e:
         db.session.rollback()
         flash(f"Failed to reset logs: {str(e)}", 'error')

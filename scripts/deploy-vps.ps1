@@ -90,8 +90,9 @@ if ($ModelDirPath -and $ModelDirPath.Trim() -ne '') {
 SSH "sudo systemctl stop nginx || true"
 SSH "sudo certbot certonly --standalone -d $Domain -d www.$Domain --non-interactive --agree-tos -m $AdminEmail"
 
-SSH "if docker compose version >/dev/null 2>&1; then cd '$RemoteDir' && sudo docker compose -f docker/docker-compose.yml --env-file .env.production up -d --build; else cd '$RemoteDir' && sudo docker-compose -f docker/docker-compose.yml --env-file .env.production up -d --build; fi"
-SSH "if docker compose version >/dev/null 2>&1; then cd '$RemoteDir' && sudo docker compose -f docker/docker-compose.yml exec web curl -sf http://localhost:5000/api/health; else cd '$RemoteDir' && sudo docker-compose -f docker/docker-compose.yml exec web curl -sf http://localhost:5000/api/health; fi"
+# Use both base and production docker-compose files to ensure SSL and Production settings are applied
+SSH "if docker compose version >/dev/null 2>&1; then cd '$RemoteDir' && sudo docker compose -f docker/docker-compose.yml -f docker/docker-compose.prod.yml --env-file .env.production up -d --build; else cd '$RemoteDir' && sudo docker-compose -f docker/docker-compose.yml -f docker/docker-compose.prod.yml --env-file .env.production up -d --build; fi"
+SSH "if docker compose version >/dev/null 2>&1; then cd '$RemoteDir' && sudo docker compose -f docker/docker-compose.yml -f docker/docker-compose.prod.yml exec web curl -sf http://localhost:5000/api/health; else cd '$RemoteDir' && sudo docker-compose -f docker/docker-compose.yml -f docker/docker-compose.prod.yml exec web curl -sf http://localhost:5000/api/health; fi"
 SSH "curl -skI https://$Domain | head -n 1"
 
 Write-Host "Deployment complete" -ForegroundColor Green

@@ -1,8 +1,12 @@
 {
-    "CLASSIFICATION_THRESHOLD": 0.5,
+    "CLASSIFICATION_THRESHOLD": 0.7,
     "VISIBLE_ALGORITHMS": [
         "naive_bayes",
+        "svm",
+        "random_forest",
+        "logistic_regression",
         "decision_tree",
-        "knn"
+        "knn",
+        "indobert"
     ]
 }

@@ -21,24 +21,38 @@ security_logger.setLevel(logging.INFO)
 
 # File handler untuk security logs dengan rotasi
 if not security_logger.handlers:
-    # Determine absolute path for logs directory (project root/logs)
-    basedir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
-    log_dir = os.path.join(basedir, 'logs')
+    # Determine absolute path for logs directory
+    # Di Docker, path absolut adalah /app/logs
+    # Di Lokal, path relatif dari file ini (utils) adalah ../../../logs
+    if os.path.exists('/app/logs'):
+        log_dir = '/app/logs'
+    else:
+        basedir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+        log_dir = os.path.join(basedir, 'logs')
     
     # Pastikan folder logs ada
     os.makedirs(log_dir, exist_ok=True)
     
-    handler = RotatingFileHandler(
-        os.path.join(log_dir, 'security.log'),
-        maxBytes=100*1024*1024,  # 100MB
-        backupCount=3,
-        encoding='utf-8'
-    )
+    # Define formatter outside try block so it's available for exception handler
     formatter = logging.Formatter(
         '%(asctime)s - SECURITY - %(levelname)s - %(message)s'
     )
-    handler.setFormatter(formatter)
-    security_logger.addHandler(handler)
+    
+    try:
+        handler = RotatingFileHandler(
+            os.path.join(log_dir, 'security.log'),
+            maxBytes=100*1024*1024,  # 100MB
+            backupCount=3,
+            encoding='utf-8'
+        )
+        handler.setFormatter(formatter)
+        security_logger.addHandler(handler)
+    except PermissionError:
+        # Fallback to stdout if permission denied
+        console_handler = logging.StreamHandler()
+        console_handler.setFormatter(formatter)
+        security_logger.addHandler(console_handler)
+        security_logger.warning(f"Permission denied for log file at {log_dir}. Falling back to console logging.")
 
 class SecurityValidator:
     """Class untuk validasi keamanan yang komprehensif"""

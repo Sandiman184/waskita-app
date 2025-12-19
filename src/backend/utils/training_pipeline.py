@@ -227,7 +227,7 @@ class TrainingPipeline:
             'random_forest': RandomForestClassifier(class_weight='balanced', random_state=42),
             'knn': KNeighborsClassifier(n_neighbors=5),
             'decision_tree': DecisionTreeClassifier(class_weight='balanced', random_state=42),
-            'gradient_boosting': GradientBoostingClassifier(random_state=42)
+            # 'gradient_boosting': GradientBoostingClassifier(random_state=42) # Disabled to match 6 conventional algorithms requirement
         }
         
         # Filter Active Models

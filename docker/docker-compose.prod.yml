@@ -1,0 +1,64 @@
+services:
+  # Waskita Application Override for Production
+  web:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    environment:
+      - FLASK_ENV=production
+      - FLASK_DEBUG=False
+      - DISABLE_MODEL_LOADING=False # Ensure models are loaded
+      - UPLOAD_FOLDER=/app/uploads
+      - MAX_CONTENT_LENGTH=10737418240
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: '2.0'
+        reservations:
+          memory: 2G
+          cpus: '1.0'
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+
+  # Nginx Production Configuration (Overrides default HTTP-only)
+  nginx:
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      # Use Production SSL Config
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      # Mount SSL Certificates (Ensure these exist on VPS)
+      - /etc/letsencrypt/live/waskita.site/fullchain.pem:/etc/nginx/ssl/fullchain.pem:ro
+      - /etc/letsencrypt/live/waskita.site/privkey.pem:/etc/nginx/ssl/privkey.pem:ro
+      # Mount static files
+      - ../src/frontend/static:/var/www/static:ro
+      # Mount logs
+      - waskita_logs:/var/log/nginx
+    environment:
+      - ENABLE_SSL=true
+    restart: always
+
+  # Database Production Tweaks
+  db:
+    restart: always
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=db_waskita
+      - POSTGRES_USER=admin
+      # POSTGRES_PASSWORD should be set in .env.production
+
+  # Redis Production Tweaks
+  redis:
+    restart: always

@@ -6,7 +6,34 @@ services:
     environment:
       - FLASK_CONFIG=development
       - DOTENV_OVERRIDE=False
-      - DISABLE_MODEL_LOADING=True
+      - DISABLE_MODEL_LOADING=False
+      - DATABASE_HOST=db
+      - DATABASE_URL=postgresql://admin:admin12345@db:5432/db_waskita
+      # Override model paths to be absolute inside container
+      - WORD2VEC_MODEL_PATH=/app/models/embeddings/word2vec_model.joblib
+      - MODEL_NAIVE_BAYES_PATH=/app/models/classifiers/Naive Bayes_classifier_model.joblib
+      - MODEL_SVM_PATH=/app/models/classifiers/SVM_classifier_model.joblib
+      - MODEL_RANDOM_FOREST_PATH=/app/models/classifiers/Random Forest_classifier_model.joblib
+      - MODEL_LOGISTIC_REGRESSION_PATH=/app/models/classifiers/Logistic Regression_classifier_model.joblib
+      - MODEL_DECISION_TREE_PATH=/app/models/classifiers/Decision Tree_classifier_model.joblib
+      - MODEL_KNN_PATH=/app/models/classifiers/KNN_classifier_model.joblib
+      - MODEL_INDOBERT_PATH=/app/models/indobert
+      - LABEL_ENCODER_PATH=/app/models/label_encoder/label_encoder.joblib
+      - UPLOAD_FOLDER=/app/uploads
+      - MAX_CONTENT_LENGTH=10737418240
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+        reservations:
+          memory: 2G
+    # Use preload to share memory and reduce workers for local dev stability
+    command: ["gunicorn", "-w", "1", "-k", "gthread", "--threads", "4", "-b", "0.0.0.0:5000", "--timeout", "120", "--preload", "app:app"]
+    volumes:
+      - ../src:/app/src
+      - waskita_logs:/app/logs
+      - waskita_uploads:/app/uploads
+      - ../models:/app/models
 
   nginx:
     # Build image khusus untuk development (HTTP-only)
@@ -22,6 +49,8 @@ services:
       - NGINX_SERVER_NAME=localhost
     volumes:
       - ../src/frontend/static:/var/www/static
+      # Mount models directory (optional for dev, but required if DISABLE_MODEL_LOADING=False)
+      - ../models:/app/models
     # Jangan gunakan volume mounts dari base compose file
 
   # Override untuk service database agar memakai .env

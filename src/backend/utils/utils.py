@@ -593,6 +593,136 @@ def classify_content(text_vector, model, text=None):
         current_app.logger.error(f"Traceback: {traceback.format_exc()}")
         return 'non-radikal', [0.0, 1.0]  # [prob_radikal, prob_non_radikal]
 
+def apply_pending_model_updates(app=None):
+    """
+    Check for pending model updates (.pending files) and apply them.
+    This should be called at application startup before models are loaded.
+    """
+    try:
+        if app:
+            app.logger.info("Checking for pending model updates...")
+            
+        # Define paths to check
+        paths_to_check = []
+        
+        # Word2Vec
+        if app:
+            paths_to_check.append(app.config.get('WORD2VEC_MODEL_PATH'))
+        else:
+            try:
+                from flask import current_app
+                paths_to_check.append(current_app.config.get('WORD2VEC_MODEL_PATH'))
+            except RuntimeError:
+                pass
+                
+        # Classifiers
+        if app:
+            paths_to_check.append(app.config.get('MODEL_NAIVE_BAYES_PATH'))
+            paths_to_check.append(app.config.get('MODEL_SVM_PATH'))
+            paths_to_check.append(app.config.get('MODEL_RANDOM_FOREST_PATH'))
+            # Add others as needed
+            
+        import os
+        import shutil
+        import time
+        import glob
+        
+        for target_path in paths_to_check:
+            if not target_path:
+                continue
+            
+            # 1. Apply .pending updates
+            pending_path = target_path + '.pending'
+            if os.path.exists(pending_path):
+                msg = f"Found pending update for: {target_path}"
+                if app: app.logger.info(msg)
+                else: print(msg)
+                
+                try:
+                    if os.path.exists(target_path):
+                        os.remove(target_path)
+                    shutil.move(pending_path, target_path)
+                    msg = f"Successfully applied pending update for: {target_path}"
+                    if app: app.logger.info(msg)
+                    else: print(msg)
+                except OSError as e:
+                    msg = f"Failed to apply pending update for {target_path}: {e}"
+                    if app: app.logger.error(msg)
+                    else: print(msg)
+
+            # 2. Cleanup orphaned shadow copies (.run.*.tmp) and backups (.old.*)
+            # This is safe to run at startup because no models are loaded yet
+            try:
+                directory = os.path.dirname(target_path)
+                filename = os.path.basename(target_path)
+                
+                if os.path.exists(directory):
+                    # Find and delete shadow copies
+                    # Using glob with recursive=False for safety
+                    shadow_pattern = os.path.join(directory, f"{filename}.run.*.tmp")
+                    for shadow_file in glob.glob(shadow_pattern):
+                        try:
+                            # Force remove even if read-only
+                            os.chmod(shadow_file, 0o777)
+                            os.remove(shadow_file)
+                            if app: app.logger.info(f"Cleaned up shadow copy: {shadow_file}")
+                        except OSError as e:
+                            if app: app.logger.warning(f"Could not delete shadow copy {shadow_file}: {e}")
+
+                    # Find and delete old backups
+                    old_pattern = os.path.join(directory, f"{filename}.old.*")
+                    for old_file in glob.glob(old_pattern):
+                        try:
+                            os.chmod(old_file, 0o777)
+                            os.remove(old_file)
+                            if app: app.logger.info(f"Cleaned up backup file: {old_file}")
+                        except OSError as e:
+                            if app: app.logger.warning(f"Could not delete backup file {old_file}: {e}")
+            except Exception as e:
+                if app: app.logger.warning(f"Error during cleanup for {target_path}: {e}")
+
+    except Exception as e:
+        if app: app.logger.error(f"Error applying pending model updates: {e}")
+
+def cleanup_shadow_copies(model_path, app=None):
+    """
+    Clean up old shadow copies of the model file.
+    Shadow copies are named: model_path + '.run.<uuid>.tmp'
+    """
+    try:
+        import glob
+        directory = os.path.dirname(model_path)
+        filename = os.path.basename(model_path)
+        
+        if not os.path.exists(directory):
+            return
+
+        # Find and delete shadow copies
+        shadow_pattern = os.path.join(directory, f"{filename}.run.*.tmp")
+        for shadow_file in glob.glob(shadow_pattern):
+            try:
+                # Force remove even if read-only
+                os.chmod(shadow_file, 0o777)
+                os.remove(shadow_file)
+                if app: app.logger.info(f"Cleaned up shadow copy: {shadow_file}")
+            except OSError as e:
+                 # File might be in use by another process/worker
+                 # But since this is called before creating a NEW one, we should try our best
+                 if app: app.logger.warning(f"Could not delete shadow copy {shadow_file}: {e}")
+
+        # Find and delete old backups
+        old_pattern = os.path.join(directory, f"{filename}.old.*")
+        for old_file in glob.glob(old_pattern):
+            try:
+                os.chmod(old_file, 0o777)
+                os.remove(old_file)
+                if app: app.logger.info(f"Cleaned up backup file: {old_file}")
+            except OSError as e:
+                pass
+                
+    except Exception as e:
+        if app: app.logger.warning(f"Error cleaning up shadow copies: {e}")
+
 def load_word2vec_model(app=None):
     """
     Load Word2Vec model from configured path dengan optimasi memory mapping
@@ -606,6 +736,8 @@ def load_word2vec_model(app=None):
         
     try:
         import os
+        import shutil
+        import uuid
         
         # Get model path from config - either from provided app or current_app
         if app:
@@ -639,23 +771,67 @@ def load_word2vec_model(app=None):
         # Gunakan memory mapping untuk mengurangi beban memory
         if app:
             app.logger.info(f"Memuat Word2Vec model dari: {model_path}")
+            
+        # Clean up old shadow copies before loading new one
+        cleanup_shadow_copies(model_path, app)
+
+        # WINDOWS SPECIFIC: Shadow Copy Strategy
+        # To avoid file locking issues on Windows when mmap is used,
+        # we copy the model to a temporary file and load from there.
+        # This leaves the original file unlocked and ready for updates.
+        actual_load_path = model_path
+        if os.name == 'nt':
+            try:
+                shadow_filename = f"{os.path.basename(model_path)}.run.{uuid.uuid4().hex}.tmp"
+                shadow_path = os.path.join(os.path.dirname(model_path), shadow_filename)
+                
+                if app: app.logger.info(f"Windows detected: Creating shadow copy at {shadow_path}")
+                shutil.copy2(model_path, shadow_path)
+                actual_load_path = shadow_path
+            except Exception as e:
+                if app: app.logger.warning(f"Failed to create shadow copy: {e}. Falling back to direct load.")
+                actual_load_path = model_path
 
         ext = os.path.splitext(model_path)[1].lower()
         if ext == '.joblib':
+            # Check file size (0-byte files cause Errno 22 with mmap)
             try:
-                model = joblib.load(model_path)
-            except Exception as e_joblib:
-                if app:
-                    app.logger.error(f"Joblib load gagal: {e_joblib}")
+                if os.path.getsize(actual_load_path) == 0:
+                    msg = f"File model kosong (0 bytes): {actual_load_path}"
+                    if app: app.logger.error(msg)
+                    else: print(msg)
+                    return None
+            except OSError as e:
+                msg = f"Tidak dapat mengakses file model ({e}): {actual_load_path}"
+                if app: app.logger.error(msg)
+                else: print(msg)
                 return None
+
+            try:
+                # Use mmap_mode='r' for read-only memory mapping to reduce RAM usage
+                model = joblib.load(actual_load_path, mmap_mode='r')
+            except (OSError, IOError, ValueError) as e_joblib:
+                # Catch Errno 22 and others
+                msg = f"Joblib load dengan mmap gagal ({e_joblib}). Mencoba load biasa..."
+                if app:
+                    app.logger.warning(msg)
+                else:
+                    print(msg)
+                
+                try:
+                    model = joblib.load(actual_load_path)
+                except Exception as e_joblib_retry:
+                    if app:
+                        app.logger.error(f"Joblib load gagal: {e_joblib_retry}")
+                    return None
         else:
             try:
-                model = Word2Vec.load(model_path, mmap='r')
+                model = Word2Vec.load(actual_load_path, mmap='r')
             except Exception as e_gensim:
                 if app:
                     app.logger.warning(f"Gensim load gagal ({e_gensim}), mencoba joblib...")
                 try:
-                    model = joblib.load(model_path)
+                    model = joblib.load(actual_load_path)
                 except Exception:
                     if app:
                         app.logger.error("Gagal memuat model Word2Vec dengan gensim maupun joblib")

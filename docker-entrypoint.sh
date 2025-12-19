@@ -3,14 +3,10 @@ set -eu
 
 echo "🚀 Starting Waskita Docker Entrypoint"
 
-if [ ! -f "/app/.env.docker" ]; then
-  echo "⚠️  .env.docker file not found, using default environment variables"
-  echo "📝 Creating complete .env file for Docker environment"
-  env | sort > /app/.env
-  echo "✅ Complete .env file created successfully for Docker using environment variables"
-else
-  cp /app/.env.docker /app/.env
-fi
+# Always regenerate .env file to ensure latest environment variables are used
+echo "📝 Regenerating .env file from environment variables"
+env | sort > /app/.env
+echo "✅ .env file updated successfully"
 
 echo "⏳ Waiting for PostgreSQL database to be ready..."
 DB_HOST="${DATABASE_HOST:-db}"

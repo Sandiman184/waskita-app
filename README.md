@@ -72,14 +72,15 @@ Panduan keamanan, konfigurasi SSL, dan perlindungan data.
 
 ### A. Menggunakan Docker (Rekomendasi)
 ```bash
-# 1. Setup Environment
+# 1. Setup Environment (Generate .env)
 python src/backend/setup_postgresql.py
 
-# 2. Jalankan Container
+# 2. Build & Jalankan Container (Lokal)
+# Gunakan flag --build untuk memastikan konfigurasi upload terbaru diterapkan
 docker-compose -f docker/docker-compose.local.yml up --build
 
 # 3. Akses Aplikasi
-# Buka http://localhost:8080
+# Buka http://localhost:8080 (Login: admin/password_dari_setup)
 ```
 
 ### B. Menggunakan Python Lokal

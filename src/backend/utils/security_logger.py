@@ -22,9 +22,13 @@ class SecurityLogger:
     
     def setup_loggers(self):
         """Setup security and audit loggers with rotation"""
-        # Determine absolute path for logs directory (project root/logs)
-        basedir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
-        log_dir = os.path.join(basedir, 'logs')
+        # Determine logs directory
+        if os.path.exists('/app/logs'):
+            log_dir = '/app/logs'
+        else:
+            # Fallback for local development
+            basedir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+            log_dir = os.path.join(basedir, 'logs')
         
         # Create logs directory
         os.makedirs(log_dir, exist_ok=True)
@@ -37,19 +41,26 @@ class SecurityLogger:
         for handler in self.security_logger.handlers[:]:
             self.security_logger.removeHandler(handler)
         
-        # Rotating file handler (100MB max, keep 5 files)
-        security_handler = RotatingFileHandler(
-            os.path.join(log_dir, 'security.log'),
-            maxBytes=100*1024*1024,
-            backupCount=5
-        )
-        security_handler.setLevel(logging.INFO)
-        
         # JSON formatter for structured logging
         security_formatter = SecurityFormatter()
-        security_handler.setFormatter(security_formatter)
-        
-        self.security_logger.addHandler(security_handler)
+
+        try:
+            # Rotating file handler (100MB max, keep 5 files)
+            security_handler = RotatingFileHandler(
+                os.path.join(log_dir, 'security.log'),
+                maxBytes=100*1024*1024,
+                backupCount=5
+            )
+            security_handler.setLevel(logging.INFO)
+            security_handler.setFormatter(security_formatter)
+            self.security_logger.addHandler(security_handler)
+        except PermissionError:
+            # Fallback to console logging
+            console_handler = logging.StreamHandler()
+            console_handler.setLevel(logging.INFO)
+            console_handler.setFormatter(security_formatter)
+            self.security_logger.addHandler(console_handler)
+            print(f"WARNING: Permission denied for security.log at {log_dir}. Using console logging.")
         self.security_logger.propagate = False
         
         # Audit logger
@@ -59,13 +70,20 @@ class SecurityLogger:
         for handler in self.audit_logger.handlers[:]:
             self.audit_logger.removeHandler(handler)
         
-        audit_handler = RotatingFileHandler(
-            os.path.join(log_dir, 'audit.log'),
-            maxBytes=100*1024*1024,
-            backupCount=10
-        )
-        audit_handler.setFormatter(security_formatter)
-        self.audit_logger.addHandler(audit_handler)
+        try:
+            audit_handler = RotatingFileHandler(
+                os.path.join(log_dir, 'audit.log'),
+                maxBytes=100*1024*1024,
+                backupCount=10
+            )
+            audit_handler.setFormatter(security_formatter)
+            self.audit_logger.addHandler(audit_handler)
+        except PermissionError:
+            # Fallback to console logging
+            console_handler = logging.StreamHandler()
+            console_handler.setFormatter(security_formatter)
+            self.audit_logger.addHandler(console_handler)
+            print(f"WARNING: Permission denied for audit.log at {log_dir}. Using console logging.")
         self.audit_logger.propagate = False
 
     def log_security_event(self, event_type, details=None, user_id=None, ip_address=None, severity='INFO'):

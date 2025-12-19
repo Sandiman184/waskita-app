@@ -44,6 +44,9 @@ CREATE TABLE datasets (
     cleaned_records INTEGER DEFAULT 0,
     classified_records INTEGER DEFAULT 0,
     status VARCHAR(20) DEFAULT 'Mentah',
+    file_path TEXT,  -- Path to the raw file (CSV/XLSX)
+    external_id VARCHAR(100),  -- External ID (e.g., Apify Run ID)
+    meta_info JSON,  -- Additional metadata (JSON)
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

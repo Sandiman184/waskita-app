@@ -18,18 +18,30 @@ override_env = os.getenv('DOTENV_OVERRIDE', 'True').lower() == 'true'
 load_dotenv(override=override_env)
 
 # Routes will be initialized using init_routes function
-from models.models import db, User
-from models.models_otp import RegistrationRequest, AdminNotification, OTPEmailLog
-from blueprints.otp import otp_bp
-from config.config import config as config_map
+try:
+    from models.models import db, User
+    from models.models_otp import RegistrationRequest, AdminNotification, OTPEmailLog
+    from blueprints.otp import otp_bp
+    from config.config import config as config_map
+except ImportError:
+    # Fallback for when running from different directory structure (e.g. docker init script)
+    from src.backend.models.models import db, User
+    from src.backend.models.models_otp import RegistrationRequest, AdminNotification, OTPEmailLog
+    from src.backend.blueprints.otp import otp_bp
+    from src.backend.config.config import config as config_map
 
 # Setup logging
 import os
 from logging.handlers import RotatingFileHandler
 
-# Determine absolute path for logs directory (project root/logs)
-basedir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-log_dir = os.path.join(basedir, 'logs')
+# Determine absolute path for logs directory
+# Di Docker, path absolut adalah /app/logs
+# Di Lokal, path relatif dari file ini adalah ../../logs
+if os.path.exists('/app/logs'):
+    log_dir = '/app/logs'
+else:
+    basedir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+    log_dir = os.path.join(basedir, 'logs')
 
 # Create logs directory
 os.makedirs(log_dir, exist_ok=True)
@@ -43,15 +55,44 @@ logging.basicConfig(
     ]
 )
 
-# Add rotating file handler for main application logs
-file_handler = RotatingFileHandler(
-    os.path.join(log_dir, 'waskita.log'),
-    maxBytes=100*1024*1024,  # 100MB to prevent frequent rotation on Windows
-    backupCount=5,
-    encoding='utf-8'
-)
-file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
-logging.getLogger().addHandler(file_handler)
+# Setup main application logger with file rotation
+def setup_main_logger():
+    try:
+        # Determine absolute path for logs directory
+        if os.path.exists('/app/logs'):
+            log_dir = '/app/logs'
+        else:
+            basedir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+            log_dir = os.path.join(basedir, 'logs')
+            
+        os.makedirs(log_dir, exist_ok=True)
+        log_file = os.path.join(log_dir, 'waskita.log')
+        
+        # Check permissions
+        if os.path.exists(log_file) and not os.access(log_file, os.W_OK):
+            print(f"WARNING: No write permission for {log_file}")
+            return
+
+        file_handler = RotatingFileHandler(
+            log_file,
+            maxBytes=100*1024*1024,
+            backupCount=5,
+            encoding='utf-8'
+        )
+        file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+        file_handler.setLevel(logging.INFO)
+        
+        # Add to root logger so all modules inherit it
+        logging.getLogger().addHandler(file_handler)
+        
+        # Also ensure app logger has it
+        if 'app' in locals():
+            app.logger.addHandler(file_handler)
+            
+    except Exception as e:
+        print(f"WARNING: Could not setup file logging: {e}")
+
+setup_main_logger()
 
 # Get logger for this module
 logger = logging.getLogger(__name__)
@@ -184,7 +225,13 @@ except Exception as e:
 
 # Create database tables
 with app.app_context():
-    db.create_all()
+    # Wrap in try-except to handle race conditions during Docker startup
+    # where multiple workers might try to create tables simultaneously
+    try:
+        db.create_all()
+        logger.info("Database tables created/verified successfully")
+    except Exception as e:
+        logger.warning(f"Database table creation skipped (likely already exists or race condition): {e}")
 
 # Initialize model variables
 word2vec_model = None
@@ -209,6 +256,14 @@ def ensure_models_loaded():
         return
     
     logger.info("Starting model loading on application startup...")
+    
+    # Apply any pending model updates (from uploads that required restart)
+    try:
+        from utils.utils import apply_pending_model_updates
+        apply_pending_model_updates(app)
+    except Exception as e:
+        logger.error(f"Failed to apply pending model updates: {e}")
+
     load_models()
 
 # Call model loading function during application initialization
@@ -338,6 +393,33 @@ def force_reload_models():
         'message': 'Models reloaded successfully' if models_loaded else 'Failed to reload models'
     }
 
+# Function to unload models (to release file locks)
+def unload_models():
+    """Unload all models to release file locks"""
+    global word2vec_model, classification_models, models_loaded
+    
+    app.logger.info("Unloading all ML models to release file locks...")
+    
+    # Reset loaded status
+    models_loaded = False
+    
+    # Clear existing models from memory
+    word2vec_model = None
+    classification_models = {}
+    
+    # Clear from app config
+    app.config['WORD2VEC_MODEL'] = None
+    app.config['CLASSIFICATION_MODELS'] = {}
+    
+    # Force garbage collection
+    import gc
+    gc.collect()
+
+# Attach helper functions to app instance for access from blueprints
+app.unload_models = unload_models
+app.load_models = load_models
+app.force_reload_models = force_reload_models
+
 
 
 # Models already imported above
@@ -419,6 +501,30 @@ app.register_blueprint(otp_bp, url_prefix='/otp')
 
 logger.info("OTP authentication blueprint registered with rate limiting")
 
+# Load models only once when application starts (not during reloads)
+disable_model_loading = os.environ.get('DISABLE_MODEL_LOADING', 'False').lower() == 'true'
+if disable_model_loading:
+    logger.info("Model loading is disabled via DISABLE_MODEL_LOADING environment variable")
+    # Explicitly set models to None/empty in app config for route usage
+    app.config['WORD2VEC_MODEL'] = None
+    app.config['CLASSIFICATION_MODELS'] = {}
+else:
+    # Check if we are in Gunicorn (not __main__)
+    # If we are in __main__, we load models here.
+    # If we are in Gunicorn, this block is skipped, so we need to ensure models are loaded.
+    pass
+
+# Call ensure_models_loaded at module level so it runs when imported by Gunicorn
+# But wrap it to avoid running during imports if needed, though Gunicorn imports app object.
+# Actually, Gunicorn loads the app object. If we want models loaded on worker boot:
+if os.environ.get('WERKZEUG_RUN_MAIN') != 'true':
+   # This runs in production/Gunicorn worker boot
+   try:
+       ensure_models_loaded()
+   except NameError:
+       # If ensure_models_loaded is not defined (it was in snippet 195), let's check
+       pass
+
 if __name__ == '__main__':
     
     # Load models only once when application starts (not during reloads)
@@ -429,10 +535,11 @@ if __name__ == '__main__':
         app.config['WORD2VEC_MODEL'] = None
         app.config['CLASSIFICATION_MODELS'] = {}
     else:
-        load_models()
+        ensure_models_loaded()
     
     # Start automatic cleanup scheduler
     cleanup_scheduler.start_scheduler()
+
     logger.info("Automatic data cleanup scheduler started")
     
     try:

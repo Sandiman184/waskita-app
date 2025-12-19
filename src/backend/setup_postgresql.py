@@ -76,10 +76,28 @@ def setup_env_file():
     
     root_dir = Path(__file__).resolve().parent.parent.parent
     env_path = root_dir / '.env'
-    env_example_path = root_dir / '.env.example'
+    
+    # Pilih template berdasarkan preferensi user
+    print("\nPilih lingkungan deployment:")
+    print("1. Local Development (Tanpa Docker)")
+    print("2. Docker Environment")
+    choice = input("Pilihan (1/2) [1]: ").strip()
+    
+    if choice == '2':
+        template_name = '.env.example.docker'
+        print_step("Menggunakan template Docker...")
+    else:
+        template_name = '.env.example.local'
+        print_step("Menggunakan template Local...")
+        
+    env_example_path = root_dir / template_name
+    
+    # Fallback ke .env.example lama jika template baru tidak ada
+    if not env_example_path.exists():
+        env_example_path = root_dir / '.env.example'
     
     if not env_example_path.exists():
-        print_error("File .env.example tidak ditemukan! Pastikan Anda berada di root project.")
+        print_error(f"Template {template_name} tidak ditemukan!")
         return False
     
     # Baca template
@@ -89,7 +107,6 @@ def setup_env_file():
     # Jika .env belum ada, copy dulu
     if not env_path.exists():
         print_warning("File .env belum ada. Membuat dari template...")
-        shutil.copy(env_example_path, env_path)
         
         # Auto-generate secrets
         secret_key = secrets.token_hex(32)
@@ -97,8 +114,12 @@ def setup_env_file():
         env_content = env_content.replace('change-this-to-a-secure-random-key', secret_key)
         env_content = env_content.replace('change-this-jwt-secret-key', jwt_key)
         
+        # Tulis file baru
+        with open(env_path, 'w') as f:
+            f.write(env_content)
     else:
         # Jika sudah ada, baca konten eksisting agar tidak tertimpa total
+        # Namun kita tetap menggunakan struktur template baru sebagai referensi jika perlu update key
         with open(env_path, 'r') as f:
             env_content = f.read()
 
@@ -114,8 +135,13 @@ def setup_env_file():
         ("APIFY_TWITTER_ACTOR", "Apify Twitter Actor ID", "heLL6fU..."),
         ("APIFY_TIKTOK_ACTOR", "Apify TikTok Actor ID", "Clockworks..."),
         ("APIFY_FACEBOOK_ACTOR", "Apify Facebook Actor ID", "KoJ..."),
-        ("ADMIN_EMAIL", "Email Super Admin", "admin@waskita.com")
+        ("ADMIN_EMAIL", "Email Super Admin", "admin@waskita.com"),
+        ("MAX_CONTENT_LENGTH", "Batas Upload (bytes) - Default 10GB", "10737418240"),
     ]
+    
+    # Hanya minta input UPLOAD_FOLDER jika di local, Docker sudah diset di template
+    if choice != '2':
+        config_prompts.append(("UPLOAD_FOLDER", "Folder Upload (Relative/Absolute)", "uploads"))
     
     new_content = env_content
     changes_made = False

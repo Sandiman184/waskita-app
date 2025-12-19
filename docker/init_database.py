@@ -7,7 +7,9 @@ This script handles database schema creation and admin user setup
 import os
 import sys
 import time
+import json
 import psycopg2
+import subprocess
 from werkzeug.security import generate_password_hash
 
 def wait_for_database():
@@ -71,53 +73,58 @@ def check_column_exists(conn, table_name, column_name):
     except Exception as e:
         return False
 
-def add_missing_columns(conn):
-    """Add missing columns to existing tables"""
+def run_flask_migration(command):
+    """Run flask db command via subprocess"""
     try:
-        # Check if first_login column exists in users table
-        if not check_column_exists(conn, 'users', 'first_login'):
-            cursor = conn.cursor()
-            cursor.execute("ALTER TABLE users ADD COLUMN first_login BOOLEAN DEFAULT TRUE")
-            conn.commit()
-            cursor.close()
-        
+        print(f"🔄 Running: flask db {command}")
+        # Ensure we are in the correct directory where app.py is located
+        # The Dockerfile sets WORKDIR to /app/src/backend, so we should be good.
+        result = subprocess.run(
+            ['flask', 'db'] + command.split(),
+            check=True,
+            capture_output=True,
+            text=True
+        )
+        print(result.stdout)
         return True
-        
-    except Exception as e:
+    except subprocess.CalledProcessError as e:
+        print(f"❌ Error running flask db {command}:")
+        print(e.stdout)
+        print(e.stderr)
         return False
 
 def create_database_schema(conn):
-    """Create database schema if it doesn't exist"""
+    """Create database schema using Flask-Migrate (Alembic)"""
     try:
-        # Check if users table already exists
-        if check_table_exists(conn, 'users'):
-            # Add any missing columns to existing schema
-            if not add_missing_columns(conn):
+        # Check if alembic_version table exists
+        alembic_exists = check_table_exists(conn, 'alembic_version')
+        users_exists = check_table_exists(conn, 'users')
+
+        if not alembic_exists:
+            if users_exists:
+                print("⚠️  Tables exist but alembic_version is missing. Stamping head...")
+                # The DB has tables (maybe from SQL dump) but no version.
+                # Stamp it as current to avoid 'DuplicateTable' errors.
+                if run_flask_migration('stamp head'):
+                    print("✅ Database stamped as head.")
+                    return True
                 return False
-            return True
-        
-        # Read and execute the schema file
-        try:
-            with open('/app/database_schema.sql', 'r') as f:
-                schema_sql = f.read()
-        except FileNotFoundError:
-            print("❌ File database_schema.sql not found at /app/database_schema.sql")
-            print("Current working directory:", os.getcwd())
-            print("Files in /app/:")
-            import subprocess
-            result = subprocess.run(['ls', '-la', '/app/'], capture_output=True, text=True)
-            print(result.stdout)
+            else:
+                print("🆕 Empty database detected. Running migrations...")
+                # Fresh DB, run upgrades
+                if run_flask_migration('upgrade'):
+                    print("✅ Database migrations applied.")
+                    return True
+                return False
+        else:
+            print("🔄 Database versioned. checking for updates...")
+            if run_flask_migration('upgrade'):
+                print("✅ Database updated.")
+                return True
             return False
-        
-        cursor = conn.cursor()
-        cursor.execute(schema_sql)
-        conn.commit()
-        cursor.close()
-        
-        return True
-        
+
     except Exception as e:
-        print("❌ Error creating database schema:", str(e))
+        print("❌ Error managing database schema:", str(e))
         import traceback
         traceback.print_exc()
         return False
@@ -131,28 +138,43 @@ def create_admin_user(conn):
         admin_password = os.environ.get('ADMIN_PASSWORD')
         admin_fullname = os.environ.get('ADMIN_FULLNAME', 'Administrator Waskita')
         
+        if not admin_password:
+             # Fallback if ADMIN_PASSWORD is not set
+             print("⚠️  ADMIN_PASSWORD not set, using default 'admin12345'")
+             admin_password = 'admin12345'
+
         # Hash password
         password_hash = generate_password_hash(admin_password)
         
+        # Admin preferences (dark mode by default)
+        admin_prefs = json.dumps({
+            "dark_mode": True, 
+            "language": "id",
+            "timezone": "Asia/Jakarta"
+        })
+        
         # Insert admin user with ON CONFLICT to update password and email if user already exists
+        # Updated to use preferences JSON column instead of deprecated theme_preference
         insert_admin_sql = """
-        INSERT INTO users (username, email, password_hash, role, full_name, is_active, theme_preference, first_login) 
-        VALUES (%s, %s, %s, 'admin', %s, TRUE, 'dark', TRUE)
+        INSERT INTO users (username, email, password_hash, role, full_name, is_active, preferences, first_login) 
+        VALUES (%s, %s, %s, 'admin', %s, TRUE, %s, TRUE)
         ON CONFLICT (username) DO UPDATE SET
             password_hash = EXCLUDED.password_hash,
             email = EXCLUDED.email,
+            preferences = EXCLUDED.preferences,
             updated_at = CURRENT_TIMESTAMP,
             first_login = TRUE;
         """
         
         cursor = conn.cursor()
-        cursor.execute(insert_admin_sql, (admin_username, admin_email, password_hash, admin_fullname))
+        cursor.execute(insert_admin_sql, (admin_username, admin_email, password_hash, admin_fullname, admin_prefs))
         conn.commit()
         cursor.close()
         
         return True
         
     except Exception as e:
+        print(f"❌ Error creating admin user: {e}")
         return False
 
 def update_admin_otp_setting(conn):
@@ -197,99 +219,35 @@ def main():
     
     print("🔗 Using database URL: " + database_url)
     
-    # Wait for database to be ready
+    print("⏳ Waiting for database...")
     if not wait_for_database():
-        print("❌ Database connection failed after multiple attempts")
+        print("❌ Could not connect to database")
         sys.exit(1)
-    
-    # Database is ready, proceed with initialization
+        
     try:
-        # Parse database URL to get connection parameters
-        from urllib.parse import urlparse
-        parsed_url = urlparse(database_url)
-        dbname = parsed_url.path[1:]  # Remove leading slash
+        conn = psycopg2.connect(database_url)
         
-        # Get database connection parameters from environment variables
-        db_user = os.environ.get('DATABASE_USER')
-        db_password = os.environ.get('DATABASE_PASSWORD')
-        db_host = os.environ.get('DATABASE_HOST')
-        db_port = os.environ.get('DATABASE_PORT')
-        
-        # Connect to PostgreSQL server
-        conn = psycopg2.connect(
-            host=db_host,
-            port=db_port,
-            user=db_user,
-            password=db_password,
-            dbname='postgres'  # Connect to default database first
-        )
-        conn.autocommit = True
-        cursor = conn.cursor()
-        
-        # Check if database exists
-        cursor.execute("SELECT 1 FROM pg_database WHERE datname = %s", (dbname,))
-        if cursor.fetchone():
-            print("✅ Database '" + dbname + "' already exists")
+        print("📊 Checking database schema...")
+        if create_database_schema(conn):
+            print("✅ Database schema initialized")
         else:
-            # Create database
-            cursor.execute("CREATE DATABASE " + dbname)
-            print("✅ Database '" + dbname + "' created successfully")
-        
-        cursor.close()
+            print("❌ Failed to initialize database schema")
+            sys.exit(1)
+            
+        print("👤 Creating admin user...")
+        if create_admin_user(conn):
+            print("✅ Admin user created/updated")
+        else:
+            print("❌ Failed to create admin user")
+            
+        print("🔐 Updating security settings...")
+        update_admin_otp_setting(conn)
+            
         conn.close()
+        print("🚀 Database initialization completed successfully")
         
-        # Now connect to the specific database to create tables
-        conn = psycopg2.connect(
-            host=db_host,
-            port=db_port,
-            user=db_user,
-            password=db_password,
-            dbname=dbname
-        )
-        conn.autocommit = True
-        cursor = conn.cursor()
-        
-        # Read and execute schema SQL
-        with open('/app/database_schema.sql', 'r') as f:
-            schema_sql = f.read()
-        
-        cursor.execute(schema_sql)
-        print("✅ Database schema created successfully")
-        
-        # Create or update admin user with consistent schema and OTP requirement
-        # Use environment variables for admin credentials
-        admin_username = os.environ.get('ADMIN_USERNAME', 'admin')
-        admin_email = os.environ.get('ADMIN_EMAIL', 'admin@waskita.com')
-        admin_password = os.environ.get('ADMIN_PASSWORD', os.environ.get('DATABASE_PASSWORD', 'admin12345'))
-        admin_fullname = os.environ.get('ADMIN_FULLNAME', 'Administrator Waskita')
-        
-        hashed_password = generate_password_hash(admin_password, method='scrypt')
-        cursor.execute(
-            """
-            INSERT INTO users (username, email, password_hash, role, full_name, is_active, theme_preference, first_login)
-            VALUES (%s, %s, %s, 'admin', %s, TRUE, 'dark', TRUE)
-            ON CONFLICT (username) DO UPDATE SET
-                password_hash = EXCLUDED.password_hash,
-                email = EXCLUDED.email,
-                full_name = EXCLUDED.full_name,
-                updated_at = CURRENT_TIMESTAMP,
-                first_login = TRUE
-            """,
-            (admin_username, admin_email, hashed_password, admin_fullname)
-        )
-        print(f"✅ Admin user ensured: {admin_username} ({admin_email}) with first_login=TRUE (OTP required)")
-        
-        cursor.close()
-        conn.close()
-        
-        print("🎉 Database initialization completed successfully!")
-        sys.exit(0)
-        
-    except psycopg2.Error as e:
-        print("❌ Database error: " + str(e))
-        sys.exit(1)
     except Exception as e:
-        print("❌ Unexpected error: " + str(e))
+        print("❌ Unexpected error:", str(e))
         sys.exit(1)
 
 if __name__ == "__main__":

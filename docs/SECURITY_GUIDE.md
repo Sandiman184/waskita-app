@@ -100,9 +100,11 @@ Sistem mencatat aktivitas penting pengguna ke database/log:
 
 ## 6. Checklist Keamanan untuk Admin
 
-Sebelum merilis aplikasi ke publik, pastikan:
-1.  [ ] File `.env` produksi menggunakan **SECRET_KEY** yang panjang dan acak.
-2.  [ ] `FLASK_DEBUG` diset ke `False`.
-3.  [ ] Password database produksi kuat dan unik.
-4.  [ ] SSL/HTTPS aktif dan valid.
-5.  [ ] Email SMTP berfungsi untuk notifikasi keamanan.
+Sebelum aplikasi dibuka ke publik, Admin wajib memastikan:
+- [ ] File `.env` produksi tidak boleh ada di repository Git.
+- [ ] `SECRET_KEY`, `JWT_SECRET_KEY`, dan `WTF_CSRF_SECRET_KEY` menggunakan string acak yang panjang.
+- [ ] Password database (`POSTGRES_PASSWORD`) kuat dan unik.
+- [ ] Debug Mode (`FLASK_DEBUG`) bernilai `False` di production.
+- [ ] SSL/HTTPS aktif dan sertifikat valid.
+- [ ] Port database (5432) tidak terekspos ke internet publik (hanya via Docker network).
+- [ ] Akun Admin default sudah diganti passwordnya.

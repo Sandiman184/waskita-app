@@ -215,6 +215,10 @@ class SecurityMiddleware:
     
     def check_suspicious_requests(self):
         """Check for suspicious request patterns with OWASP ZAP compatibility"""
+        # Skip checking for Admin Upload endpoints to prevent 413 or false positives on large files
+        if request.path.startswith('/admin/upload/') or request.path.startswith('/admin/classification/settings'):
+            return False
+
         # Skip pattern checking untuk security scanners
         if _is_security_scanner(request.remote_addr):
             return False
@@ -229,6 +233,12 @@ class SecurityMiddleware:
         try:
             # Check URL and form data safely
             request_data = str(request.url).lower()
+            
+            # CAUTION: Accessing request.form causes Flask to parse the body.
+            # If body size > MAX_CONTENT_LENGTH, Flask raises 413 immediately here.
+            # We should skip body parsing for file upload endpoints if we haven't already.
+            # Since we already skipped admin upload endpoints above, this is safer.
+            
             if request.form:
                 request_data += ' ' + ' '.join(str(v) for v in request.form.values()).lower()
             

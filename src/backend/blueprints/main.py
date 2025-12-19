@@ -58,6 +58,10 @@ def index():
         return redirect(url_for('main.dashboard'))
     return redirect(url_for('auth.login'))
 
+@main_bp.route('/health')
+def health_check():
+    return jsonify({'status': 'healthy'}), 200
+
 @main_bp.route('/dashboard')
 @login_required
 @active_user_required

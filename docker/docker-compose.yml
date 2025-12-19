@@ -31,7 +31,7 @@ services:
       - /var/run/postgresql
     # Health check for database
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-waskita} -d ${POSTGRES_DB:-waskita_db}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-admin} -d ${POSTGRES_DB:-db_waskita}"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -69,13 +69,17 @@ services:
     container_name: waskita-app-web
     env_file:
       - ../.env.production
-    environment: {}
+    # Environment variables are already loaded from env_file, avoiding duplication here
+    environment:
+      # Explicit overrides if needed
+      - UPLOAD_FOLDER=/app/uploads
+      - MAX_CONTENT_LENGTH=10737418240
     command: ["gunicorn", "-w", "2", "-k", "gthread", "--threads", "4", "-b", "0.0.0.0:5000", "--timeout", "120", "app:app"]
     volumes:
       # Only mount necessary volumes for Docker environment
       - waskita_uploads:/app/uploads
       # Mount models directory for Word2Vec/Naive Bayes (read-write)
-# Models are built into the container image for production (see Dockerfile)
+      - ../models:/app/models
       # Mount docker helpers for entrypoint scripts (read-only)
       - docker:/app/docker:ro
       # Mount logs directory for application logging
@@ -119,25 +123,22 @@ services:
   nginx:
     image: nginx:1.25-alpine
     container_name: waskita-app-nginx
-    environment:
-      - ENABLE_SSL=${ENABLE_SSL:-false}
-      - NGINX_SERVER_NAME=${NGINX_SERVER_NAME:-localhost}
-      - SSL_CERT_PATH=${SSL_CERT_PATH:-/etc/nginx/ssl/fullchain.pem}
-      - SSL_KEY_PATH=${SSL_KEY_PATH:-/etc/nginx/ssl/privkey.pem}
-    ports:
-      - "${NGINX_HTTP_PORT:-80}:80"
-      - "${NGINX_HTTPS_PORT:-443}:443"
     volumes:
-      - ./nginx.conf:/etc/nginx/conf.d/waskita.conf:ro
-      - ./nginx.entrypoint.sh:/etc/nginx/entrypoint.sh:ro
-      - ../static:/var/www/static
-      # SSL certificate mounts (will be conditionally mounted in production)
+      # Use HTTP-only config for development
+      - ./nginx.http.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx.http.entrypoint.sh:/etc/nginx/entrypoint.sh:ro
+      # Mount static files
+      - ../src/frontend/static:/var/www/static:ro
+      # Mount logs
+      - waskita_logs:/var/log/nginx
+    ports:
+      - "80:80"
+    entrypoint: ["/bin/sh", "/etc/nginx/entrypoint.sh"]
     depends_on:
       - web
     networks:
       - waskita_network
     restart: unless-stopped
-    entrypoint: ["/bin/sh", "/etc/nginx/entrypoint.sh"]
 
 volumes:
   postgres_data:

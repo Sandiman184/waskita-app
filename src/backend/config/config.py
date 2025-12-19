@@ -1,6 +1,36 @@
 import os
 from datetime import timedelta
 
+"""
+Waskita Application Configuration
+---------------------------------
+
+MODEL PATH CONFIGURATION:
+The application supports both local development (Windows/Linux) and Docker environments.
+
+1. Local Development:
+   - Paths are resolved relative to the project root.
+   - Default: ../../../models/embeddings/word2vec_model.joblib
+   - To override, set WORD2VEC_MODEL_PATH environment variable.
+
+2. Docker Environment:
+   - Paths are typically absolute (e.g., /app/models/...).
+   - The Dockerfile sets WORD2VEC_MODEL_PATH=/app/models/embeddings/word2vec_model.joblib.
+   - Ensure volumes are mounted correctly in docker-compose.yml:
+     - ./models:/app/models
+
+TROUBLESHOOTING [Errno 22] Invalid Argument:
+- This error often occurs on Windows when accessing memory-mapped files (mmap).
+- It can be caused by:
+  1. 0-byte model files.
+  2. File locking by another process.
+  3. Invalid path characters.
+- The application now includes robust fallback mechanisms:
+  - Validates file size > 0.
+  - Retries loading without mmap if mmap fails.
+  - Uses rename-then-delete strategy for model updates to handle file locks.
+"""
+
 class Config:
     # Security - SECRET_KEY is required
     SECRET_KEY = os.environ.get('SECRET_KEY')
@@ -23,8 +53,8 @@ class Config:
         'UPLOAD_FOLDER',
         os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
     )
-    # Max upload size from ENV (bytes), default 1GB for IndoBERT support
-    MAX_CONTENT_LENGTH = int(os.environ.get('MAX_CONTENT_LENGTH', str(1024 * 1024 * 1024)))
+    # Max upload size from ENV (bytes), default 10GB for IndoBERT/Word2Vec support
+    MAX_CONTENT_LENGTH = int(os.environ.get('MAX_CONTENT_LENGTH', str(10 * 1024 * 1024 * 1024)))
     
     # Session configuration (centralized to ENV with sensible defaults)
     PERMANENT_SESSION_LIFETIME = timedelta(hours=24)
@@ -57,9 +87,12 @@ class Config:
     WTF_CSRF_TIME_LIMIT = int(os.environ.get('WTF_CSRF_TIME_LIMIT', '3600'))
     
     # Model base path - pointing to root/models
-    _model_base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'models'))
+    # Use os.path.normpath to resolve '..' and handle slashes correctly for both Windows and Linux
+    _model_base_path = os.path.abspath(os.path.normpath(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'models')))
 
     # Model paths - relative to app directory for containerization compatibility
+    # Environment variables take precedence (useful for Docker where paths are fixed like /app/models/...)
+    # Default fallback uses local development structure
     WORD2VEC_MODEL_PATH = os.getenv('WORD2VEC_MODEL_PATH', 
         os.path.join(_model_base_path, 'embeddings', 'word2vec_model.joblib'))
     
