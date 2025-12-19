@@ -92,7 +92,7 @@ Aplikasi ini bergantung pada sejumlah pustaka Python utama yang akan diinstal ot
 Waskita mengusung filosofi desain yang **profesional dan akademis**, mengutamakan kejelasan data di atas elemen dekoratif.
 
 *   **Nuansa Akademik:** Tata letak yang bersih dan terstruktur, mirip dengan jurnal atau dashboard analitik profesional.
-*   **Palet Warna:** Menggunakan dominasi warna **Merah Maroon** dan **Abu-abu Gelap** yang merepresentasikan keseriusan dan urgensi topik (radikalisme), namun tetap nyaman di mata.
+*   **Palet Warna:** Menggunakan dominasi warna **Biru** dan **Abu-abu Gelap** yang merepresentasikan kepercayaan, stabilitas, dan profesionalisme, namun tetap nyaman di mata.
 *   **Tipografi:** Menggunakan jenis huruf sans-serif yang modern dan mudah dibaca untuk memastikan keterbacaan teks analisis yang panjang.
 *   **Navigasi Terorganisir:** Menu dikelompokkan secara logis (Dashboard, Data, Klasifikasi, Pengaturan) untuk memudahkan alur kerja penelitian.
 *   **Kesederhanaan Visual:** Menghindari penggunaan ikon yang berlebihan atau elemen grafis yang mengganggu, sehingga fokus pengguna tetap pada substansi data dan hasil analisis.
