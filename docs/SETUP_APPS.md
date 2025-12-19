@@ -7,9 +7,11 @@ Panduan lengkap instalasi, konfigurasi, dan deployment aplikasi Waskita mulai da
 ## 📋 DAFTAR ISI
 1. [Prasyarat Sistem](#1-prasyarat-sistem)
 2. [Setup Awal (Wajib)](#2-setup-awal-wajib)
-3. [Skenario 1: Menjalankan Secara Lokal (Tanpa Docker)](#3-skenario-1-menjalankan-secara-lokal-tanpa-docker)
-4. [Skenario 2: Menjalankan dengan Docker (Lokal)](#4-skenario-2-menjalankan-dengan-docker-lokal)
-5. [Skenario 3: Deployment ke VPS (Production)](#5-skenario-3-deployment-ke-vps-production)
+3. [Manajemen Model AI (Pembaruan)](#3-manajemen-model-ai-pembaruan)
+4. [Skenario 1: Menjalankan Secara Lokal (Tanpa Docker)](#4-skenario-1-menjalankan-secara-lokal-tanpa-docker)
+5. [Skenario 2: Menjalankan dengan Docker (Lokal)](#5-skenario-2-menjalankan-dengan-docker-lokal)
+6. [Skenario 3: Deployment ke VPS (Production)](#6-skenario-3-deployment-ke-vps-production)
+7. [Troubleshooting Umum](#7-troubleshooting-umum)
 
 ---
 
@@ -53,10 +55,10 @@ Lakukan langkah ini setelah cloning repository untuk menyiapkan konfigurasi dasa
     Pastikan struktur folder `models/` Anda seperti berikut:
     ```
     models/
-├── embeddings/
-│   └── word2vec_model.joblib             (Wajib untuk ekstraksi fitur)
-├── classifiers/
-│   ├── Naive Bayes_classifier_model.joblib
+    ├── embeddings/
+    │   └── word2vec_model.joblib             (Wajib untuk ekstraksi fitur)
+    ├── classifiers/
+    │   ├── Naive Bayes_classifier_model.joblib
     │   ├── SVM_classifier_model.joblib
     │   └── ... (Model klasifikasi lainnya)
     └── indobert/
@@ -116,22 +118,16 @@ Cocok untuk pengembangan fitur cepat (coding & debugging).
 
 ---
 
-##98→## 5. Skenario 2: Menjalankan dengan Docker (Lokal)
-99→
-100→Cocok untuk menguji aplikasi dalam container yang mirip dengan produksi, tanpa menginstall PostgreSQL secara manual.
-101→
-102→### Konfigurasi & Dampak Perubahan Terbaru (Desember 2025)
-103→*   **File Locking:** Docker (Linux) tidak terpengaruh isu file locking Windows. Mekanisme Shadow Copy otomatis non-aktif.
-104→*   **Restart Server:** Fitur restart di Admin Panel berfungsi dengan me-restart Gunicorn worker, memuat ulang model tanpa perlu mematikan container.
-105→
-106→### Langkah Menjalankan:
+## 5. Skenario 2: Menjalankan dengan Docker (Lokal)
+
+Cocok untuk menguji aplikasi dalam container yang mirip dengan produksi, tanpa menginstall PostgreSQL secara manual.
 
 ### Konfigurasi & Dampak Perubahan Terbaru (Desember 2025)
-Sistem Docker telah diperbarui untuk mendukung **Upload Model Besar (hingga 10GB)**. Perubahan ini **aman untuk environment lokal** dan tidak memerlukan konfigurasi ulang yang rumit.
+*   **Upload Besar:** Mendukung upload model hingga 10GB.
+*   **File Locking:** Docker (Linux) tidak terpengaruh isu file locking Windows. Mekanisme Shadow Copy otomatis non-aktif.
+*   **Restart Server:** Fitur restart di Admin Panel berfungsi dengan me-restart Gunicorn worker, memuat ulang model tanpa perlu mematikan container.
 
-*   **Penting:** Jika Anda pernah menjalankan Docker sebelumnya, Anda **WAJIB** melakukan build ulang (`--build`) agar konfigurasi batas upload baru diterapkan.
-
-### Langkah-langkah Menjalankan:
+### Langkah Menjalankan:
 
 1.  **Build & Run Container**
     Gunakan file compose khusus lokal (`docker-compose.local.yml`) yang dikonfigurasi untuk development (Hot-reload, HTTP only).
@@ -139,7 +135,6 @@ Sistem Docker telah diperbarui untuk mendukung **Upload Model Besar (hingga 10GB
     # Perintah ini akan mem-build ulang image dan menjalankan container
     docker-compose -f docker/docker-compose.yml -f docker/docker-compose.local.yml up --build
     ```
-    
     *Catatan: Flag `--build` sangat penting saat pertama kali setelah update kode agar perubahan Dockerfile/Environment terbaca.*
 
 2.  **Verifikasi Container Berjalan**
@@ -151,8 +146,7 @@ Sistem Docker telah diperbarui untuk mendukung **Upload Model Besar (hingga 10GB
 3.  **Akses Aplikasi**
     Buka browser dan akses alamat berikut (via Nginx Proxy):
     👉 **http://localhost:8080**
-    
-    *(Jangan akses port 5000, karena itu adalah port internal container aplikasi yang tidak terekspos langsung untuk simulasi production environment).*
+    *(Jangan akses port 5000, karena itu adalah port internal container aplikasi).*
 
 4.  **Menghentikan Aplikasi**
     ```bash
@@ -161,13 +155,10 @@ Sistem Docker telah diperbarui untuk mendukung **Upload Model Besar (hingga 10GB
     *Gunakan `down -v` jika ingin menghapus volume database (reset data).*
 
 ### Troubleshooting Docker Lokal
-*   **Upload Gagal / Timeout:** Pastikan Anda mengakses via `localhost:8080` (Nginx) karena konfigurasi timeout dan buffer size diatur di Nginx, bukan hanya di Flask.
-*   **Database Error:** Jika terjadi error koneksi DB saat awal start, tunggu beberapa detik. Container `web` memiliki script `wait-for-it` namun kadang PostgreSQL butuh waktu lebih lama untuk inisialisasi pertama kali.
+*   **Upload Gagal / Timeout:** Pastikan Anda mengakses via `localhost:8080` (Nginx).
+*   **Database Error:** Jika terjadi error koneksi DB saat awal start, tunggu beberapa detik.
 
-
-### Cara Mudah (Rekomendasi)
-Gunakan script otomatis PowerShell yang telah disediakan:
-
+### Cara Mudah (Windows PowerShell)
 ```powershell
 # Jalankan Docker (Build & Run)
 .\install-build.ps1
@@ -176,89 +167,11 @@ Gunakan script otomatis PowerShell yang telah disediakan:
 .\install-build.ps1 -Clean
 ```
 
-Akses aplikasi di: `http://localhost:8080`
-Login default: `admin` / `admin12345`
-
-### Cara Manual (Docker Compose)
-Jika Anda tidak menggunakan Windows atau ingin kontrol manual:
-
-```bash
-# Build & Run
-docker-compose -f docker/docker-compose.yml -f docker/docker-compose.local.yml up -d --build
-```
-
 ---
 
-##117→## 6. Skenario 3: Deployment ke VPS (Production)
+## 6. Skenario 3: Deployment ke VPS (Production)
 
 Untuk lingkungan produksi dengan keamanan SSL (HTTPS) dan performa optimal.
-
-### Persiapan di VPS
-1.  **Clone Repo**:
-    ```bash
-    git clone https://github.com/Sandiman184/waskita-app.git /opt/waskita-app
-    cd /opt/waskita-app
-    ```
-2.  **Upload Model**: Pastikan folder `models/` berisi semua file `.joblib` dan model IndoBERT yang diperlukan.
-3.  **Setup SSL**: Letakkan sertifikat SSL di folder `ssl/` (di root project).
-    *   `ssl/fullchain.pem`
-    *   `ssl/privkey.pem`
-4.  **Konfigurasi Environment**:
-    Buat file `.env.production` dengan credential produksi yang aman.
-    ```bash
-    cp .env.example .env.production
-    nano .env.production
-    # Ubah SECRET_KEY, DATABASE_PASSWORD, dll.
-    ```
-
-### Deployment Otomatis
-```bash
-# Windows (via PowerShell Remoting)
-.\install-build.ps1 -Production
-
-# Linux (Manual Command)
-docker-compose -f docker/docker-compose.yml -f docker/docker-compose.prod.yml up -d --build
-```
-
-Akses aplikasi di: `https://domain-anda.com`
-
----
-
-## 6. Troubleshooting Umum
-
-### Database Error "DuplicateTable"
-*   **Penyebab:** Database diinisialisasi ulang tanpa menghapus volume lama yang korup.
-*   **Solusi:** Jalankan `.\install-build.ps1 -Clean` untuk reset total.
-
-### Error "File Word2Vec model tidak ditemukan"
-*   **Penyebab:** File `word2vec_model.joblib` tidak ada di folder `models/embeddings/`.
-*   **Solusi:** Download file model dari penyimpanan cloud tim dan letakkan di folder tersebut. Restart container.
-
-### Permission Denied (Uploads)
-*   **Penyebab:** User Docker tidak punya akses tulis ke folder host.
-*   **Solusi:** Script build otomatis menangani ini (`chmod 775`). Jika masih gagal, jalankan manual: `chmod -R 775 uploads/` di Linux/Mac.
-
----
-
-## 7. Referensi Lanjutan
-*   [Spesifikasi Sistem](SPECIFIKASI_SISTEM.md) - Detail hardware & software stack.
-*   [Panduan Keamanan](SECURITY_GUIDE.md) - Standar keamanan & checklist admin.
-    
-2.  **Jalankan Docker Compose Lokal**
-    Gunakan konfigurasi khusus lokal yang mendukung *hot-reload* dan HTTP (tanpa SSL).
-    ```bash
-    docker-compose -f docker/docker-compose.local.yml up --build
-    ```
-
-3.  **Akses Aplikasi**
-    Buka browser: `http://localhost:8080`
-    *(Catatan: Docker lokal menggunakan port 8080 agar tidak bentrok dengan service lain)*
-
----
-
-## 5. Skenario 3: Deployment ke VPS (Production)
-
-Cocok untuk membuat aplikasi dapat diakses publik dengan domain, SSL/HTTPS, dan performa tinggi.
 
 ### Metode Otomatis (Recommended)
 Gunakan script `deploy-vps.ps1` dari komputer lokal Anda (Windows PowerShell).
@@ -296,3 +209,27 @@ Jika ingin deploy manual di server:
     # Gunakan file compose prod untuk konfigurasi SSL & Nginx yang benar
     docker-compose -f docker/docker-compose.yml -f docker/docker-compose.prod.yml --env-file .env.production up -d --build
     ```
+
+Akses aplikasi di: `https://domain-anda.com`
+
+---
+
+## 7. Troubleshooting Umum
+
+### Database Error "DuplicateTable"
+*   **Penyebab:** Database diinisialisasi ulang tanpa menghapus volume lama yang korup.
+*   **Solusi:** Jalankan `.\install-build.ps1 -Clean` untuk reset total.
+
+### Error "File Word2Vec model tidak ditemukan"
+*   **Penyebab:** File `word2vec_model.joblib` tidak ada di folder `models/embeddings/`.
+*   **Solusi:** Download file model dari penyimpanan cloud tim dan letakkan di folder tersebut. Restart container.
+
+### Permission Denied (Uploads)
+*   **Penyebab:** User Docker tidak punya akses tulis ke folder host.
+*   **Solusi:** Script build otomatis menangani ini (`chmod 775`). Jika masih gagal, jalankan manual: `chmod -R 775 uploads/` di Linux/Mac.
+
+---
+
+## 8. Referensi Lanjutan
+*   [Spesifikasi Sistem](SPECIFIKASI_SISTEM.md) - Detail hardware & software stack.
+*   [Panduan Keamanan](SECURITY_GUIDE.md) - Standar keamanan & checklist admin.

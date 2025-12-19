@@ -548,6 +548,15 @@ def classify_content(text_vector, model, text=None):
             if not hasattr(model, 'predict_proba'):
                 return 'non-radikal', [0.0, 1.0]
             
+            # FIX: Ensure n_jobs is 1 to avoid "Unable to determine number of threads to use" error
+            # This can happen if model was saved with n_jobs=-1 and run in restricted env
+            if hasattr(model, 'n_jobs'):
+                try:
+                    if model.n_jobs != 1:
+                        model.n_jobs = 1
+                except Exception:
+                    pass
+            
             # Reshape vector for prediction
             vector_reshaped = text_vector.reshape(1, -1)
             
@@ -707,8 +716,11 @@ def cleanup_shadow_copies(model_path, app=None):
                 if app: app.logger.info(f"Cleaned up shadow copy: {shadow_file}")
             except OSError as e:
                  # File might be in use by another process/worker
-                 # But since this is called before creating a NEW one, we should try our best
-                 if app: app.logger.warning(f"Could not delete shadow copy {shadow_file}: {e}")
+                 # Or we are in Docker (Linux) trying to delete a file created by Windows host
+                 if e.errno == 1: # Operation not permitted
+                     if app: app.logger.debug(f"Skipping shadow copy cleanup (permission denied): {shadow_file}")
+                 else:
+                     if app: app.logger.warning(f"Could not delete shadow copy {shadow_file}: {e}")
 
         # Find and delete old backups
         old_pattern = os.path.join(directory, f"{filename}.old.*")
