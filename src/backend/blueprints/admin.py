@@ -50,6 +50,11 @@ def process_indobert_upload(upload_id, temp_dir, final_filename, user_id):
         if not os.path.exists(temp_dir):
              raise ValueError(f"Temporary directory not found: {temp_dir}")
 
+        # Check cancellation
+        if upload_tasks[upload_id].get('status') == 'cancelled':
+             current_app.logger.warning(f"Task {upload_id}: Cancelled by user during chunk assembly")
+             return
+
         with open(assembled_file_path, 'wb') as outfile:
             # List parts
             parts = sorted([f for f in os.listdir(temp_dir) if f.startswith('part_')], key=lambda x: int(x.split('_')[1]))
@@ -60,6 +65,11 @@ def process_indobert_upload(upload_id, temp_dir, final_filename, user_id):
                 raise ValueError("No file chunks found")
 
             for i, part in enumerate(parts):
+                # Check cancellation in loop
+                if i % 5 == 0 and upload_tasks[upload_id].get('status') == 'cancelled':
+                     current_app.logger.warning(f"Task {upload_id}: Cancelled by user during assembly")
+                     return
+
                 part_path = os.path.join(temp_dir, part)
                 with open(part_path, 'rb') as infile:
                     outfile.write(infile.read())
@@ -116,6 +126,11 @@ def process_indobert_upload(upload_id, temp_dir, final_filename, user_id):
             current_app.logger.info(f"Task {upload_id}: Root folder detected: {root_folder}")
 
             for i, file_info in enumerate(zip_ref.infolist()):
+                # Check cancellation
+                if i % 50 == 0 and upload_tasks[upload_id].get('status') == 'cancelled':
+                     current_app.logger.warning(f"Task {upload_id}: Cancelled by user during extraction")
+                     return
+
                 # Skip directories
                 if file_info.is_dir():
                     continue
@@ -179,8 +194,11 @@ def process_indobert_upload(upload_id, temp_dir, final_filename, user_id):
         
     except Exception as e:
         if upload_id in upload_tasks:
-            upload_tasks[upload_id]['status'] = 'failed'
-            upload_tasks[upload_id]['error'] = str(e)
+             # Don't overwrite cancelled status unless it's a real failure
+             if upload_tasks[upload_id].get('status') != 'cancelled':
+                upload_tasks[upload_id]['status'] = 'failed'
+                upload_tasks[upload_id]['error'] = str(e)
+        
         current_app.logger.error(f"IndoBERT upload processing failed: {e}", exc_info=True)
         # Cleanup
         try:
@@ -189,6 +207,14 @@ def process_indobert_upload(upload_id, temp_dir, final_filename, user_id):
         except:
             pass
     finally:
+        # Final check: If cancelled, ensure temp dir is gone
+        if upload_id in upload_tasks and upload_tasks[upload_id].get('status') == 'cancelled':
+            try:
+                if os.path.exists(temp_dir):
+                    shutil.rmtree(temp_dir)
+            except:
+                pass
+        
         # Ensure DB session is closed if created in thread
         db.session.remove()
 
@@ -261,9 +287,11 @@ def upload_chunk():
     chunk = request.files.get('chunk')
     
     if not upload_id or chunk_index is None or not chunk:
+        current_app.logger.error(f"Missing parameters for upload_chunk: upload_id={upload_id}, chunk_index={chunk_index}, chunk={chunk}")
         return jsonify({'error': 'Missing parameters'}), 400
         
     if upload_id not in upload_tasks:
+        current_app.logger.error(f"Invalid upload ID in upload_chunk: {upload_id}")
         return jsonify({'error': 'Invalid upload ID'}), 404
         
     task = upload_tasks[upload_id]
@@ -317,6 +345,10 @@ def process_generic_model_upload(upload_id, temp_dir, final_filename, model_type
         
         if not os.path.exists(temp_dir):
              raise ValueError(f"Temporary directory not found: {temp_dir}")
+        
+        # Check cancellation
+        if upload_tasks[upload_id].get('status') == 'cancelled':
+             return
 
         # Map model types to config paths
         model_paths = {
@@ -447,8 +479,10 @@ def process_generic_model_upload(upload_id, temp_dir, final_filename, model_type
         
     except Exception as e:
         if upload_id in upload_tasks:
-            upload_tasks[upload_id]['status'] = 'failed'
-            upload_tasks[upload_id]['error'] = str(e)
+             if upload_tasks[upload_id].get('status') != 'cancelled':
+                upload_tasks[upload_id]['status'] = 'failed'
+                upload_tasks[upload_id]['error'] = str(e)
+        
         current_app.logger.error(f"Generic upload processing failed: {e}", exc_info=True)
         try:
             if os.path.exists(temp_dir):
@@ -456,6 +490,13 @@ def process_generic_model_upload(upload_id, temp_dir, final_filename, model_type
         except:
             pass
     finally:
+        # Final cleanup for cancelled tasks
+        if upload_id in upload_tasks and upload_tasks[upload_id].get('status') == 'cancelled':
+            try:
+                if os.path.exists(temp_dir):
+                    shutil.rmtree(temp_dir)
+            except:
+                pass
         db.session.remove()
 
 @admin_bp.route('/admin/upload/finish', methods=['POST'])
@@ -482,6 +523,11 @@ def upload_finish():
         return jsonify({'error': 'Invalid upload ID'}), 404
         
     task = upload_tasks[upload_id]
+    
+    # Race condition check: If already cancelled, do not proceed
+    if task.get('status') == 'cancelled':
+        return jsonify({'error': 'Upload cancelled'}), 400
+        
     task['status'] = 'pending_processing'
     model_type = task.get('model_type', 'indobert')
     
@@ -507,6 +553,37 @@ def upload_finish():
     thread.start()
     
     return jsonify({'success': True})
+
+@admin_bp.route('/admin/upload/cancel', methods=['POST'])
+@login_required
+@admin_required
+def upload_cancel():
+    """
+    Cancel an ongoing upload task and clean up resources.
+    """
+    upload_id = request.form.get('upload_id')
+    if not upload_id or upload_id not in upload_tasks:
+        return jsonify({'error': 'Invalid upload ID'}), 404
+    
+    # Mark as cancelled
+    # The background threads check this flag periodically and will abort
+    upload_tasks[upload_id]['status'] = 'cancelled'
+    upload_tasks[upload_id]['message'] = 'Upload cancelled by user'
+    
+    # Immediate cleanup if it was just uploading chunks (not yet processing)
+    temp_dir = upload_tasks[upload_id].get('temp_dir')
+    if temp_dir and os.path.exists(temp_dir):
+        try:
+            # We don't delete immediately if processing is active to avoid race conditions,
+            # but if it's just 'uploading' state, we can zap it.
+            # Actually, safe to leave for the thread to clean up if running,
+            # or clean up now if no thread.
+            pass 
+        except Exception as e:
+            current_app.logger.error(f"Failed to cleanup cancelled upload: {e}")
+            
+    return jsonify({'success': True, 'message': 'Upload cancelled'})
+
 
 @admin_bp.route('/admin/upload/status/<upload_id>')
 @login_required

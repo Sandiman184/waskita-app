@@ -74,7 +74,10 @@ services:
       # Explicit overrides if needed
       - UPLOAD_FOLDER=/app/uploads
       - MAX_CONTENT_LENGTH=10737418240
-    command: ["gunicorn", "-w", "2", "-k", "gthread", "--threads", "4", "-b", "0.0.0.0:5000", "--timeout", "120", "app:app"]
+    # Use preload to share memory and reduce workers memory usage in production
+    # CRITICAL FIX: Use 1 worker to ensure in-memory upload_tasks are shared. 
+    # Use threads for concurrency.
+    command: ["gunicorn", "-w", "1", "-k", "gthread", "--threads", "8", "-b", "0.0.0.0:5000", "--timeout", "300", "--preload", "app:app"]
     volumes:
       # Only mount necessary volumes for Docker environment
       - waskita_uploads:/app/uploads
@@ -98,10 +101,10 @@ services:
     deploy:
       resources:
         limits:
-          memory: 2G
-          cpus: '1.75'
+          memory: 6G
+          cpus: '2'
         reservations:
-          memory: 1G
+          memory: 2G
           cpus: '1'
     # Security improvements
     security_opt:

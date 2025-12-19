@@ -156,12 +156,15 @@ class DataCleanupScheduler:
         
         # Cleanup OTP expired data
         otp_deleted_count = self.cleanup_expired_otp_data()
+
+        # Cleanup temp chunks
+        chunks_deleted_count = self.cleanup_temp_chunks()
         
-        total_deleted = scraper_deleted_count + otp_deleted_count
+        total_deleted = scraper_deleted_count + otp_deleted_count + chunks_deleted_count
         
         if total_deleted > 0:
             self.update_statistics()
-            logger.info(f"Cleanup completed: {scraper_deleted_count} orphaned scraper data and {otp_deleted_count} expired OTP data deleted")
+            logger.info(f"Cleanup completed: {scraper_deleted_count} scraper, {otp_deleted_count} OTP, {chunks_deleted_count} chunks deleted")
         else:
             logger.info("Cleanup completed: no data deleted")
     

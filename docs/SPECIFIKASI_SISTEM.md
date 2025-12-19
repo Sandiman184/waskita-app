@@ -1,111 +1,226 @@
-# 📘 SPESIFIKASI SISTEM WASKITA
+# 📘 SPESIFIKASI SISTEM APLIKASI WASKITA
 
-Dokumen ini merinci spesifikasi teknis, fungsional, dan kebutuhan sistem untuk aplikasi Waskita (Analisis Konten Radikal).
+**Versi Dokumen:** 2.0  
+**Tanggal Pembaruan:** 19 Desember 2025
+
+Dokumen ini merinci spesifikasi teknis, arsitektur, dan kebutuhan sistem untuk aplikasi Waskita (Analisis Konten Radikal).
+
+---
+
+## 📋 DAFTAR ISI
+1. [Arsitektur Sistem](#1-arsitektur-sistem)
+2. [Spesifikasi Teknis](#2-spesifikasi-teknis)
+3. [Alur Data (Data Flow)](#3-alur-data-data-flow)
+4. [Instalasi & Konfigurasi](#4-instalasi--konfigurasi)
+5. [Dokumentasi API](#5-dokumentasi-api)
+6. [Error Handling](#6-error-handling)
 
 ---
 
 ## 1. Arsitektur Sistem
 
-*   **Tipe Aplikasi:** Web Application (Monolith dengan Service-Oriented Components)
-*   **Backend Framework:** Python Flask 3.x
-*   **Frontend Framework:** HTML5, CSS3 (Soft UI Dashboard), JavaScript (Vanilla + Plugins)
-*   **Database:** PostgreSQL 14+
-*   **Machine Learning:** Scikit-Learn (Naive Bayes), IndoBERT (Transformers), Word2Vec (Gensim)
-*   **Deployment:** Docker Container (Nginx Reverse Proxy + Gunicorn)
+Waskita menggunakan arsitektur **Monolithic** yang dimodernisasi dengan pemisahan komponen melalui **Docker Containers**.
+
+### Diagram Arsitektur (High-Level)
+```mermaid
+graph TD
+    User[End User] -->|HTTPS/443| Nginx[Nginx Reverse Proxy]
+    
+    subgraph "Docker Environment"
+        Nginx -->|Proxy Pass| App[Flask Gunicorn App]
+        App -->|Query/ORM| DB[(PostgreSQL DB)]
+        App -->|Task Queue| Redis[Redis Cache]
+        App -->|API Call| Apify[Apify External Service]
+    end
+    
+    subgraph "Machine Learning Engine"
+        App -->|Inference| Model1[IndoBERT Model]
+        App -->|Inference| Model2[Word2Vec + Scikit-Learn]
+    end
+```
+
+### Komponen Utama
+1.  **Web Server (Nginx):** Menangani koneksi SSL, melayani file statis, dan load balancing request ke aplikasi.
+2.  **Application Server (Gunicorn + Flask):** Menjalankan logika bisnis, autentikasi, dan pemrosesan ML.
+3.  **Database (PostgreSQL):** Menyimpan data user, dataset, hasil scraping, dan hasil klasifikasi.
+4.  **ML Engine:** Modul terintegrasi di dalam aplikasi Flask untuk memuat model (IndoBERT/Word2Vec) ke memori.
 
 ---
 
-## 2. Spesifikasi Kebutuhan Perangkat (Hardware Requirements)
+## 2. Spesifikasi Teknis
 
-### Server (Production / VPS)
-*   **CPU:** Minimal 2 vCPU (Disarankan 4 vCPU untuk training model/fine-tuning).
-*   **RAM:** Minimal 4 GB (Disarankan 8 GB jika menggunakan model IndoBERT aktif).
-*   **Storage:** Minimal 20 GB SSD (untuk dataset, model, dan log).
-*   **OS:** Ubuntu 20.04 / 22.04 LTS atau Debian 11+.
+### Technology Stack
+| Komponen | Teknologi | Versi | Deskripsi |
+| :--- | :--- | :--- | :--- |
+| **Backend** | Python Flask | 2.3.3 | Framework web utama. |
+| **Database** | PostgreSQL | 14+ | RDBMS transactional. |
+| **ORM** | SQLAlchemy | 3.0.5 | Abstraksi database. |
+| **ML Libraries** | Scikit-learn | 1.3.0 | Algoritma klasifikasi konvensional. |
+| **NLP** | Gensim | 4.3.2 | Word embedding (Word2Vec). |
+| **Transformers** | HuggingFace | 4.30.0 | Model IndoBERT. |
+| **Container** | Docker | 24.0+ | Runtime lingkungan isolasi. |
 
-### Client (Pengguna)
-*   **Perangkat:** Laptop, PC, Tablet, atau Smartphone.
-*   **Browser:** Google Chrome (Terbaru), Firefox, Safari, Edge.
-*   **Koneksi Internet:** Diperlukan untuk akses web dan fitur scraping.
+### Dependensi Kunci
+*   `psycopg2-binary`: Driver database PostgreSQL.
+*   `Flask-Login`: Manajemen sesi user.
+*   `Flask-WTF`: Form handling dan proteksi CSRF.
+*   `gunicorn`: WSGI HTTP Server.
 
 ---
 
-## 3. Spesifikasi Kebutuhan Perangkat Lunak (Software Stack)
+## 3. Alur Data (Data Flow)
 
-| Komponen | Teknologi / Library | Keterangan |
+Berikut adalah diagram alur data utama mulai dari input user hingga hasil klasifikasi.
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant F as Frontend
+    participant B as Backend API
+    participant S as Scraper Service
+    participant M as ML Engine
+    participant D as Database
+
+    %% Flow Scraping
+    U->>F: Request Scraping (Keyword)
+    F->>B: POST /api/scraping/start
+    B->>S: Trigger Apify Actor
+    S-->>B: Return Job ID
+    B-->>F: Job ID Created
+    
+    loop Polling Status
+        F->>B: GET /api/scraping/progress/{id}
+        B->>S: Check Apify Status
+        S-->>B: Status (Running/Finished)
+        B-->>F: Update UI Progress
+    end
+
+    S->>B: Data Scraped (JSON)
+    B->>D: Save Raw Data
+
+    %% Flow Klasifikasi
+    U->>F: Start Classification
+    F->>B: POST /api/classify
+    B->>D: Fetch Raw Data
+    B->>M: Preprocessing (Clean/Tokenize)
+    M->>M: Feature Extraction (Word2Vec/BERT)
+    M->>M: Predict (Radikal/Non)
+    M-->>B: Result & Probability
+    B->>D: Save Classification Result
+    B-->>F: Show Dashboard Result
+```
+
+---
+
+## 4. Instalasi & Konfigurasi
+
+Panduan ringkas untuk setup lingkungan produksi.
+
+### Prasyarat
+*   OS: Linux Ubuntu 20.04/22.04 LTS
+*   RAM: Min 8GB (karena model ML berat)
+*   Docker & Docker Compose terinstall
+
+### Langkah Instalasi
+1.  **Clone Repository:**
+    ```bash
+    git clone https://github.com/Sandiman184/waskita-app.git
+    cd waskita-app
+    ```
+
+2.  **Konfigurasi Environment:**
+    ```bash
+    cp .env.example.docker .env
+    nano .env
+    # Isi SECRET_KEY, DATABASE_URL, MAIL_PASSWORD, dll.
+    ```
+
+3.  **Build & Run:**
+    ```bash
+    docker compose -f docker/docker-compose.prod.yml up -d --build
+    ```
+
+4.  **Inisialisasi Database:**
+    ```bash
+    docker compose -f docker/docker-compose.prod.yml run --rm backend flask db upgrade
+    docker compose -f docker/docker-compose.prod.yml run --rm backend python src/backend/create_admin.py
+    ```
+
+---
+
+## 5. Dokumentasi API
+
+Berikut adalah dokumentasi endpoint utama yang digunakan oleh frontend.
+
+### A. Health Check
+Memeriksa status server dan ketersediaan model ML.
+*   **Endpoint:** `GET /api/health`
+*   **Response (200 OK):**
+    ```json
+    {
+      "status": "healthy"
+    }
+    ```
+
+### B. Scraping Progress
+Melihat status proses scraping data.
+*   **Endpoint:** `GET /api/scraping/progress/<job_id>`
+*   **Headers:** `Authorization: Bearer <token>` (jika pakai JWT) atau Session Cookie.
+*   **Response (200 OK):**
+    ```json
+    {
+      "success": true,
+      "data": {
+        "status": "RUNNING",
+        "progress_percentage": 45,
+        "items_processed": 150,
+        "requests_handled": 160
+      }
+    }
+    ```
+
+### C. Klasifikasi Data
+Melakukan klasifikasi pada teks input.
+*   **Endpoint:** `POST /api/classify/text`
+*   **Body:**
+    ```json
+    {
+      "text": "Konten yang ingin dianalisis...",
+      "model": "indobert"
+    }
+    ```
+*   **Response (200 OK):**
+    ```json
+    {
+      "label": "non-radikal",
+      "probability": {
+        "radikal": 0.15,
+        "non-radikal": 0.85
+      },
+      "processing_time": 0.45
+    }
+    ```
+
+---
+
+## 6. Error Handling
+
+Aplikasi menggunakan kode status HTTP standar untuk komunikasi error.
+
+| Kode Status | Keterangan | Penyebab Umum |
 | :--- | :--- | :--- |
-| **Bahasa Pemrograman** | Python 3.10+ | Core logic backend & ML. |
-| **Web Server** | Nginx | Reverse proxy, SSL termination, static file serving. |
-| **App Server** | Gunicorn | WSGI HTTP Server untuk menjalankan Flask di production. |
-| **Database** | PostgreSQL | Penyimpanan data relasional (User, Dataset, Hasil). |
-| **ORM** | SQLAlchemy | Abstraksi database dan manajemen model. |
-| **ML Libraries** | Scikit-learn, Transformers, PyTorch, Gensim | Training dan inferensi klasifikasi teks. |
-| **NLP Libraries** | Sastrawi, NLTK | Preprocessing teks Bahasa Indonesia (Stopword, Stemming). |
-| **Task Queue** | Celery + Redis (Opsional) | Untuk background task berat (Scraping/Training). |
-| **Frontend UI** | Soft UI Dashboard (Bootstrap 5) | Desain antarmuka modern, responsif, dan support Dark Mode. |
+| **200 OK** | Sukses | Request berhasil diproses. |
+| **400 Bad Request** | Format Salah | Input JSON tidak valid atau parameter kurang. |
+| **401 Unauthorized** | Tidak Login | Sesi habis atau belum login. |
+| **403 Forbidden** | Akses Ditolak | User biasa mencoba mengakses fitur Admin. |
+| **404 Not Found** | Tidak Ditemukan | Endpoint atau ID data tidak ada di database. |
+| **500 Server Error** | Masalah Server | Crash pada model ML atau koneksi DB terputus. |
 
----
-
-## 4. Spesifikasi Fungsional
-
-### A. Manajemen Pengguna & Keamanan
-1.  **Login & Registrasi:** Support hashing password (Bcrypt) dan verifikasi email (OTP).
-2.  **Role Management:** Pemisahan akses antara **Admin** (Full Access) dan **User** (Limited).
-3.  **Session Security:** Timeout otomatis, proteksi CSRF, dan Secure Cookies.
-
-### B. Pengolahan Data
-1.  **Upload Dataset:** Support format `.csv` dan `.xlsx` dengan validasi struktur kolom.
-2.  **Scraping Media Sosial:** Integrasi API (via Apify) untuk Twitter, TikTok, Facebook.
-3.  **Preprocessing:** Pembersihan data otomatis (hapus emoji, url, normalisasi kata).
-
-### C. Klasifikasi & AI
-Aplikasi mendukung **Multi-Model Classification** yang memungkinkan pengguna memilih algoritma sesuai kebutuhan:
-
-1.  **Deep Learning Model:**
-    *   **IndoBERT:** Fine-tuned `indobenchmark/indobert-base-p1`. Akurasi tinggi dengan pemahaman konteks.
-2.  **Conventional ML Models (via Word2Vec Features):**
-    *   **Naive Bayes:** GaussianNB.
-    *   **SVM:** RBF Kernel + CalibratedClassifierCV.
-    *   **Random Forest:** Balanced Class Weight.
-    *   **Logistic Regression.**
-    *   **KNN:** 5 Neighbors.
-    *   **Decision Tree.**
-3.  **Output:** Label "Radikal" / "Non-Radikal" beserta skor probabilitas (Confidence Score).
-4.  **Fine-Tuning:** Fitur untuk melatih ulang model dengan dataset baru (Admin only).
-
-### D. Antarmuka Pengguna (UI/UX)
-1.  **Responsive Design:** Tampilan menyesuaikan layar Desktop, Tablet, dan Mobile.
-2.  **Dark Mode:** Mode gelap sebagai default (sesuai User Rules), opsi switch ke Light Mode.
-3.  **Dashboard Interaktif:** Grafik statistik dataset dan hasil klasifikasi.
-
----
-
-## 5. Spesifikasi Lingkungan (Environment)
-
-Aplikasi menggunakan konfigurasi berbasis **12-Factor App** melalui file `.env`:
-
-*   `FLASK_ENV`: development / production
-*   `DATABASE_URL`: Connection string PostgreSQL
-*   `SECRET_KEY`: Kunci enkripsi sesi
-*   `MAIL_*`: Konfigurasi SMTP Server
-*   `APIFY_*`: Token dan Actor ID untuk scraping
-
----
-
-## 7. Batasan Sistem
-
-*   **Ukuran File Upload:** 
-    *   Maksimal 10GB per file (diperbarui untuk mendukung model IndoBERT dan Word2Vec skala besar).
-    *   Menggunakan mekanisme **Chunked Upload** (pecahan 2MB) untuk menghindari timeout server pada file besar.
-    *   Didukung fitur **Automatic Retry** (hingga 10 kali) untuk menangani koneksi tidak stabil saat upload.
-*   **Waktu Proses:** Klasifikasi massal (>10.000 data) memerlukan waktu pemrosesan background.
-*   **Dependensi Eksternal:** Fitur scraping bergantung pada ketersediaan API pihak ketiga (Apify).
-*   **Bahasa:** Model ML dioptimalkan khusus untuk Bahasa Indonesia (termasuk bahasa gaul/slang medsos).
-
----
-
-## 8. Pemeliharaan (Maintenance)
-
-*   **Backup:** Backup database harian disarankan (bisa diotomatisasi via script cronjob di VPS).
-*   **Log Rotation:** Log aplikasi dirotasi otomatis (maksimal 10MB x 3 file) agar tidak memenuhi disk.
-*   **Update Model:** Model perlu dilatih ulang secara berkala jika ada tren bahasa baru atau pergeseran topik radikalisme.
+### Format Response Error
+```json
+{
+  "success": false,
+  "message": "Deskripsi error yang user-friendly",
+  "error_code": "DB_CONNECTION_ERROR"
+}
+```

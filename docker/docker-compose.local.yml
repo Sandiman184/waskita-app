@@ -24,11 +24,11 @@ services:
     deploy:
       resources:
         limits:
-          memory: 4G
+          memory: 6G
         reservations:
           memory: 2G
     # Use preload to share memory and reduce workers for local dev stability
-    command: ["gunicorn", "-w", "1", "-k", "gthread", "--threads", "4", "-b", "0.0.0.0:5000", "--timeout", "120", "--preload", "app:app"]
+    command: ["gunicorn", "-w", "1", "-k", "gthread", "--threads", "4", "-b", "0.0.0.0:5000", "--timeout", "300", "--preload", "app:app"]
     volumes:
       - ../src:/app/src
       - waskita_logs:/app/logs

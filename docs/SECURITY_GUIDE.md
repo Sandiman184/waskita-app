@@ -1,110 +1,140 @@
 # 🔒 PANDUAN KEAMANAN APLIKASI WASKITA
 
-Dokumen ini menjelaskan arsitektur keamanan, fitur proteksi, dan praktik terbaik yang diterapkan dalam aplikasi Waskita.
+**Versi Dokumen:** 2.0  
+**Tanggal Pembaruan:** 19 Desember 2025
+
+Dokumen ini menjelaskan arsitektur keamanan, analisis risiko, dan prosedur penanganan insiden untuk aplikasi Waskita.
 
 ---
 
 ## 📋 DAFTAR ISI
-1. [Ringkasan Fitur Keamanan](#1-ringkasan-fitur-keamanan)
-2. [Sistem Autentikasi & Otorisasi](#2-sistem-autentikasi--otorisasi)
-3. [Manajemen Sesi & Proteksi Data](#3-manajemen-sesi--proteksi-data)
-4. [Keamanan Deployment (Docker & VPS)](#4-keamanan-deployment)
-5. [Audit & Logging](#5-audit--logging)
-6. [Checklist Keamanan untuk Admin](#6-checklist-keamanan-untuk-admin)
+1. [Arsitektur Keamanan](#1-arsitektur-keamanan)
+2. [Analisis Risiko (Threat Modeling)](#2-analisis-risiko-threat-modeling)
+3. [Mekanisme Proteksi Data](#3-mekanisme-proteksi-data)
+4. [Audit & Monitoring](#4-audit--monitoring)
+5. [Prosedur Penanganan Insiden](#5-prosedur-penanganan-insiden)
+6. [Kebijakan Pembaruan](#6-kebijakan-pembaruan)
 
 ---
 
-## 1. Ringkasan Fitur Keamanan
+## 1. Arsitektur Keamanan
 
-Aplikasi Waskita dirancang dengan pendekatan *Security by Design*, mencakup:
+Sistem menerapkan pendekatan **Defense in Depth** dengan beberapa lapisan pertahanan.
 
-| Fitur | Deskripsi | Status |
-| :--- | :--- | :--- |
-| **Password Hashing** | Menggunakan algoritma **Bcrypt** (via Werkzeug) untuk menyimpan password. | ✅ Aktif |
-| **CSRF Protection** | Perlindungan terhadap *Cross-Site Request Forgery* pada semua form (Flask-WTF). | ✅ Aktif |
-| **Secure Session** | Cookie sesi dilindungi dengan flag `HttpOnly`, `Secure` (di production), dan `SameSite=Lax`. | ✅ Aktif |
-| **Rate Limiting** | Membatasi jumlah request untuk mencegah Brute Force (Flask-Limiter). | ✅ Aktif |
-| **Input Validation** | Validasi ketat pada input form dan upload file (MIME type check). | ✅ Aktif |
-| **SQL Injection** | Menggunakan ORM (SQLAlchemy) yang secara otomatis menolak injeksi SQL. | ✅ Aktif |
-| **XSS Protection** | Auto-escaping pada template Jinja2 untuk mencegah script berbahaya. | ✅ Aktif |
-
----
-
-## 2. Sistem Autentikasi & Otorisasi
-
-### 2.1 Multi-Level User Roles
-Sistem membedakan hak akses berdasarkan peran:
-*   **Admin:** Akses penuh (CRUD User, Dataset, Klasifikasi, Reset Password).
-*   **User Biasa:** Akses terbatas pada data pribadi dan fitur klasifikasi.
-
-### 2.2 Verifikasi OTP (One-Time Password)
-Untuk meningkatkan keamanan saat registrasi atau login pertama:
-*   **Mekanisme:** Mengirim kode 6 digit ke email pengguna.
-*   **Provider:** Menggunakan SMTP Gmail dengan App Password.
-*   **Keamanan:** Kode berlaku 5 menit, maksimal 3x percobaan salah sebelum akun dikunci sementara.
-
-### 2.3 Manajemen Password
-*   **Hashing:** Password tidak pernah disimpan dalam bentuk teks asli (plain text).
-*   **Reset Password:** Fitur reset password mengirim token aman ke email pengguna.
-
----
-
-## 3. Manajemen Sesi & Proteksi Data
-
-### 3.1 Konfigurasi Cookie
-Dalam file `.env` (atau `.env.production`), konfigurasi sesi diatur sebagai berikut:
-```ini
-SESSION_COOKIE_HTTPONLY=True  # Mencegah akses cookie via JavaScript
-SESSION_COOKIE_SECURE=True    # Hanya kirim cookie via HTTPS (Production)
-SESSION_COOKIE_SAMESITE=Lax   # Mencegah CSRF lintas domain
+```mermaid
+graph TD
+    Attacker[External Threat] -- DDOS/Exploit --> CloudFlare[Network Firewall / Cloudflare]
+    CloudFlare --> Nginx[Nginx (Reverse Proxy & SSL)]
+    
+    subgraph "App Layer Security"
+        Nginx -- Rate Limiting --> Flask[Flask App]
+        Flask -- Auth & CSRF --> Logic[Business Logic]
+        Logic -- Sanitization --> DB[(Database)]
+    end
+    
+    subgraph "Data Security"
+        DB -- Encryption at Rest --> Disk[Storage]
+        Logic -- Hashing --> Passwords[User Credentials]
+    end
 ```
 
-### 3.2 Proteksi Upload File
-*   **Validasi Ekstensi:** Hanya mengizinkan `.csv`, `.xlsx`, `.xls`.
-*   **Validasi Konten:** Memeriksa header file untuk memastikan tipe MIME yang benar.
-*   **Sanitasi Nama File:** Menggunakan `secure_filename()` untuk mencegah path traversal.
-
-### 3.3 Penanganan Data Sensitif
-*   **Environment Variables:** Kredensial (DB Password, API Keys, Secret Keys) **WAJIB** disimpan di file `.env` dan **TIDAK BOLEH** di-commit ke Git.
-*   **Placeholder:** Gunakan `.env.example` dengan nilai placeholder untuk referensi developer lain.
+### Komponen Kunci
+1.  **Network Level:** Hanya port 443 (HTTPS) dan 22 (SSH - Restricted) yang dibuka.
+2.  **Application Level:** Flask-Limiter untuk rate limiting, Flask-WTF untuk CSRF protection.
+3.  **Data Level:** Enkripsi password dengan Bcrypt dan sanitasi input database.
 
 ---
 
-## 4. Keamanan Deployment
+## 2. Analisis Risiko (Threat Modeling)
 
-### 4.1 Docker Security
-*   **Non-Root User:** Container aplikasi berjalan sebagai user biasa (`waskita`), bukan `root`.
-*   **Minimal Base Image:** Menggunakan `python:3.11-slim` untuk mengurangi *attack surface*.
-*   **Network Isolation:** Database tidak diekspos ke publik, hanya bisa diakses oleh container aplikasi dalam network internal Docker.
+Kami menggunakan model STRIDE untuk mengidentifikasi dan memitigasi ancaman.
 
-### 4.2 VPS & Nginx Security (Production)
-*   **SSL/HTTPS:** Wajib menggunakan sertifikat SSL (Let's Encrypt) yang diatur otomatis oleh script deployment.
-*   **Reverse Proxy:** Nginx bertindak sebagai gerbang depan, menyembunyikan server aplikasi (Gunicorn).
-*   **Firewall:** Hanya port 80 (HTTP), 443 (HTTPS), dan 22 (SSH) yang dibuka.
-
----
-
-## 5. Audit & Logging
-
-### 5.1 Audit Trail
-Sistem mencatat aktivitas penting pengguna ke database/log:
-*   Login/Logout sukses & gagal.
-*   Upload & penghapusan dataset.
-*   Perubahan konfigurasi oleh Admin.
-
-### 5.2 Error Logging
-*   Di mode produksi, error detail **tidak ditampilkan** ke pengguna (halaman 500 generik).
-*   Log error lengkap disimpan di server untuk analisis developer.
+| Kategori (STRIDE) | Ancaman Potensial | Mitigasi yang Diterapkan |
+| :--- | :--- | :--- |
+| **Spoofing** | Penyerang menyamar sebagai user lain. | Autentikasi ketat (Session + OTP), Secure Cookie, `SameSite=Lax`. |
+| **Tampering** | Memanipulasi data klasifikasi/hasil. | Validasi input server-side, integritas database, CSRF token pada setiap form POST. |
+| **Repudiation** | User menyangkal melakukan aksi berbahaya. | **Audit Logging** komprehensif mencatat setiap aksi kritis (Login, Upload, Delete) dengan IP & Timestamp. |
+| **Information Disclosure** | Kebocoran data sensitif (error logs). | Debug Mode `False` di production. Error generik untuk user, log detail hanya di server. |
+| **Denial of Service** | Membanjiri server dengan request scraping. | **Rate Limiting** (Flask-Limiter) pada endpoint API dan Login. Pembatasan ukuran file upload (Max 10GB). |
+| **Elevation of Privilege** | User biasa mengakses fitur Admin. | Dekorator `@admin_required` pada setiap route sensitif. Pengecekan role di setiap fungsi backend. |
 
 ---
 
-## 6. Checklist Keamanan untuk Admin
+## 3. Mekanisme Proteksi Data
 
-Sebelum aplikasi dibuka ke publik, Admin wajib memastikan:
-- [ ] File `.env` produksi tidak boleh ada di repository Git.
-- [ ] `SECRET_KEY`, `JWT_SECRET_KEY`, dan `WTF_CSRF_SECRET_KEY` menggunakan string acak yang panjang.
-- [ ] Password database (`POSTGRES_PASSWORD`) kuat dan unik.
-- [ ] Debug Mode (`FLASK_DEBUG`) bernilai `False` di production.
-- [ ] SSL/HTTPS aktif dan sertifikat valid.
-- [ ] Port database (5432) tidak terekspos ke internet publik (hanya via Docker network).
-- [ ] Akun Admin default sudah diganti passwordnya.
+### A. Enkripsi Data (Data Encryption)
+1.  **In Transit (Saat Transmisi):**
+    *   Seluruh komunikasi Wajib menggunakan **TLS 1.2/1.3** (HTTPS).
+    *   Sertifikat SSL dikelola otomatis oleh Certbot (Let's Encrypt).
+    *   Header HSTS (*HTTP Strict Transport Security*) diaktifkan di Nginx.
+
+2.  **At Rest (Saat Disimpan):**
+    *   **Password:** Disimpan sebagai hash menggunakan **Bcrypt** (Work factor default).
+    *   **Database:** Volume Docker database terlindungi oleh permission sistem operasi (hanya root/docker user).
+    *   **Environment Variables:** Kredensial sensitif tidak di-hardcode, melainkan dibaca dari file `.env` yang tidak masuk version control.
+
+### B. Autentikasi & Otorisasi
+*   **Multi-Factor Authentication (MFA):** OTP via Email wajib untuk login pertama atau aktivitas mencurigakan.
+*   **Session Management:**
+    *   `HTTPOnly`: True (Mencegah XSS mengambil cookie).
+    *   `Secure`: True (Hanya dikirim via HTTPS).
+    *   `Lifetime`: Sesi kadaluarsa otomatis setelah 24 jam.
+
+---
+
+## 4. Audit & Monitoring
+
+### Audit Logging
+Setiap aksi yang mengubah state sistem dicatat di tabel `user_activities` dan log file.
+
+**Contoh Log Audit:**
+```json
+{
+  "timestamp": "2025-12-19T10:00:00Z",
+  "user_id": 1,
+  "action": "DELETE_DATASET",
+  "resource_id": "dataset_123",
+  "ip_address": "202.158.x.x",
+  "status": "SUCCESS"
+}
+```
+
+### Monitoring Server
+*   **Resource Monitoring:** Penggunaan CPU/RAM container dipantau (via `docker stats`).
+*   **Application Logs:** Log aplikasi Flask disimpan di `/var/log/waskita/` dengan rotasi harian.
+
+---
+
+## 5. Prosedur Penanganan Insiden
+
+Jika terjadi indikasi pelanggaran keamanan (misal: Brute Force attack, kebocoran data):
+
+1.  **Identifikasi & Konfirmasi:**
+    *   Cek log Nginx dan Aplikasi untuk pola anomali.
+    *   Verifikasi laporan dari user atau monitoring system.
+
+2.  **Isolasi (Containment):**
+    *   Blir IP penyerang di firewall/Nginx (`deny <ip>;`).
+    *   Jika akun kompromi: `UPDATE users SET is_active=False WHERE id=<user_id>;`
+
+3.  **Pemberantasan (Eradication):**
+    *   Patch celah keamanan (update code/library).
+    *   Reset password paksa untuk akun terdampak.
+    *   Rotasi `SECRET_KEY` dan API Keys jika diduga bocor.
+
+4.  **Pemulihan (Recovery):**
+    *   Restore database dari backup terakhir yang bersih (jika data rusak).
+    *   Restart layanan: `docker compose restart`.
+    *   Monitoring intensif selama 24 jam pasca insiden.
+
+5.  **Pelajaran (Post-Incident):**
+    *   Buat laporan insiden (Root Cause Analysis).
+    *   Update dokumen ini jika ada prosedur baru.
+
+---
+
+## 6. Kebijakan Pembaruan
+
+1.  **OS & Docker:** Update keamanan sistem operasi host dilakukan setiap bulan (`apt update && apt upgrade`).
+2.  **Dependencies:** Cek dependensi Python (`pip list --outdated`) setiap rilis minor baru.
+3.  **Database:** Backup data sebelum melakukan upgrade versi mayor PostgreSQL.

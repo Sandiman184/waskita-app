@@ -183,7 +183,12 @@
                                                 <div class="progress mb-2">
                                                     <div id="upload-progress-bar" class="progress-bar bg-info progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%">0%</div>
                                                 </div>
-                                                <small id="upload-status-text" class="text-muted">Preparing...</small>
+                                                <div class="d-flex justify-content-between align-items-center">
+                                                    <small id="upload-status-text" class="text-muted">Preparing...</small>
+                                                    <button type="button" id="btn-cancel-indobert" class="btn btn-xs btn-danger ml-2" style="display:none;">
+                                                        <i class="fas fa-times mr-1"></i> Cancel
+                                                    </button>
+                                                </div>
                                             </div>
 
                                             <button type="button" id="btn-upload-indobert" class="btn btn-info btn-block mt-3">
@@ -215,7 +220,12 @@
                                                     <div class="progress mb-2">
                                                         <div id="w2v-progress-bar" class="progress-bar bg-success progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%">0%</div>
                                                     </div>
-                                                    <small id="w2v-status-text" class="text-muted">Preparing...</small>
+                                                    <div class="d-flex justify-content-between align-items-center">
+                                                        <small id="w2v-status-text" class="text-muted">Preparing...</small>
+                                                        <button type="button" id="btn-cancel-word2vec" class="btn btn-xs btn-danger ml-2" style="display:none;">
+                                                            <i class="fas fa-times mr-1"></i> Cancel
+                                                        </button>
+                                                    </div>
                                                 </div>
 
                                                 <button type="button" id="btn-upload-word2vec" class="btn btn-success btn-block mt-3">
@@ -348,13 +358,16 @@
             constructor(options) {
                 this.fileInputId = options.fileInputId;
                 this.btnId = options.btnId;
+                this.cancelBtnId = options.cancelBtnId;
                 this.progressContainerId = options.progressContainerId;
                 this.progressBarId = options.progressBarId;
                 this.statusTextId = options.statusTextId;
                 this.modelType = options.modelType;
                 this.acceptedExt = options.acceptedExt;
-                this.chunkSize = 2 * 1024 * 1024; // 2MB
-                this.maxRetries = 10;
+                this.chunkSize = 1024 * 1024; // 1MB reduced from 2MB to avoid 429/499 errors
+                this.maxRetries = 20; // Increased retries
+                this.currentUploadId = null;
+                this.isCancelled = false;
                 
                 this.init();
             }
@@ -372,6 +385,13 @@
                 $(`#${this.btnId}`).on('click', function() {
                     self.startUpload();
                 });
+
+                // Cancel button
+                if (this.cancelBtnId) {
+                    $(`#${this.cancelBtnId}`).on('click', function() {
+                        self.cancelUpload();
+                    });
+                }
             }
             
             updateProgress(percent, message) {
@@ -382,7 +402,42 @@
             resetUpload() {
                 $(`#${this.btnId}`).prop('disabled', false);
                 $(`#${this.progressContainerId}`).hide();
+                if (this.cancelBtnId) $(`#${this.cancelBtnId}`).hide();
                 this.updateProgress(0, '');
+                
+                // Reset file input to allow re-uploading the same file
+                $(`#${this.fileInputId}`).val('');
+                $(`#${this.fileInputId}`).next('.custom-file-label').removeClass("selected").html(
+                    this.modelType === 'indobert' ? 'Choose .zip file (Max 1GB)' : 'Choose .joblib file (Max 10GB)'
+                );
+                
+                this.currentUploadId = null;
+                this.isCancelled = false;
+            }
+
+            async cancelUpload() {
+                if (!this.currentUploadId) return;
+                
+                if (!confirm('Are you sure you want to cancel this upload?')) return;
+                
+                this.isCancelled = true;
+                
+                try {
+                    await $.ajax({
+                        url: "{{ url_for('admin.upload_cancel') }}",
+                        type: 'POST',
+                        data: {
+                            upload_id: this.currentUploadId,
+                            csrf_token: "{{ csrf_token() }}"
+                        }
+                    });
+                    
+                    Swal.fire('Cancelled', 'Upload has been cancelled', 'info');
+                } catch (e) {
+                    console.error("Cancel failed", e);
+                } finally {
+                    this.resetUpload();
+                }
             }
             
             async startUpload() {
@@ -402,6 +457,9 @@
                 // Disable button
                 $(`#${this.btnId}`).prop('disabled', true);
                 $(`#${this.progressContainerId}`).show();
+                if (this.cancelBtnId) $(`#${this.cancelBtnId}`).show();
+
+                this.isCancelled = false;
                 
                 try {
                     // 1. Init Upload
@@ -420,91 +478,105 @@
                     
                     if (!initRes.upload_id) throw new Error("No upload ID returned");
                     
-                    const uploadId = initRes.upload_id;
+                    this.currentUploadId = initRes.upload_id;
                     const totalChunks = Math.ceil(file.size / this.chunkSize);
                     
                     // 2. Upload Chunks
                     for (let i = 0; i < totalChunks; i++) {
+                        if (this.isCancelled) throw new Error("Upload cancelled by user");
+
                         const start = i * this.chunkSize;
                         const end = Math.min(start + this.chunkSize, file.size);
                         const chunk = file.slice(start, end);
                         
-                        await this.uploadChunkWithRetry(uploadId, i, chunk, totalChunks);
+                        await this.uploadChunkWithRetry(this.currentUploadId, i, chunk, totalChunks);
                         
                         // Update UI progress (0-50%)
                         const percent = (i + 1) / totalChunks * 50;
                         this.updateProgress(percent, `Uploading chunk ${i+1}/${totalChunks}...`);
+                        
+                        // Small delay to prevent rate limiting
+                        await new Promise(r => setTimeout(r, 100));
                     }
                     
                     // 3. Finish Upload
+                    if (this.isCancelled) throw new Error("Upload cancelled by user");
+
                     this.updateProgress(50, 'Processing on server...');
                     await $.ajax({
                         url: "{{ url_for('admin.upload_finish') }}",
                         type: 'POST',
                         data: {
-                            upload_id: uploadId,
+                            upload_id: this.currentUploadId,
                             csrf_token: "{{ csrf_token() }}"
                         }
                     });
                     
                     // 4. Poll Status
-                    this.pollStatus(uploadId);
+                    this.pollStatus(this.currentUploadId);
                     
                 } catch (e) {
+                    if (this.isCancelled) return; // Already handled
                     console.error(e);
                     Swal.fire('Error', e.message || 'Upload failed', 'error');
                     this.resetUpload();
                 }
             }
             
-            async uploadChunkWithRetry(uploadId, chunkIndex, chunk, totalChunks) {
-                let retries = 0;
-                while (retries < this.maxRetries) {
-                    try {
-                        const formData = new FormData();
-                        formData.append('upload_id', uploadId);
-                        formData.append('chunk_index', chunkIndex);
-                        formData.append('chunk', chunk);
-                        formData.append('csrf_token', "{{ csrf_token() }}");
-                        
-                        await $.ajax({
-                            url: "{{ url_for('admin.upload_chunk') }}",
-                            type: 'POST',
-                            data: formData,
-                            processData: false,
-                            contentType: false,
-                            timeout: 60000 // 60s timeout per chunk
-                        });
-                        return; // Success
-                    } catch (e) {
-                        retries++;
-                        console.warn(`Chunk ${chunkIndex} failed (Attempt ${retries}/${this.maxRetries}):`, e);
-                        if (retries >= this.maxRetries) {
-                            throw new Error(`Upload failed at chunk ${chunkIndex} after ${retries} retries. Please check your connection.`);
-                        }
-                        // Exponential backoff
-                        const delay = Math.min(1000 * Math.pow(2, retries), 10000);
-                        this.updateProgress((chunkIndex / totalChunks * 50), `Retrying chunk ${chunkIndex+1} (Attempt ${retries+1})...`);
-                        await new Promise(resolve => setTimeout(resolve, delay));
+            async uploadChunkWithRetry(uploadId, chunkIndex, chunk, totalChunks, retryCount = 0) {
+                if (this.isCancelled) throw new Error("Upload cancelled");
+
+                const formData = new FormData();
+                formData.append('upload_id', uploadId);
+                formData.append('chunk_index', chunkIndex);
+                formData.append('chunk', chunk);
+                formData.append('csrf_token', "{{ csrf_token() }}");
+
+                try {
+                    await $.ajax({
+                        url: "{{ url_for('admin.upload_chunk') }}",
+                        type: 'POST',
+                        data: formData,
+                        processData: false,
+                        contentType: false,
+                        timeout: 30000 // 30s timeout per chunk
+                    });
+                } catch (e) {
+                    if (this.isCancelled) throw new Error("Upload cancelled");
+
+                    if (retryCount < this.maxRetries) {
+                        const delay = Math.pow(2, retryCount) * 1000; // Exponential backoff
+                        console.warn(`Chunk ${chunkIndex} failed, retrying in ${delay}ms...`);
+                        await new Promise(r => setTimeout(r, delay));
+                        return this.uploadChunkWithRetry(uploadId, chunkIndex, chunk, totalChunks, retryCount + 1);
                     }
+                    throw e;
                 }
             }
-            
+
             pollStatus(uploadId) {
                 const self = this;
-                const interval = setInterval(function() {
+                const pollInterval = setInterval(function() {
+                    if (self.isCancelled) {
+                        clearInterval(pollInterval);
+                        return;
+                    }
+
                     $.ajax({
                         url: "{{ url_for('admin.upload_status', upload_id='') }}" + uploadId,
                         type: 'GET',
                         success: function(data) {
                             if (data.status === 'completed') {
-                                clearInterval(interval);
+                                clearInterval(pollInterval);
                                 self.updateProgress(100, 'Completed!');
-                                Swal.fire('Success', `${self.modelType} model updated successfully!`, 'success')
-                                    .then(() => window.location.reload());
+                                Swal.fire('Success', data.message || 'Upload completed successfully', 'success')
+                                    .then(() => location.reload()); // Reload to refresh model status
                             } else if (data.status === 'failed') {
-                                clearInterval(interval);
+                                clearInterval(pollInterval);
                                 Swal.fire('Error', data.error || 'Processing failed', 'error');
+                                self.resetUpload();
+                            } else if (data.status === 'cancelled') {
+                                clearInterval(pollInterval);
                                 self.resetUpload();
                             } else {
                                 var backendProgress = data.progress || 0;
@@ -512,8 +584,11 @@
                                 self.updateProgress(uiProgress, data.message || 'Processing...');
                             }
                         },
-                        error: function() {
-                            // Don't stop polling on transient network errors, just wait
+                        error: function(xhr) {
+                             if (xhr.status === 404) {
+                                clearInterval(pollInterval);
+                                self.resetUpload();
+                             }
                             console.warn("Status poll failed, retrying...");
                         }
                     });
@@ -525,6 +600,7 @@
         new ChunkUploader({
             fileInputId: 'indobertChunkFile',
             btnId: 'btn-upload-indobert',
+            cancelBtnId: 'btn-cancel-indobert',
             progressContainerId: 'upload-progress-container',
             progressBarId: 'upload-progress-bar',
             statusTextId: 'upload-status-text',
@@ -535,11 +611,12 @@
         new ChunkUploader({
             fileInputId: 'word2vecChunkFile',
             btnId: 'btn-upload-word2vec',
+            cancelBtnId: 'btn-cancel-word2vec',
             progressContainerId: 'w2v-progress-container',
             progressBarId: 'w2v-progress-bar',
             statusTextId: 'w2v-status-text',
             modelType: 'word2vec',
-            acceptedExt: '.joblib' // Assuming word2vec is saved as joblib or similar, user said "Upload model besar"
+            acceptedExt: '.joblib'
         });
 
         // Restart Server Handler
