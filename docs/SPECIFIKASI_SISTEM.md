@@ -1,7 +1,7 @@
 # 📘 SPESIFIKASI SISTEM APLIKASI WASKITA
 
-**Versi Dokumen:** 2.0  
-**Tanggal Pembaruan:** 19 Desember 2025
+**Versi Dokumen:** 2.1
+**Tanggal Pembaruan:** 24 Desember 2025
 
 Dokumen ini merinci spesifikasi teknis, arsitektur, dan kebutuhan sistem untuk aplikasi Waskita (Analisis Konten Radikal).
 
@@ -39,6 +39,35 @@ graph TD
     end
 ```
 
+### Diagram Topologi Docker
+Berikut adalah topologi kontainer dalam jaringan internal Docker.
+
+```mermaid
+graph TB
+    subgraph "Docker Host"
+        subgraph "Internal Network (waskita_network)"
+            Backend[Backend Container<br/>(Flask App)]
+            DB[(Database Container<br/>PostgreSQL)]
+            Redis[(Redis Container<br/>Cache & Queue)]
+            Scraper[Scraper Container<br/>(Data Collector)]
+        end
+        
+        Nginx[Nginx Container<br/>Reverse Proxy]
+    end
+    
+    User((End User)) -->|Port 80/443| Nginx
+    Nginx -->|Proxy Pass :5000| Backend
+    Backend -->|Read/Write| DB
+    Backend -->|Cache/Job| Redis
+    Backend <-->|Job Sync| Scraper
+    
+    style Backend fill:#e1f5fe,stroke:#01579b
+    style DB fill:#e8f5e9,stroke:#2e7d32
+    style Redis fill:#ffebee,stroke:#c62828
+    style Scraper fill:#fff3e0,stroke:#ef6c00
+    style Nginx fill:#f3e5f5,stroke:#7b1fa2
+```
+
 ### Komponen Utama
 1.  **Web Server (Nginx):** Menangani koneksi SSL, melayani file statis, dan load balancing request ke aplikasi.
 2.  **Application Server (Gunicorn + Flask):** Menjalankan logika bisnis, autentikasi, dan pemrosesan ML.
@@ -72,6 +101,7 @@ graph TD
 
 Berikut adalah diagram alur data utama mulai dari input user hingga hasil klasifikasi.
 
+### Sequence Diagram: Scraping & Klasifikasi
 ```mermaid
 sequenceDiagram
     participant U as User
@@ -108,6 +138,33 @@ sequenceDiagram
     M-->>B: Result & Probability
     B->>D: Save Classification Result
     B-->>F: Show Dashboard Result
+```
+
+### DFD Level 1: Proses Akuisisi Data
+Diagram berikut menggambarkan aliran data dari layanan eksternal (Apify) hingga tersimpan sebagai Raw Data.
+
+```mermaid
+graph LR
+    subgraph "External Environment"
+        Apify[External Service<br/>(Apify)]
+    end
+
+    subgraph "Application Layer"
+        Process((1.0<br/>Akuisisi & Validasi))
+    end
+
+    subgraph "Data Storage"
+        Store[(Raw Data Store<br/>PostgreSQL)]
+    end
+
+    User[User/Admin] -->|Konfigurasi Keyword| Process
+    Apify -->|JSON Raw Data| Process
+    Process -->|Validate Structure| Process
+    Process -->|Store Valid Data| Store
+    
+    style Apify fill:#fff3e0,stroke:#ef6c00
+    style Process fill:#e1f5fe,stroke:#01579b
+    style Store fill:#e8f5e9,stroke:#2e7d32
 ```
 
 ---
